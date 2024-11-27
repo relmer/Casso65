@@ -87,7 +87,7 @@ public:
 
     enum AddressingMode
     {
-        __AM_First       = 0,
+        __AM_First           = 0,
         AM_ZeroPageXIndirect = 0b000,   // 000 (Zero Page, X)
         AM_ZeroPage          = 0b001,   // 001 Zero Page
         AM_Immediate         = 0b010,   // 010 #Immediate
@@ -178,16 +178,16 @@ public:
     void Reset ();
     void Run ();
 
+
 protected:
     void InitializeInstructionSet ();
     void InitializeGroup01 ();
     void CreateGroup01Instruction (Group01::Opcode opcode, Byte addressingModeFlags, Microcode::Operation operation, Byte * pRegisterAffected);
+    
     void PrintInstructionSet ();
-    Word Decode (Byte opcode);
-    Byte FetchInstruction ();
-
-protected:
-    //void Or (Byte * pRegister, Byte operand);
+    
+    Word FetchOperand       (Instruction instruction);
+    void ExecuteInstruction (Microcode microcode, Word operand);
 
 
 protected:
@@ -205,4 +205,6 @@ protected:
 protected:
     Microcode instructionSet[256];
 };
+
+
 
