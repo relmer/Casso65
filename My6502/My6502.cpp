@@ -9,7 +9,7 @@ int main()
 {
     Cpu cpu;
 
-    //cpu.Reset ();
-    //cpu.Run ();
+    cpu.Reset ();
+    cpu.Run ();
 }
 
