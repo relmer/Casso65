@@ -186,7 +186,8 @@ public:
 protected:
     struct OperandInfo
     {
-        Word offset;
+        Word location;
+        Word effectiveAddress;
         Word operand;
     };
 
