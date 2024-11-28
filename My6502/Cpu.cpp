@@ -47,24 +47,49 @@ void Cpu::Reset ()
     // Zero page + X, indirect
     //X = 0x11;
     //memory[addr++] = 0x01;  // ORA
-    //memory[addr++] = 0x11;  // ($0011 + X)
-    //memory[memory[addr - 1] + X] = 0x33;
-    //memory[addr++] = 0x01;  // ORA
+    //memory[addr++] = 0x11;  // ($0011,X)
+    //memory[memory[addr - 1] + X]     = 0x45;
+    //memory[memory[addr - 1] + X + 1] = 0x23;
+    //memory[0x2345] = 0x55;
+
+    // Zero page indirect, Y
+    //Y = 0x22;
+    //memory[addr++] = 0x11;  // ORA
+    //memory[addr++] = 0x33;  // (22),Y
+    //memory[memory[addr - 1]] = 0x56;
+    //memory[memory[addr - 1] + 1] = 0x34;
+    //memory[0x3456 + Y] = 0x44;
 
     // Zero page
     //memory[addr++] = 0x05;  // ORA
     //memory[addr++] = 0x55;  // ($0055)
     //memory[memory[addr - 1]] = 0x44;
-    //memory[addr++] = 0x09;  // ORA
-    //memory[addr++] = 0x10;  // #$10
+
+    // Zero page, X
+    //X = 0x77;
+    //memory[addr++] = 0x15;  // ORA
+    //memory[addr++] = 0x66;  // ($0055)
+    //memory[(memory[addr - 1] + X) & 0xFF] = 0xEE;
 
     // Absolute
-    memory[addr++] = 0x0D;  // ORA
+    //memory[addr++] = 0x0D;  // ORA
+    //memory[addr++] = 0x34;  // NB:  Little endian
+    //memory[addr++] = 0x12;  // ($1234)
+    //memory[0x1234] = 0x55;
+
+    // Absolute, X
+    X = 0x06;
+    memory[addr++] = 0x1D;  // ORA
     memory[addr++] = 0x34;  // NB:  Little endian
     memory[addr++] = 0x12;  // ($1234)
-    memory[0x1234] = 0x55;
-    memory[addr++] = 0x09;  // ORA
-    memory[addr++] = 0x10;  // #$10
+    memory[0x123A] = 0x99;
+
+    // Absolute, Y
+    Y = 0x0C;
+    memory[addr++] = 0x19;  // ORA
+    memory[addr++] = 0x34;  // NB:  Little endian
+    memory[addr++] = 0x12;  // ($1234)
+    memory[0x1240] = 0xAA;
 }
 
 
@@ -152,11 +177,11 @@ void Cpu::PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo)
     switch (instructionSet[opcode].instruction.asBits.addressingMode)
     {
     case Group01::AM_ZeroPageXIndirect:
-        printf ("($%02X,X)  ; $%02X", operandInfo.offset, operandInfo.operand);
+        printf ("($%02X,X) ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
         break;
 
     case Group01::AM_ZeroPage:
-        printf ("$%02X      ; $%02X", operandInfo.offset, operandInfo.operand);
+        printf ("$%02X     ; $%02X", operandInfo.location, operandInfo.operand);
         break;
 
     case Group01::AM_Immediate:
@@ -164,22 +189,24 @@ void Cpu::PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo)
         break;
 
     case Group01::AM_Absolute:
-        printf ("$%04X      ; $%02X", operandInfo.offset, operandInfo.operand);
+        printf ("$%04X   ; $%02X", operandInfo.location, operandInfo.operand);
         break;
 
-        /*
-        case Group01::AM_ZeroPageIndirectY:
-        return memory[(memory[PC] + Y) & 0xFF];
+    case Group01::AM_ZeroPageIndirectY:
+        printf ("($%02X),Y ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
+        break;
 
-        case Group01::AM_ZeroPageX:
-        return memory[(memory[PC] + Y) & 0xFF];
+    case Group01::AM_ZeroPageX:
+        printf ("$%02X,X   ; $%02X", operandInfo.location, operandInfo.operand);
+        break;
 
-        case Group01::AM_AbsoluteY:
-        return memory[ReadWord (PC) + Y];
+    case Group01::AM_AbsoluteY:
+        printf ("$%04X,Y ; $%02X", operandInfo.location, operandInfo.operand);
+        break;
 
-        case Group01::AM_AbsoluteX:
-        return memory[ReadWord (PC) + X];
-        */
+    case Group01::AM_AbsoluteX:
+        printf ("$%04X,X ; $%02X", operandInfo.location, operandInfo.operand);
+        break;
     }
 }
 
@@ -187,8 +214,9 @@ void Cpu::PrintOperandAndComment (Byte opcode, Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 {
-    operandInfo.offset  = 0;
-    operandInfo.operand = 0;
+    operandInfo.location         = 0;
+    operandInfo.effectiveAddress = 0;
+    operandInfo.operand          = 0;
 
     if (microcode.isSingleByte || !microcode.isLegal)
     {
@@ -200,42 +228,61 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
     switch (microcode.instruction.asBits.addressingMode)
     {
-        case Group01::AM_ZeroPageXIndirect:
-            operandInfo.offset  = memory[PC];
-            operandInfo.operand = memory[operandInfo.offset + X];
-            break;
+    case Group01::AM_ZeroPageXIndirect:
+        operandInfo.location          = memory[PC];
+        operandInfo.effectiveAddress  = memory[(operandInfo.location + X)     & 0xFF]
+                                      | memory[(operandInfo.location + X + 1) & 0xFF] << 8;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
-        case Group01::AM_ZeroPage:
-            operandInfo.offset  = memory[PC];
-            operandInfo.operand = memory[operandInfo.offset];
-            break;
+    case Group01::AM_ZeroPage:
+        operandInfo.location          = memory[PC];
+        operandInfo.effectiveAddress  = operandInfo.location;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
-        case Group01::AM_Immediate:
-            operandInfo.operand = memory[PC];
-            break;
+    case Group01::AM_Immediate:
+        operandInfo.location          = memory[PC];
+        operandInfo.operand           = operandInfo.location;
+        break;
 
-        case Group01::AM_Absolute:
-            operandInfo.offset  = memory[PC];
-            operandInfo.offset |= memory[++PC] << 8;
-            operandInfo.operand = memory[operandInfo.offset];
-            break;
+    case Group01::AM_Absolute:
+        operandInfo.location          = memory[PC]
+                                      | memory[++PC] << 8;
+        operandInfo.effectiveAddress  = operandInfo.location;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
+    case Group01::AM_ZeroPageIndirectY:
+        operandInfo.location          = memory[PC];
+        operandInfo.effectiveAddress  = memory[operandInfo.location]
+                                      | memory[operandInfo.location + 1] << 8;
+        operandInfo.effectiveAddress += Y;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
-        /*
-            case Group01::AM_ZeroPageIndirectY:
-                return memory[(memory[PC] + Y) & 0xFF];
+    case Group01::AM_ZeroPageX:
+        operandInfo.location          = memory[PC];
+        operandInfo.effectiveAddress  = operandInfo.location + X;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
-            case Group01::AM_ZeroPageX:
-                return memory[(memory[PC] + Y) & 0xFF];
+    case Group01::AM_AbsoluteY:
+        operandInfo.location          = memory[PC];
+        operandInfo.location         |= memory[++PC] << 8;
+        operandInfo.effectiveAddress  = operandInfo.location;
+        operandInfo.effectiveAddress += Y;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
-            case Group01::AM_AbsoluteY:
-                return memory[ReadWord (PC) + Y];
+    case Group01::AM_AbsoluteX:
+        operandInfo.location          = memory[PC];
+        operandInfo.location         |= memory[++PC] << 8;
+        operandInfo.effectiveAddress  = operandInfo.location;
+        operandInfo.effectiveAddress += X;
+        operandInfo.operand           = memory[operandInfo.effectiveAddress];
+        break;
 
-            case Group01::AM_AbsoluteX:
-                return memory[ReadWord (PC) + X];
-
-            }
-        */
     default:
         std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
         break;
