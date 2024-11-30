@@ -4,6 +4,7 @@
 #include "CpuOperations.h"
 #include "Group00.h"
 #include "Group01.h"
+#include "Group10.h"
 #include "Utils.h"
 
 
@@ -436,18 +437,31 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 
 void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandInfo)
 {
+    Byte * pAccumulator = nullptr;
+
+    if (microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
+    {
+        pAccumulator = &A;
+    }
+    
     switch (microcode.operation)
     {
-    case Microcode::AddWithCarry:       CpuOperations::AddWithCarry      (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::And:                CpuOperations::And               (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::BitTest:            CpuOperations::BitTest           (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::Compare:            CpuOperations::Compare           (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);     break;
-    case Microcode::Jump:               CpuOperations::Jump              (*this, microcode.instruction, operandInfo.operand);                   break;
-    case Microcode::Load:               CpuOperations::Load              (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);     break;
-    case Microcode::Or:                 CpuOperations::Or                (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::Store:              CpuOperations::Store             (*this, *microcode.pRegisterAffected, operandInfo.effectiveAddress);   break;
-    case Microcode::SubtractWithCarry:  CpuOperations::SubtractWithCarry (*this, (Byte) operandInfo.operand);                                   break;
-    case Microcode::Xor:                CpuOperations::Xor               (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::AddWithCarry:       CpuOperations::AddWithCarry      (*this, (Byte) operandInfo.operand);                                    break;
+    case Microcode::And:                CpuOperations::And               (*this, (Byte) operandInfo.operand);                                    break;
+    case Microcode::BitTest:            CpuOperations::BitTest           (*this, (Byte) operandInfo.operand);                                    break;
+    case Microcode::Compare:            CpuOperations::Compare           (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);   break;
+    case Microcode::Decrement:          CpuOperations::Decrement         (*this, operandInfo.effectiveAddress);                                  break;
+    case Microcode::Increment:          CpuOperations::Increment         (*this, operandInfo.effectiveAddress);                                  break;
+    case Microcode::Jump:               CpuOperations::Jump              (*this, microcode.instruction, operandInfo.operand);                    break;
+    case Microcode::Load:               CpuOperations::Load              (*this, *microcode.pRegisterAffected, (Byte) operandInfo.operand);   break;
+    case Microcode::Or:                 CpuOperations::Or                (*this, (Byte) operandInfo.operand);                                    break;
+    case Microcode::RotateLeft:         CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);     break;
+    case Microcode::RotateRight:        CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);     break;
+    case Microcode::ShiftLeft:          CpuOperations::RotateLeft        (*this, pAccumulator, operandInfo.effectiveAddress);     break;
+    case Microcode::ShiftRight:         CpuOperations::RotateRight       (*this, pAccumulator, operandInfo.effectiveAddress);     break;
+    case Microcode::Store:              CpuOperations::Store             (*this, *microcode.pRegisterAffected, operandInfo.effectiveAddress); break;
+    case Microcode::SubtractWithCarry:  CpuOperations::SubtractWithCarry (*this, (Byte) operandInfo.operand);                                    break;
+    case Microcode::Xor:                CpuOperations::Xor               (*this, (Byte) operandInfo.operand);                                    break;
 
     default:                            
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
@@ -461,9 +475,11 @@ void Cpu::InitializeInstructionSet ()
 {
     InitializeGroup00 ();
     InitializeGroup01 ();
+    InitializeGroup10 ();
 
     PrintInstructionSet (0b00);
     PrintInstructionSet (0b01);
+    PrintInstructionSet (0b10);
 }
 
 
@@ -526,6 +542,38 @@ void Cpu::InitializeGroup01 ()
     for (TableEntry entry : table)
     {
         CreateInstruction (_01::__AM_Count, _01::instructionName, entry.opcode, entry.addressingModeFlags, 0b01, entry.operation, entry.pRegisterAffected);
+    }
+}
+
+
+
+void Cpu::InitializeGroup10 ()
+{
+    using _10 = Group10;
+    struct TableEntry
+    {
+        _10::Opcode            opcode;
+        Byte                   addressingModeFlags;
+        Microcode::Operation   operation;
+        Byte                 * pRegisterAffected;
+    };
+
+    TableEntry table[] =
+    {
+        { _10::ASL, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::ShiftLeft,   &A      },
+        { _10::ROL, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::RotateLeft,  &A      },
+        { _10::LSR, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::ShiftRight,  &A      },
+        { _10::ROR, _10::__AMF_AllModes & ~(_10::AMF_Immediate),                     Microcode::RotateRight, &A      },
+        { _10::STX, _10::AMF_ZeroPage | _10::AMF_Absolute | _10::AM_ZeroPageX,       Microcode::Store,       &X      },
+        { _10::LDX, _10::__AMF_AllModes & ~(_10::AMF_Absolute),                      Microcode::Load,        &X      },
+        { _10::DEC, _10::__AMF_AllModes & ~(_10::AMF_Immediate | _10::AMF_Absolute), Microcode::Decrement,   nullptr },
+        { _10::INC, _10::__AMF_AllModes & ~(_10::AMF_Immediate | _10::AMF_Absolute), Microcode::Increment,   nullptr },
+    };
+
+
+    for (TableEntry entry : table)
+    {
+        CreateInstruction (_10::__AM_Count, _10::instructionName, entry.opcode, entry.addressingModeFlags, 0b01, entry.operation, entry.pRegisterAffected);
     }
 }
 
