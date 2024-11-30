@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CpuStatus.h"
+#include "Group00.h"
 #include "Group01.h"
 #include "Microcode.h"
 
@@ -30,6 +31,7 @@ protected:
     void ExecuteInstruction     (Microcode microcode, const OperandInfo & operandInfo);
 
     void InitializeInstructionSet ();
+    void InitializeGroup00 ();
     void InitializeGroup01 ();
     void CreateGroup01Instruction (Group01::Opcode opcode, Byte addressingModeFlags, Microcode::Operation operation, Byte * pRegisterAffected);
     
