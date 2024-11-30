@@ -384,6 +384,7 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
 
 void Cpu::InitializeInstructionSet ()
 {
+    InitializeGroup00 ();
     InitializeGroup01 ();
 
     PrintInstructionSet ();
@@ -391,11 +392,12 @@ void Cpu::InitializeInstructionSet ()
 
 
 
-void Cpu::InitializeGroup01 ()
+void Cpu::InitializeGroup00 ()
 {
+    using _00 = Group00;
     struct TableEntry
     {
-        Group01::Opcode        opcode;
+        _00::Opcode            opcode;
         Byte                   addressingModeFlags;
         Microcode::Operation   operation;
         Byte                 * pRegisterAffected;
@@ -403,14 +405,68 @@ void Cpu::InitializeGroup01 ()
 
     TableEntry table[] =
     {
-        { Group01::ORA, Group01::__AMF_AllModes,                             Microcode::Or,                nullptr },
-        { Group01::AND, Group01::__AMF_AllModes,                             Microcode::And,               nullptr },
-        { Group01::EOR, Group01::__AMF_AllModes,                             Microcode::Xor,               nullptr },
-        { Group01::ADC, Group01::__AMF_AllModes,                             Microcode::AddWithCarry,      nullptr },
-        { Group01::STA, Group01::__AMF_AllModes & ~(Group01::AMF_Immediate), Microcode::Store,             &A      },
-        { Group01::LDA, Group01::__AMF_AllModes,                             Microcode::Load,              &A      },
-        { Group01::CMP, Group01::__AMF_AllModes,                             Microcode::Compare,           &A      },
-        { Group01::SBC, Group01::__AMF_AllModes,                             Microcode::SubtractWithCarry, nullptr },
+        { _00::BIT,     _00::AMF_ZeroPage | _00::AMF_Absolute,                      Microcode::Or,                nullptr },
+        { _00::JMP,     _00::AMF_Absolute,                                          Microcode::And,               nullptr },
+        { _00::JMP_abs, _00::AMF_Absolute,                                          Microcode::Xor,               nullptr },
+        { _00::STY,     _00::AMF_ZeroPage | _00::AMF_Absolute | _00::AMF_ZeroPageX, Microcode::AddWithCarry,      nullptr },
+        { _00::LDY,     _00::AMF_Immediate| _00::AMF_ZeroPage | _00::AMF_Absolute,  Microcode::Store,             &A      },
+        { _00::CPY,     _00::AMF_Immediate | _00::AMF_ZeroPage | _00::AMF_Absolute, Microcode::Load,              &A      },
+        { _00::CPX,     _00::AMF_Immediate | _00::AMF_ZeroPage | _00::AMF_Absolute, Microcode::Compare,           &A      },
+    };
+
+
+    for (TableEntry entry : table)
+    {
+        CreateGroup01Instruction (entry.opcode, entry.addressingModeFlags, entry.operation, entry.pRegisterAffected);
+    }
+}
+
+
+
+void Cpu::CreateGroup00Instruction (Group00::Opcode        opcode,
+                                    Byte                   addressingModeFlags,
+                                    Microcode::Operation   operation,
+                                    Byte * pRegisterAffected)
+{
+    Byte addressingMode = Group01::__AM_First;
+    Byte currentAddressingModeFlag = 1;
+
+    while (addressingMode < Group01::__AM_Count)
+    {
+        if (addressingModeFlags & currentAddressingModeFlag)
+        {
+            Instruction instruction = Group01::CreateInstruction (opcode, (Group01::AddressingMode) addressingMode);
+            instructionSet[instruction.asByte] = Microcode (instruction, Group01::instructionName[opcode], false, operation, pRegisterAffected);
+        }
+
+        ++addressingMode;
+        currentAddressingModeFlag <<= 1;
+    }
+}
+
+
+
+void Cpu::InitializeGroup01 ()
+{
+    using _01 = Group01;
+    struct TableEntry
+    {
+        _01::Opcode            opcode;
+        Byte                   addressingModeFlags;
+        Microcode::Operation   operation;
+        Byte                 * pRegisterAffected;
+    };
+
+    TableEntry table[] =
+    {
+        { _01::ORA, _01::__AMF_AllModes,                         Microcode::Or,                nullptr },
+        { _01::AND, _01::__AMF_AllModes,                         Microcode::And,               nullptr },
+        { _01::EOR, _01::__AMF_AllModes,                         Microcode::Xor,               nullptr },
+        { _01::ADC, _01::__AMF_AllModes,                         Microcode::AddWithCarry,      nullptr },
+        { _01::STA, _01::__AMF_AllModes & ~(_01::AMF_Immediate), Microcode::Store,             &A      },
+        { _01::LDA, _01::__AMF_AllModes,                         Microcode::Load,              &A      },
+        { _01::CMP, _01::__AMF_AllModes,                         Microcode::Compare,           &A      },
+        { _01::SBC, _01::__AMF_AllModes,                         Microcode::SubtractWithCarry, nullptr },
     };
 
 
