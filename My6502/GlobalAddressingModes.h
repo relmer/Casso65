@@ -19,6 +19,7 @@ public:
         AbsoluteY,           // Absolute, Y
         ZeroPageXIndirect,   // (Zero Page, X) -> ($00LL + X)
         ZeroPageIndirectY,   // (Zero Page), Y
+        Accumulator,         // Accumulator
         __Count
     };
 
@@ -32,5 +33,6 @@ public:
         "Absolute, Y",
         "(Zero Page, X)",
         "(Zero Page), Y",
+        "Accumulator",
     };
 };

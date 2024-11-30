@@ -47,5 +47,26 @@
     <ClInclude Include="CpuOperations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GlobalAddressingModes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CpuStatus.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Group00.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Group01.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Instruction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Microcode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Group10.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

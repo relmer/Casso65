@@ -25,8 +25,6 @@ protected:
     void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandBytes             (Word initialPC, Byte opcode);
-    void PrintOperandBytesGroup00      (Byte opcode, Word initialPC);
-    void PrintOperandBytesGroup01      (Byte opcode, Word initialPC);
     void FetchOperand                  (Microcode microcode, OperandInfo & operandInfo);
     void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
@@ -42,6 +40,7 @@ protected:
 
     void InitializeGroup00 ();
     void InitializeGroup01 ();
+    void InitializeGroup10 ();
 
     void CreateInstruction (uint32_t addressingModeMax, const char * const instructionName[], Byte opcode, Byte addressingModeFlags, Byte group, Microcode::Operation operation, Byte * pRegisterAffected);
     

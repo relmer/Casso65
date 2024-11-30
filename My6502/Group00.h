@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Pch.h"
 #include "GlobalAddressingModes.h"
 
 
@@ -51,11 +52,11 @@ public:
     {
         GlobalAddressingMode::Immediate,   // AM_Immediate,
         GlobalAddressingMode::ZeroPage,    // AM_ZeroPage,
-        0,                                  // 0,
+        0,                                 // 0,
         GlobalAddressingMode::Absolute,    // AM_Absolute,
-        0,                                  // 0,
+        0,                                 // 0,
         GlobalAddressingMode::ZeroPageX,   // AM_ZeroPageX,
-        0,                                  // 0,
+        0,                                 // 0,
         GlobalAddressingMode::AbsoluteX,   // AM_AbsoluteX
     };
 

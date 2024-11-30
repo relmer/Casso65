@@ -53,6 +53,26 @@ void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 
 
 
+void CpuOperations::Decrement (Cpu & cpu, Word effectiveAddress)
+{
+    cpu.memory[effectiveAddress]--;
+
+    cpu.status.flags.z = cpu.memory[effectiveAddress] == 0;
+    cpu.status.flags.n = (bool) (cpu.memory[effectiveAddress] & 0x80);
+}
+
+
+
+void CpuOperations::Increment (Cpu & cpu, Word effectiveAddress)
+{
+    cpu.memory[effectiveAddress]++;
+
+    cpu.status.flags.z = cpu.memory[effectiveAddress] == 0;
+    cpu.status.flags.n = (bool) (cpu.memory[effectiveAddress] & 0x80);
+}
+
+
+
 void CpuOperations::Jump (Cpu & cpu, Instruction instruction, Word operand)
 {
     cpu.PC = operand;
@@ -73,6 +93,53 @@ void CpuOperations::Load (Cpu & cpu, Byte & registerAffected, Byte operand)
 void CpuOperations::Or (Cpu & cpu, Byte operand)
 {
     cpu.A |= operand;
+
+    cpu.status.flags.z = cpu.A == 0;
+    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+}
+
+
+
+void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
+{
+    if (pRegisterAffected)
+    {
+        
+    }
+    else
+    {
+
+    }
+
+    cpu.status.flags.z = cpu.A == 0;
+    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+}
+
+
+
+void CpuOperations::RotateRight (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
+{
+    registerAffected = operand;
+
+    cpu.status.flags.z = cpu.A == 0;
+    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+}
+
+
+
+void CpuOperations::ShiftLeft (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
+{
+    registerAffected = operand;
+
+    cpu.status.flags.z = cpu.A == 0;
+    cpu.status.flags.n = (bool) (cpu.A & 0x80);
+}
+
+
+
+void CpuOperations::ShiftRight (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
+{
+    registerAffected = operand;
 
     cpu.status.flags.z = cpu.A == 0;
     cpu.status.flags.n = (bool) (cpu.A & 0x80);

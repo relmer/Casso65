@@ -5,6 +5,7 @@
 #include "GlobalAddressingModes.h"
 #include "Group00.h"
 #include "Group01.h"
+#include "Group10.h"
 #include "Instruction.h"
 
 
@@ -18,9 +19,15 @@ public:
         And,
         BitTest,
         Compare,
+        Decrement,
+        Increment,
         Jump,
         Load,
         Or,
+        RotateLeft,
+        RotateRight,
+        ShiftLeft,
+        ShiftRight,
         Store,
         SubtractWithCarry,
         Xor,
@@ -49,6 +56,10 @@ public:
 
         case 0b01:
             globalAddressingMode = (GlobalAddressingMode::AddressingMode) Group01::s_addressingModeMap[instruction.asBits.addressingMode];
+            break;
+
+        case 0b10:
+            globalAddressingMode = (GlobalAddressingMode::AddressingMode) Group10::s_addressingModeMap[instruction.asBits.addressingMode];
             break;
         }
     }
