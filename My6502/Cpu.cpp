@@ -87,19 +87,19 @@ void Cpu::Reset ()
     //memory[addr++] = 0x00;  // 
     //memory[0x0000] = 0xCF;
 
-    memory[addr++] = 0xA9;  // LDA, #immediate
-    memory[addr++] = 0xCF;  // 
-    memory[addr++] = 0x8D;  // STA, $0034
-    memory[addr++] = 0x34;  // 
-    memory[addr++] = 0x00;  // 
-    memory[addr++] = 0xA9;  // LDA, #immediate
-    memory[addr++] = 0xF0;  // 
-    memory[addr++] = 0x24;  // BIT, zp
-    memory[addr++] = 0x34;  // 
-    memory[addr++] = 0xA4;  // LDY, $34
-    memory[addr++] = 0x34;  //
-    memory[addr++] = 0xC0;  // CPY, #CF
-    memory[addr++] = 0xCF;  //
+    //memory[addr++] = 0xA9;  // LDA, #immediate
+    //memory[addr++] = 0xCF;  // 
+    //memory[addr++] = 0x8D;  // STA, $0034
+    //memory[addr++] = 0x34;  // 
+    //memory[addr++] = 0x00;  // 
+    //memory[addr++] = 0xA9;  // LDA, #immediate
+    //memory[addr++] = 0xF0;  // 
+    //memory[addr++] = 0x24;  // BIT, zp
+    //memory[addr++] = 0x34;  // 
+    //memory[addr++] = 0xA4;  // LDY, $34
+    //memory[addr++] = 0x34;  //
+    //memory[addr++] = 0xC0;  // CPY, #CF
+    //memory[addr++] = 0xCF;  //
 
 
 
@@ -158,6 +158,22 @@ void Cpu::Reset ()
     //memory[addr++] = 0x34;  // NB:  Little endian
     //memory[addr++] = 0x12;  // ($1234)
     //memory[0x1240] = 0xAA;
+
+    // LDX, DEX, BMI, BPL, INX
+    memory[addr++] = 0xA2;      // LDX, #immediate
+    memory[addr++] = 0x03;      // a non-negative number
+    memory[addr++] = 0xCA;      // DEX
+    memory[addr++] = 0x30;      // BMI
+    memory[addr++] = 0x02;      // Branch offset
+    memory[addr++] = 0x10;      // BPL
+    memory[addr++] = ~0x05 + 1; // Branch offset -5
+    memory[addr++] = 0xA2;      // LDX, #immediate
+    memory[addr++] = ~0x02 + 1; // -2
+    memory[addr++] = 0xE8;      // INX
+    memory[addr++] = 0x30;      // BMI
+    memory[addr++] = ~0x03 + 1; // Branch offset -3
+    memory[addr++] = 0xA9;      // LDA, #immediate
+    memory[addr++] = 0x00;      // a zero number
 }
 
 
@@ -227,19 +243,32 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
 {
     switch (instructionSet[opcode].globalAddressingMode)
     {
-    case GlobalAddressingMode::ZeroPageXIndirect:
-    case GlobalAddressingMode::ZeroPage:
-    case GlobalAddressingMode::Immediate:
-    case GlobalAddressingMode::ZeroPageIndirectY:
-    case GlobalAddressingMode::ZeroPageX:
-        std::printf ("%02X           ", memory[initialPC + 1]);
-        break;
+        case GlobalAddressingMode::Accumulator:
+        case GlobalAddressingMode::SingleByteNoOperand:
+            std::printf ("             ");
+            break;
 
-    case GlobalAddressingMode::Absolute:
-    case GlobalAddressingMode::AbsoluteY:
-    case GlobalAddressingMode::AbsoluteX:
-        std::printf ("%02X %02X        ", memory[initialPC + 1], memory[initialPC + 2]);
-        break;
+        case GlobalAddressingMode::Immediate:
+        case GlobalAddressingMode::ZeroPage:
+        case GlobalAddressingMode::ZeroPageIndirectY:
+        case GlobalAddressingMode::ZeroPageXIndirect:
+        case GlobalAddressingMode::ZeroPageX:
+        case GlobalAddressingMode::ZeroPageY:
+            std::printf ("%02X           ", memory[initialPC + 1]);
+            break;
+
+        case GlobalAddressingMode::Absolute:
+        case GlobalAddressingMode::AbsoluteX:
+        case GlobalAddressingMode::AbsoluteY:
+        case GlobalAddressingMode::JumpAbsolute:
+        case GlobalAddressingMode::JumpIndirect:
+        case GlobalAddressingMode::Relative:
+            std::printf ("%02X %02X        ", memory[initialPC + 1], memory[initialPC + 2]);
+            break;
+
+        default:
+            assert (false);
+            break;
     }
 }
 
@@ -255,53 +284,56 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
     // print the operand and comment if applicable
     switch (instructionSet[opcode].globalAddressingMode)
     {
-    case GlobalAddressingMode::Absolute:
-        printf ("$%04X   ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::Absolute:
+            printf ("$%04X   ; $%02X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::AbsoluteX:
-        printf ("$%04X,X ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::AbsoluteX:
+            printf ("$%04X,X ; $%02X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::AbsoluteY:
-        printf ("$%04X,Y ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::AbsoluteY:
+            printf ("$%04X,Y ; $%02X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::Immediate:
-        printf ("#$%02X", operandInfo.operand);
-        break;
+        case GlobalAddressingMode::Immediate:
+            printf ("#$%02X", operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::JumpAbsolute:
-        printf ("$%04X", operandInfo.location);
-        break;
+        case GlobalAddressingMode::JumpAbsolute:
+            printf ("$%04X", operandInfo.location);
+            break;
 
-    case GlobalAddressingMode::JumpIndirect:
-        printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::JumpIndirect:
+            printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::Relative:
-        printf ("($%04X) ; $%04X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::Relative:
+            printf ("$%02X     ; $%04X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::ZeroPage:
-        printf ("$%02X     ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::ZeroPage:
+            printf ("$%02X     ; $%02X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::ZeroPageXIndirect:
-        printf ("($%02X,X) ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::ZeroPageXIndirect:
+            printf ("($%02X,X) ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::ZeroPageIndirectY:
-        printf ("($%02X),Y ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::ZeroPageIndirectY:
+            printf ("($%02X),Y ; ($%04X) = $%02X", operandInfo.location, operandInfo.effectiveAddress, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::ZeroPageX:
-        printf ("$%02X,X   ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::ZeroPageX:
+            printf ("$%02X,X   ; $%02X", operandInfo.location, operandInfo.operand);
+            break;
 
-    case GlobalAddressingMode::ZeroPageY:
-        printf ("$%02X,Y   ; $%02X", operandInfo.location, operandInfo.operand);
-        break;
+        case GlobalAddressingMode::ZeroPageY:
+            printf ("$%02X,Y   ; $%02X", operandInfo.location, operandInfo.operand);
+            break;
+
+        default:
+            break;
     }
 }
 
@@ -397,9 +429,9 @@ void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = ReadByte (PC++);
-    operandInfo.effectiveAddress = operandInfo.location;
-    operandInfo.operand          = operandInfo.location;
+    operandInfo.location         = ReadByte (PC);
+    operandInfo.effectiveAddress = (PC + 1) + (SByte) operandInfo.location;
+    operandInfo.operand          = operandInfo.effectiveAddress;
 }
 
 
@@ -475,10 +507,11 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::AddWithCarry:       CpuOperations::AddWithCarry      (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::And:                CpuOperations::And               (*this, (Byte) operandInfo.operand);                                   break;
     case Microcode::BitTest:            CpuOperations::BitTest           (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::Branch:             CpuOperations::Branch            (*this, microcode.instruction, operandInfo.operand);                   break;
     case Microcode::Break:              CpuOperations::Break             (*this);                                                               break;
     case Microcode::Compare:            CpuOperations::Compare           (*this, *microcode.pSourceRegister, (Byte) operandInfo.operand);       break;
-    case Microcode::Decrement:          CpuOperations::Decrement         (*this, operandInfo.effectiveAddress);                                 break;
-    case Microcode::Increment:          CpuOperations::Increment         (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::Decrement:          CpuOperations::Decrement         (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
+    case Microcode::Increment:          CpuOperations::Increment         (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
     case Microcode::Jump:               CpuOperations::Jump              (*this, microcode.instruction, operandInfo.operand);                   break;
     case Microcode::Load:               CpuOperations::Load              (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
     case Microcode::Or:                 CpuOperations::Or                (*this, (Byte) operandInfo.operand);                                   break;
