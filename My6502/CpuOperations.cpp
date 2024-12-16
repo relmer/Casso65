@@ -42,6 +42,26 @@ void CpuOperations::BitTest (Cpu & cpu, Byte operand)
 
 
 
+void CpuOperations::Branch (Cpu & cpu, Instruction instruction, Word operand)
+{
+    static constexpr Byte s_kflagMask[] = 
+    { 
+        0x80,   // Negative
+        0x40,   // Overflow
+        0x01,   // Carry
+        0x02    // Zero
+    };
+
+    Byte flag = !!(s_kflagMask[instruction.asBranch.flag] & cpu.status.status);
+
+    if (flag == instruction.asBranch.value)
+    {
+        cpu.PC = operand;
+    }
+}
+
+
+
 void CpuOperations::Break (Cpu & cpu)
 {
     cpu.status.flags.brk = 1;
@@ -56,6 +76,7 @@ void CpuOperations::Break (Cpu & cpu)
 }
 
 
+
 void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 {
     Word cmp = registerAffected - operand;
@@ -67,22 +88,26 @@ void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 
 
 
-void CpuOperations::Decrement (Cpu & cpu, Word effectiveAddress)
+void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    cpu.memory[effectiveAddress]--;
+    Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
 
-    cpu.status.flags.zero     = cpu.memory[effectiveAddress] == 0;
-    cpu.status.flags.negative = (bool) (cpu.memory[effectiveAddress] & 0x80);
+    (*pByte)--;
+
+    cpu.status.flags.zero     = *pByte == 0;
+    cpu.status.flags.negative = (bool) (*pByte & 0x80);
 }
 
 
 
-void CpuOperations::Increment (Cpu & cpu, Word effectiveAddress)
+void CpuOperations::Increment (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
-    cpu.memory[effectiveAddress]++;
+    Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
 
-    cpu.status.flags.zero     = cpu.memory[effectiveAddress] == 0;
-    cpu.status.flags.negative = (bool) (cpu.memory[effectiveAddress] & 0x80);
+    (*pByte)++;
+
+    cpu.status.flags.zero = *pByte == 0;
+    cpu.status.flags.negative = (bool) (*pByte & 0x80);
 }
 
 
@@ -98,8 +123,8 @@ void CpuOperations::Load (Cpu & cpu, Byte & registerAffected, Byte operand)
 {
     registerAffected = operand;
 
-    cpu.status.flags.zero     = cpu.A == 0;
-    cpu.status.flags.negative = (bool) (cpu.A & 0x80);
+    cpu.status.flags.zero     = registerAffected == 0;
+    cpu.status.flags.negative = (bool) (registerAffected & 0x80);
 }
 
 

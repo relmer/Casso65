@@ -12,11 +12,11 @@ public:
     static void AddWithCarry         (Cpu & cpu, Byte operand);
     static void And                  (Cpu & cpu, Byte operand);
     static void BitTest              (Cpu & cpu, Byte operand);
-    static void Branch               (Cpu & cpu, Byte operand);
+    static void Branch               (Cpu & cpu, Instruction instruction, Word operand);
     static void Break                (Cpu & cpu);
     static void Compare              (Cpu & cpu, Byte & registerAffected, Byte operand);
-    static void Decrement            (Cpu & cpu, Word effectiveAddress);
-    static void Increment            (Cpu & cpu, Word effectiveAddress);
+    static void Decrement            (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress);
+    static void Increment            (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress);
     static void Load                 (Cpu & cpu, Byte & registerAffected, Byte operand);
     static void Jump                 (Cpu & cpu, Instruction instruction, Word operand);
     static void NoOperation          (Cpu & cpu);

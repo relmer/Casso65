@@ -34,5 +34,22 @@ public:
             Byte addressingMode : 3;
             Byte opcode         : 3;
         } asBits;
+
+        // Bitfields must be in reverse order (low to high)
+        struct BranchInstructionBits
+        {
+            Byte unusedZero : 4;  
+            Byte unusedOne  : 1;  
+            Byte value      : 1;
+            Byte flag       : 2;
+        } asBranch;
+    };
+
+    enum BranchFlag
+    {
+        Negative = 0,
+        Overflow = 1,
+        Carry    = 2,
+        Zero     = 3,
     };
 };
