@@ -172,6 +172,7 @@
   <ItemGroup>
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
+    <ClCompile Include="Ehm.cpp" />
     <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -187,6 +188,7 @@
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="CpuOperations.h" />
     <ClInclude Include="CpuStatus.h" />
+    <ClInclude Include="Ehm.h" />
     <ClInclude Include="GlobalAddressingModes.h" />
     <ClInclude Include="Group00.h" />
     <ClInclude Include="Group01.h" />
