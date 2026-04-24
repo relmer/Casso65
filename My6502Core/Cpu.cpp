@@ -11,9 +11,9 @@
 
 
 
-Cpu::Cpu ()
-    : memory (memSize, 0)
-    , instructionSet (256)
+Cpu::Cpu () :
+    memory         (memSize, 0),
+    instructionSet (256)
 {
     InitializeInstructionSet ();
 }
