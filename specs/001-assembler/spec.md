@@ -225,7 +225,7 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 - **FR-009**: The assembler MUST support the `.text` directive to emit ASCII character bytes from a quoted string
 - **FR-010**: The assembler MUST support semicolon-delimited comments, both full-line and inline
 - **FR-011**: The assembler MUST support hexadecimal (`$FF`), binary (`%10101010`), and decimal (`255`) number literals
-- **FR-012**: The assembler MUST support `label+offset` expressions to compute an address relative to a label
+- **FR-012**: The assembler MUST support `label+offset` expressions (addition of a positive integer constant only; subtraction and complex arithmetic are out of scope) to compute an address relative to a label
 - **FR-013**: The assembler MUST support `<label` (low byte) and `>label` (high byte) operators to extract 8-bit components of a 16-bit label address
 - **FR-014**: The assembler MUST collect all errors with line numbers rather than stopping at the first error
 - **FR-015**: The assembler MUST report errors for: invalid mnemonics, invalid addressing mode syntax, undefined labels, duplicate labels, out-of-range values, and out-of-range branch offsets
@@ -254,6 +254,7 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 - **FR-031**: The listing MUST be available via a `-a` CLI flag and via an API option for programmatic use
 - **FR-032**: The CLI MUST support a `-v` (verbose) flag that prints pass progress, symbol resolution details, and byte counts to stderr
 - **FR-033**: The CLI MUST support `--warn` (default), `--no-warn`, and `--fatal-warnings` flags to control warning behavior
+- **FR-033a**: The assembler MUST generate warnings for the following conditions: unused labels (defined but never referenced), redundant `.org` to the same address, and label names that differ from a mnemonic only by case (e.g., `lda:` when `LDA` is a mnemonic)
 - **FR-034**: The CLI MUST support `--version` to display the version string
 - **FR-035**: The assembled output MUST be a flat (contiguous) memory image covering from the lowest to highest address used, with unused bytes set to a configurable fill value
 - **FR-036**: The default fill byte MUST be `$FF` (EEPROM erased state)

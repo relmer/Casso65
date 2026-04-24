@@ -25,7 +25,7 @@ A two-pass 6502 assembler implemented as an instance-based `Assembler` class in 
 
 ### I. Code Quality — PASS
 - Formatting: Will follow existing My6502 style (spaces, column alignment)
-- No EHM macros in this project (My6502 uses simple return values, not HRESULT)
+- EHM macros: Use EHM patterns (CHR, CBR, BAIL_OUT_IF, etc.) for HRESULT-returning functions; avoid early returns, explicit gotos, and deeply nested code
 - Smart pointers: Will use where appropriate for owned resources
 - Precompiled headers: All `.cpp` files will include `"Pch.h"` first
 
@@ -104,7 +104,7 @@ UnitTest/                      # Test DLL
 
 ### I. Code Quality — PASS
 - New files follow existing style (Pch.h first, quoted includes, column alignment)
-- No HRESULT/EHM in this project — Assembler uses return-by-value (AssemblyResult)
+- EHM macros: Use EHM patterns for HRESULT-returning functions; BAIL_OUT_IF for success tests; avoid early returns and deeply nested code
 
 ### II. Testing Discipline — PASS
 - Assembler is pure: string in, result struct out — fully deterministic, no system state
