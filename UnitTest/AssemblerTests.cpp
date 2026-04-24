@@ -503,4 +503,81 @@ namespace AssemblerTests
             Assert::AreEqual ((Byte) 0x42, result.bytes[1]);
         }
     };
+
+
+
+    // =========================================================================
+    // T036: Expression Tests (low byte, high byte, label+offset)
+    // =========================================================================
+    TEST_CLASS (ExpressionTests)
+    {
+    public:
+
+        TEST_METHOD (LowByte_OfLabel)
+        {
+            // data at $1234, LDA #<data → operand $34 (low byte)
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".org $1234\ndata: .byte $FF\nLDA #<data");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((Word) 0x1234, result.symbols["data"]);
+            // bytes: $FF (data), $A9 (LDA), $34 (lo byte of $1234)
+            Assert::AreEqual ((size_t) 3, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[1]);
+            Assert::AreEqual ((Byte) 0x34, result.bytes[2]);
+        }
+
+        TEST_METHOD (HighByte_OfLabel)
+        {
+            // data at $1234, LDA #>data → operand $12 (high byte)
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".org $1234\ndata: .byte $FF\nLDA #>data");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((Word) 0x1234, result.symbols["data"]);
+            // bytes: $FF (data), $A9 (LDA), $12 (hi byte of $1234)
+            Assert::AreEqual ((size_t) 3, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[1]);
+            Assert::AreEqual ((Byte) 0x12, result.bytes[2]);
+        }
+
+        TEST_METHOD (LabelPlusOffset)
+        {
+            // table at $2000, LDA table+3 → address $2003
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble (".org $2000\ntable: .byte $01,$02,$03,$04\nLDA table+3");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((Word) 0x2000, result.symbols["table"]);
+            // bytes: {$01,$02,$03,$04} (data), $AD (LDA abs), $03, $20 (addr $2003 LE)
+            Assert::AreEqual ((size_t) 7, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xAD, result.bytes[4]); // LDA absolute opcode
+            Assert::AreEqual ((Byte) 0x03, result.bytes[5]); // lo byte of $2003
+            Assert::AreEqual ((Byte) 0x20, result.bytes[6]); // hi byte of $2003
+        }
+
+        TEST_METHOD (LDA_Immediate_Binary)
+        {
+            // LDA #%10101010 → $A9, $AA
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("LDA #%10101010");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 2, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0xAA, result.bytes[1]);
+        }
+
+        TEST_METHOD (LDA_Immediate_Decimal)
+        {
+            // LDA #255 → $A9, $FF
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("LDA #255");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 2, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0xFF, result.bytes[1]);
+        }
+    };
 }

@@ -151,13 +151,13 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T035 [P] [US4] Write number format tests in UnitTest/ParserTests.cpp: `$FF` → 255, `$ff` → 255 (case-insensitive hex), `%10101010` → 170, `%00001111` → 15, `255` → 255, `0` → 0
-- [ ] T036 [P] [US4] Write expression tests in UnitTest/AssemblerTests.cpp: label `data` at `$1234`, `LDA #<data` → operand `0x34` (low byte), `LDA #>data` → operand `0x12` (high byte), `LDA table+3` with `table` at `$2000` → operand address `$2003`
+- [X] T035 [P] [US4] Write number format tests in UnitTest/ParserTests.cpp: `$FF` → 255, `$ff` → 255 (case-insensitive hex), `%10101010` → 170, `%00001111` → 15, `255` → 255, `0` → 0
+- [X] T036 [P] [US4] Write expression tests in UnitTest/AssemblerTests.cpp: label `data` at `$1234`, `LDA #<data` → operand `0x34` (low byte), `LDA #>data` → operand `0x12` (high byte), `LDA table+3` with `table` at `$2000` → operand address `$2003`
 
 ### Implementation
 
-- [ ] T037 [US4] Implement binary (`%10101010`) and decimal (`255`) number parsing in My6502Core/Parser.cpp alongside existing hex parsing
-- [ ] T038 [US4] Implement `<label` (low byte) and `>label` (high byte) operators and `label+offset` expression evaluation in My6502Core/Assembler.cpp during Pass 2 operand resolution
+- [X] T037 [US4] Implement binary (`%10101010`) and decimal (`255`) number parsing in My6502Core/Parser.cpp alongside existing hex parsing
+- [X] T038 [US4] Implement `<label` (low byte) and `>label` (high byte) operators and `label+offset` expression evaluation in My6502Core/Assembler.cpp during Pass 2 operand resolution
 
 **Checkpoint**: All number formats and label expressions resolve correctly.
 

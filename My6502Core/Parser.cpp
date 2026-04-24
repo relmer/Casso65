@@ -184,12 +184,41 @@ static std::string ToUpperStr (const std::string & s)
 
 
 
+static void ParseLabelWithOffset (const std::string & text, ClassifiedOperand & result)
+{
+    result.isLabel = true;
+
+    size_t plusPos = text.find ('+');
+
+    if (plusPos != std::string::npos)
+    {
+        result.labelName = TrimOperand (text.substr (0, plusPos));
+
+        std::string offsetStr = TrimOperand (text.substr (plusPos + 1));
+        int         offset    = 0;
+
+        if (Parser::ParseValue (offsetStr, offset))
+        {
+            result.labelOffset = offset;
+        }
+    }
+    else
+    {
+        result.labelName = text;
+    }
+}
+
+
+
 ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const std::string & mnemonic)
 {
     ClassifiedOperand result = {};
-    result.mode    = GlobalAddressingMode::SingleByteNoOperand;
-    result.value   = 0;
-    result.isLabel = false;
+    result.mode        = GlobalAddressingMode::SingleByteNoOperand;
+    result.value       = 0;
+    result.isLabel     = false;
+    result.labelOffset = 0;
+    result.lowByteOp   = false;
+    result.highByteOp  = false;
 
     std::string op = TrimOperand (operand);
 
@@ -206,10 +235,21 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
         std::string valueStr = op.substr (1);
         result.mode = GlobalAddressingMode::Immediate;
 
+        // Check for < (low byte) or > (high byte) operator
+        if (!valueStr.empty () && valueStr[0] == '<')
+        {
+            result.lowByteOp = true;
+            valueStr = valueStr.substr (1);
+        }
+        else if (!valueStr.empty () && valueStr[0] == '>')
+        {
+            result.highByteOp = true;
+            valueStr = valueStr.substr (1);
+        }
+
         if (!ParseValue (valueStr, result.value))
         {
-            result.isLabel    = true;
-            result.labelName  = valueStr;
+            ParseLabelWithOffset (valueStr, result);
         }
 
         return result;
@@ -299,8 +339,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
                 }
                 else
                 {
-                    result.isLabel   = true;
-                    result.labelName = valueStr;
+                    ParseLabelWithOffset (valueStr, result);
                 }
             }
 
@@ -324,8 +363,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
                 }
                 else
                 {
-                    result.isLabel   = true;
-                    result.labelName = valueStr;
+                    ParseLabelWithOffset (valueStr, result);
                 }
             }
 
@@ -350,8 +388,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
         }
         else
         {
-            result.isLabel   = true;
-            result.labelName = op;
+            ParseLabelWithOffset (op, result);
         }
 
         return result;
@@ -368,8 +405,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
         }
         else
         {
-            result.isLabel   = true;
-            result.labelName = op;
+            ParseLabelWithOffset (op, result);
         }
 
         return result;
@@ -386,8 +422,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
         }
         else
         {
-            result.isLabel   = true;
-            result.labelName = op;
+            ParseLabelWithOffset (op, result);
         }
 
         return result;
@@ -411,9 +446,8 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const st
     }
 
     // Must be a label — default to Absolute (will be resolved in Pass 2)
-    result.mode      = GlobalAddressingMode::Absolute;
-    result.isLabel   = true;
-    result.labelName = op;
+    result.mode = GlobalAddressingMode::Absolute;
+    ParseLabelWithOffset (op, result);
     return result;
 }
 
@@ -438,6 +472,28 @@ bool Parser::ParseValue (const std::string & text, int & value)
 
         char * endPtr = nullptr;
         long   parsed = strtol (hex.c_str (), &endPtr, 16);
+
+        if (*endPtr != '\0')
+        {
+            return false;
+        }
+
+        value = (int) parsed;
+        return true;
+    }
+
+    // Binary: %10101010
+    if (text[0] == '%')
+    {
+        std::string bin = text.substr (1);
+
+        if (bin.empty ())
+        {
+            return false;
+        }
+
+        char * endPtr = nullptr;
+        long   parsed = strtol (bin.c_str (), &endPtr, 2);
 
         if (*endPtr != '\0')
         {
