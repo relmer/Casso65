@@ -68,7 +68,7 @@
 
 ### Implementation
 
-- [ ] T014 [US1] Implement operand addressing mode classifier in My6502Core/Parser.cpp: detect `#value` (Immediate), `A` (Accumulator), `$ZZ` (ZeroPage), `$HHHH` (Absolute), `$ZZ,X` (ZeroPageX), `$ZZ,Y` (ZeroPageY), `$HHHH,X` (AbsoluteX), `$HHHH,Y` (AbsoluteY), `($ZZ,X)` (ZeroPageXIndirect), `($ZZ),Y` (ZeroPageIndirectY), `($HHHH)` (JumpIndirect), no operand (Implied) — include hex value parsing (`$FF` → 0xFF)
+- [ ] T014 [US1] Implement operand addressing mode classifier in My6502Core/Parser.cpp: detect `#value` (Immediate), `A` (Accumulator), `$ZZ` (ZeroPage), `$HHHH` (Absolute), `$ZZ,X` (ZeroPageX), `$ZZ,Y` (ZeroPageY), `$HHHH,X` (AbsoluteX), `$HHHH,Y` (AbsoluteY), `($ZZ,X)` (ZeroPageXIndirect), `($ZZ),Y` (ZeroPageIndirectY), `($HHHH)` (JumpIndirect), no operand (SingleByteNoOperand) — include hex value parsing (`$FF` → 0xFF). Note: `Relative` and `JumpAbsolute` modes are inferred from the mnemonic, not syntax — branches (BEQ, BNE, etc.) use Relative, JMP absolute uses JumpAbsolute. The parser must perform mnemonic-aware disambiguation: `JMP $1234` → JumpAbsolute (not Absolute), branch targets → Relative (not ZeroPage/Absolute).
 - [ ] T015 [US1] Implement two-pass Assembler::Assemble() skeleton in My6502Core/Assembler.h and My6502Core/Assembler.cpp: constructor takes `const Microcode instructionSet[256]` and `AssemblerOptions`, builds `OpcodeTable`; Pass 1 parses lines and advances PC by instruction size; Pass 2 emits opcode + operand bytes into flat `vector<Byte>` image; returns `AssemblyResult` with bytes, startAddress, endAddress
 - [ ] T016 [US1] Implement zero-page preference in My6502Core/Assembler.cpp: when operand value fits in one byte (0x00–0xFF) and mnemonic supports both ZeroPage and Absolute modes, emit the shorter ZeroPage encoding (FR-016)
 
@@ -108,6 +108,7 @@
 - [ ] T022 [P] [US6] Write `TestCpu::Assemble()` tests in UnitTest/IntegrationTests.cpp: assemble `"LDA #$42\nSTA $10"` at default address `0x8000`, verify memory at `0x8000` contains `{0xA9, 0x42, 0x85, 0x10}`, verify PC is set to `0x8000`; assemble with explicit `startAddress = 0xC000`, verify bytes at `0xC000`; assemble with errors returns `success == false` and memory is unchanged
 - [ ] T023 [P] [US6] Write `TestCpu::RunUntil()` tests in UnitTest/IntegrationTests.cpp: assemble `"LDA #$42\nSTA $10\ndone: BRK"`, run until `LabelAddress("done")`, verify `RegA() == 0x42` and `Peek(0x10) == 0x42`; test cycle-limit timeout (run with maxCycles=1, verify does not reach target); test illegal opcode stop (jump to uninitialized memory `$FF`)
 - [ ] T024 [P] [US6] Write `TestCpu::LabelAddress()` test in UnitTest/IntegrationTests.cpp: assemble program with labels `"start: NOP\nend: BRK"`, verify `LabelAddress(result, "start")` returns `0x8000` and `LabelAddress(result, "end")` returns `0x8001`
+- [ ] T024a [P] [US6] Write BRK software interrupt test in UnitTest/IntegrationTests.cpp: set up IRQ vector at $FFFE/$FFFF pointing to a handler address, execute BRK, verify PC loaded from IRQ vector, status and PC+2 pushed to stack, B flag set in pushed status (FR-021d)
 
 ### Implementation
 
@@ -207,7 +208,7 @@
 
 **Independent Test**: Run executable with various argument combinations, check exit codes, output files, stderr messages.
 
-> **Note**: CommandLine lives in My6502/ project (not My6502Core), so unit tests cannot directly test it. Acceptance is validated through integration testing (running the executable). The assembler core is already fully unit-tested in earlier phases.
+> **Note**: CommandLine lives in My6502/ project (not My6502Core), so unit tests cannot directly test it. Acceptance is validated through integration testing (running the executable) and the CLI-vs-API equivalence test (T057e). The assembler core is already fully unit-tested in earlier phases.
 
 ### Implementation
 
@@ -230,7 +231,7 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T052 [P] [US10] Write warning mode tests in UnitTest/AssemblerTests.cpp: with `WarningMode::Warn` — warning is recorded in `result.warnings` but `result.success` remains true; with `WarningMode::FatalWarnings` — warning is promoted to `result.errors` and `result.success` is false; with `WarningMode::NoWarn` — warning is suppressed (not recorded)
+- [ ] T052 [P] [US10] Write warning mode tests in UnitTest/AssemblerTests.cpp: with `WarningMode::Warn` — warning is recorded in `result.warnings` but `result.success` remains true; with `WarningMode::FatalWarnings` — warning is promoted to `result.errors` and `result.success` is false; with `WarningMode::NoWarn` — warning is suppressed (not recorded). Warning conditions to test: unused label (defined but never referenced), redundant `.org` to same address, label name differing from mnemonic only by case (e.g., `lda:`) (FR-033a)
 
 ### Implementation
 
@@ -248,6 +249,11 @@
 - [ ] T055 [P] Run quickstart.md validation — assemble and execute the example program from quickstart.md, verify expected output
 - [ ] T056 [P] Write comprehensive opcode coverage test in UnitTest/OpcodeTableTests.cpp — verify all 56 mnemonics × valid addressing mode combinations produce correct opcodes (SC-001)
 - [ ] T057 [P] Write `WriteBytes()` equivalence test in UnitTest/IntegrationTests.cpp — assemble a program, also `WriteBytes()` the same raw bytes, verify both produce identical CPU execution results (SC-005)
+- [ ] T057a [P] Write Assembler instance reuse test in UnitTest/AssemblerTests.cpp — create one Assembler, call `Assemble()` twice with different source, verify results are independent and correct (FR-041)
+- [ ] T057b [P] Write case-sensitive labels test in UnitTest/AssemblerTests.cpp — define both `foo:` and `FOO:` at different addresses, verify they resolve to different addresses; reference both, verify correct resolution (FR-023)
+- [ ] T057c [P] Write 100-label stress test in UnitTest/AssemblerTests.cpp — generate a program with ~100 labels and cross-references, verify all resolve correctly (SC-002)
+- [ ] T057d [P] Write empty source text test in UnitTest/AssemblerTests.cpp — `Assemble("")` returns success with zero bytes and no errors (edge case)
+- [ ] T057e [P] Write CLI-vs-API equivalence test — assemble same source via CLI and via `Assembler::Assemble()`, compare output byte-for-byte (SC-007; may be manual/integration if not automatable in UnitTest)
 - [ ] T058 Run full test suite and verify zero test failures
 - [ ] T059 Build Release configuration for both x64 and ARM64, verify no errors or warnings
 
