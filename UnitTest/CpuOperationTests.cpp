@@ -640,6 +640,84 @@ namespace CpuOperationTests
 
 
     // =========================================================================
+    // BitTest
+    // =========================================================================
+    TEST_CLASS (BitTestTests)
+    {
+    public:
+
+        TEST_METHOD (BitTest_ZeroFlag_SetFromAndResult)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0xF0;
+
+            CpuOperations::BitTest (cpu, 0x0F);
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.zero);
+        }
+
+        TEST_METHOD (BitTest_ZeroFlag_ClearedWhenAndNonZero)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0xFF;
+
+            CpuOperations::BitTest (cpu, 0x01);
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
+        }
+
+        TEST_METHOD (BitTest_OverflowFlag_SetFromOperandBit6_NotAndResult)
+        {
+            // operand bit6=1, A bit6=0 => AND result bit6=0, but V must be 1
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x00;
+
+            CpuOperations::BitTest (cpu, 0x40);
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.overflow);
+        }
+
+        TEST_METHOD (BitTest_OverflowFlag_ClearedWhenOperandBit6Clear)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0xFF;
+
+            CpuOperations::BitTest (cpu, 0x3F);
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.overflow);
+        }
+
+        TEST_METHOD (BitTest_NegativeFlag_SetFromOperandBit7_NotAndResult)
+        {
+            // operand bit7=1, A bit7=0 => AND result bit7=0, but N must be 1
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0x00;
+
+            CpuOperations::BitTest (cpu, 0x80);
+
+            Assert::IsTrue ((bool) cpu.Status ().flags.negative);
+        }
+
+        TEST_METHOD (BitTest_NegativeFlag_ClearedWhenOperandBit7Clear)
+        {
+            TestCpu cpu;
+            cpu.InitForTest ();
+            cpu.RegA () = 0xFF;
+
+            CpuOperations::BitTest (cpu, 0x7F);
+
+            Assert::IsFalse ((bool) cpu.Status ().flags.negative);
+        }
+    };
+
+
+
+    // =========================================================================
     // Jump
     // =========================================================================
     TEST_CLASS (JumpOperationTests)
