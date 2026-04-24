@@ -171,13 +171,13 @@
 
 ### Tests (write first — must FAIL) ⚠️
 
-- [ ] T039 [P] [US7] Write comprehensive error tests in UnitTest/AssemblerTests.cpp: invalid mnemonic `"XYZ"` → error with line number, missing operand `"LDA"` → error, value out of range `"LDA #$1FF"` → error, branch out of range (target > 127 bytes away) → error, source with 3 errors on different lines → all 3 collected with correct line numbers
-- [ ] T040 [P] [US7] Write Pass 1 error recovery test in UnitTest/AssemblerTests.cpp: parse error on line 2, label defined on line 4, label address is close to correct (best-effort PC estimation kept PC advancing)
+- [X] T039 [P] [US7] Write comprehensive error tests in UnitTest/AssemblerTests.cpp: invalid mnemonic `"XYZ"` → error with line number, missing operand `"LDA"` → error, value out of range `"LDA #$1FF"` → error, branch out of range (target > 127 bytes away) → error, source with 3 errors on different lines → all 3 collected with correct line numbers
+- [X] T040 [P] [US7] Write Pass 1 error recovery test in UnitTest/AssemblerTests.cpp: parse error on line 2, label defined on line 4, label address is close to correct (best-effort PC estimation kept PC advancing)
 
 ### Implementation
 
-- [ ] T041 [US7] Harden error collection in My6502Core/Assembler.cpp: add `AssemblyError` for each error condition (invalid mnemonic, missing operand, undefined label, duplicate label, operand out of range, branch out of range, `.org` backward), continue assembly after each error, set `result.success = false` if any errors
-- [ ] T042 [US7] Implement best-effort PC estimation in My6502Core/Assembler.cpp: when a line fails to parse in Pass 1, estimate instruction size (1 byte for unknown implied, 2 bytes for unknown with operand, 3 bytes for unknown with long operand) and advance PC to minimize cascading label offset errors
+- [X] T041 [US7] Harden error collection in My6502Core/Assembler.cpp: add `AssemblyError` for each error condition (invalid mnemonic, missing operand, undefined label, duplicate label, operand out of range, branch out of range, `.org` backward), continue assembly after each error, set `result.success = false` if any errors
+- [X] T042 [US7] Implement best-effort PC estimation in My6502Core/Assembler.cpp: when a line fails to parse in Pass 1, estimate instruction size (1 byte for unknown implied, 2 bytes for unknown with operand, 3 bytes for unknown with long operand) and advance PC to minimize cascading label offset errors
 
 **Checkpoint**: All error conditions detected. Multiple errors collected per assembly with correct line numbers.
 
