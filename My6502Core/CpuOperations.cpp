@@ -36,8 +36,8 @@ void CpuOperations::BitTest (Cpu & cpu, Byte operand)
     Byte test = cpu.A & operand;
 
     cpu.status.flags.zero     = test == 0;
-    cpu.status.flags.overflow = (bool) (test & 0x40);
-    cpu.status.flags.negative = (bool) (test & 0x80);
+    cpu.status.flags.overflow = (bool) (operand & 0x40);
+    cpu.status.flags.negative = (bool) (operand & 0x80);
 }
 
 
