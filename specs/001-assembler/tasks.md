@@ -246,16 +246,16 @@
 
 **Purpose**: Validation, comprehensive coverage, and final quality checks
 
-- [ ] T055 [P] Run quickstart.md validation — assemble and execute the example program from quickstart.md, verify expected output
-- [ ] T056 [P] Write comprehensive opcode coverage test in UnitTest/OpcodeTableTests.cpp — verify all 56 mnemonics × valid addressing mode combinations produce correct opcodes (SC-001)
-- [ ] T057 [P] Write `WriteBytes()` equivalence test in UnitTest/IntegrationTests.cpp — assemble a program, also `WriteBytes()` the same raw bytes, verify both produce identical CPU execution results (SC-005)
-- [ ] T057a [P] Write Assembler instance reuse test in UnitTest/AssemblerTests.cpp — create one Assembler, call `Assemble()` twice with different source, verify results are independent and correct (FR-041)
-- [ ] T057b [P] Write case-sensitive labels test in UnitTest/AssemblerTests.cpp — define both `foo:` and `FOO:` at different addresses, verify they resolve to different addresses; reference both, verify correct resolution (FR-023)
-- [ ] T057c [P] Write 100-label stress test in UnitTest/AssemblerTests.cpp — generate a program with ~100 labels and cross-references, verify all resolve correctly (SC-002)
-- [ ] T057d [P] Write empty source text test in UnitTest/AssemblerTests.cpp — `Assemble("")` returns success with zero bytes and no errors (edge case)
-- [ ] T057e [P] Write CLI-vs-API equivalence test — assemble same source via CLI and via `Assembler::Assemble()`, compare output byte-for-byte (SC-007; may be manual/integration if not automatable in UnitTest)
-- [ ] T058 Run full test suite and verify zero test failures
-- [ ] T059 Build Release configuration for both x64 and ARM64, verify no errors or warnings
+- [X] T055 [P] Run quickstart.md validation — assemble and execute the example program from quickstart.md, verify expected output
+- [X] T056 [P] Write comprehensive opcode coverage test in UnitTest/OpcodeTableTests.cpp — verify all 56 mnemonics × valid addressing mode combinations produce correct opcodes (SC-001)
+- [X] T057 [P] Write `WriteBytes()` equivalence test in UnitTest/IntegrationTests.cpp — assemble a program, also `WriteBytes()` the same raw bytes, verify both produce identical CPU execution results (SC-005)
+- [X] T057a [P] Write Assembler instance reuse test in UnitTest/AssemblerTests.cpp — create one Assembler, call `Assemble()` twice with different source, verify results are independent and correct (FR-041)
+- [X] T057b [P] Write case-sensitive labels test in UnitTest/AssemblerTests.cpp — define both `foo:` and `FOO:` at different addresses, verify they resolve to different addresses; reference both, verify correct resolution (FR-023)
+- [X] T057c [P] Write 100-label stress test in UnitTest/AssemblerTests.cpp — generate a program with ~100 labels and cross-references, verify all resolve correctly (SC-002)
+- [X] T057d [P] Write empty source text test in UnitTest/AssemblerTests.cpp — `Assemble("")` returns success with zero bytes and no errors (edge case)
+- [X] T057e [P] Write CLI-vs-API equivalence test — assemble same source via CLI and via `Assembler::Assemble()`, compare output byte-for-byte (SC-007; may be manual/integration if not automatable in UnitTest)
+- [X] T058 Run full test suite and verify zero test failures
+- [X] T059 Build Release configuration for both x64 and ARM64, verify no errors or warnings
 
 ---
 
