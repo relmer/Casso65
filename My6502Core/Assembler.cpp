@@ -27,6 +27,37 @@ static Byte GetInstructionSize (const OpcodeTable & table, const ParsedLine & pa
 
 
 
+static Byte EstimateInstructionSize (const ClassifiedOperand & classified)
+{
+    switch (classified.mode)
+    {
+    case GlobalAddressingMode::SingleByteNoOperand:
+    case GlobalAddressingMode::Accumulator:
+        return 1;
+
+    case GlobalAddressingMode::Immediate:
+    case GlobalAddressingMode::ZeroPage:
+    case GlobalAddressingMode::ZeroPageX:
+    case GlobalAddressingMode::ZeroPageY:
+    case GlobalAddressingMode::ZeroPageXIndirect:
+    case GlobalAddressingMode::ZeroPageIndirectY:
+    case GlobalAddressingMode::Relative:
+        return 2;
+
+    case GlobalAddressingMode::Absolute:
+    case GlobalAddressingMode::AbsoluteX:
+    case GlobalAddressingMode::AbsoluteY:
+    case GlobalAddressingMode::JumpAbsolute:
+    case GlobalAddressingMode::JumpIndirect:
+        return 3;
+
+    default:
+        return 1;
+    }
+}
+
+
+
 static bool IsBranchMnemonic (const std::string & mnemonic)
 {
     return mnemonic == "BPL" || mnemonic == "BMI" ||
@@ -53,6 +84,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         Word              pc;
         bool              isInstruction;
         bool              isDirective;
+        bool              hasError;
     };
 
     std::vector<LineInfo>                     lineInfos;
@@ -219,20 +251,30 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             {
                 AssemblyError error = {};
                 error.lineNumber = i + 1;
-                error.message    = "Invalid instruction: " + info.parsed.mnemonic +
-                                   " with addressing mode " + std::to_string ((int) info.classified.mode);
+
+                if (!m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+                {
+                    error.message = "Invalid mnemonic: " + info.parsed.mnemonic;
+                }
+                else if (info.classified.mode == GlobalAddressingMode::SingleByteNoOperand)
+                {
+                    error.message = "Missing operand for: " + info.parsed.mnemonic;
+                }
+                else
+                {
+                    error.message = "Invalid addressing mode for: " + info.parsed.mnemonic;
+                }
+
                 result.errors.push_back (error);
                 result.success = false;
+                info.hasError  = true;
+
+                // Best-effort PC estimation (T042)
+                pc += EstimateInstructionSize (info.classified);
             }
         }
 
         lineInfos.push_back (info);
-    }
-
-    if (!result.success)
-    {
-        result.symbols = symbols;
-        return result;
     }
 
     // ---- Pass 2: Emit bytes with label resolution ----
@@ -240,6 +282,12 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
     for (const auto & info : lineInfos)
     {
+        // Skip lines that had errors in Pass 1
+        if (info.hasError)
+        {
+            continue;
+        }
+
         // Handle data directives
         if (info.isDirective)
         {
@@ -383,6 +431,17 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     }
                 }
             }
+        }
+
+        // Check operand value range
+        if (mode == GlobalAddressingMode::Immediate && (value < -128 || value > 255))
+        {
+            AssemblyError error = {};
+            error.lineNumber = info.parsed.lineNumber;
+            error.message    = "Operand value out of range for immediate mode: " + std::to_string (value);
+            result.errors.push_back (error);
+            result.success = false;
+            continue;
         }
 
         OpcodeEntry entry = {};

@@ -580,4 +580,117 @@ namespace AssemblerTests
             Assert::AreEqual ((Byte) 0xFF, result.bytes[1]);
         }
     };
+
+
+
+    // =========================================================================
+    // T039: Comprehensive Error Tests
+    // =========================================================================
+    TEST_CLASS (ErrorReportingTests)
+    {
+    public:
+
+        TEST_METHOD (InvalidMnemonic_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("XYZ");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+        }
+
+        TEST_METHOD (MissingOperand_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("LDA");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+        }
+
+        TEST_METHOD (ValueOutOfRange_ReportsError)
+        {
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("LDA #$1FF");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 1, result.errors.size ());
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+        }
+
+        TEST_METHOD (BranchOutOfRange_ReportsError)
+        {
+            // BEQ (2 bytes) + 128 NOPs → offset = 128, out of range
+            Assembler asm6502 = BuildAssembler ();
+            std::string source = "BEQ target\n";
+
+            for (int i = 0; i < 128; i++)
+            {
+                source += "NOP\n";
+            }
+
+            source += "target: NOP";
+
+            auto result = asm6502.Assemble (source);
+
+            Assert::IsFalse (result.success);
+
+            bool hasRangeError = false;
+
+            for (const auto & e : result.errors)
+            {
+                if (e.message.find ("range") != std::string::npos)
+                {
+                    hasRangeError = true;
+                }
+            }
+
+            Assert::IsTrue (hasRangeError);
+        }
+
+        TEST_METHOD (MultipleErrors_AllCollected)
+        {
+            // Line 1: invalid mnemonic XYZ
+            // Line 2: NOP (valid)
+            // Line 3: LDA (missing operand)
+            // Line 4: BEQ nowhere (undefined label)
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("XYZ\nNOP\nLDA\nBEQ nowhere");
+
+            Assert::IsFalse (result.success);
+            Assert::AreEqual ((size_t) 3, result.errors.size ());
+            Assert::AreEqual (1, result.errors[0].lineNumber);
+            Assert::AreEqual (3, result.errors[1].lineNumber);
+            Assert::AreEqual (4, result.errors[2].lineNumber);
+        }
+    };
+
+
+
+    // =========================================================================
+    // T040: Pass 1 Error Recovery Tests
+    // =========================================================================
+    TEST_CLASS (Pass1ErrorRecoveryTests)
+    {
+    public:
+
+        TEST_METHOD (Pass1ErrorRecovery_LabelAddressCloseToCorrect)
+        {
+            // Line 1: NOP (1 byte)
+            // Line 2: XYZ (error, estimated 1 byte)
+            // Line 3: NOP (1 byte)
+            // Line 4: target: NOP (1 byte)
+            // target should be at startAddr + 3 (best-effort PC estimation)
+            Assembler asm6502 = BuildAssembler ();
+            auto result = asm6502.Assemble ("NOP\nXYZ\nNOP\ntarget: NOP");
+
+            Assert::IsFalse (result.success);
+
+            auto it = result.symbols.find ("target");
+            Assert::IsTrue (it != result.symbols.end ());
+            Assert::AreEqual ((Word) 0x8003, it->second);
+        }
+    };
 }
