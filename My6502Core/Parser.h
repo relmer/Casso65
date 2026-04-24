@@ -25,6 +25,9 @@ struct ClassifiedOperand
     int                                  value;
     bool                                 isLabel;
     std::string                          labelName;
+    int                                  labelOffset;  // For label+offset expressions
+    bool                                 lowByteOp;    // For <label (extract low byte)
+    bool                                 highByteOp;   // For >label (extract high byte)
 };
 
 

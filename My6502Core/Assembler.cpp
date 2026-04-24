@@ -316,6 +316,19 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
             value = (int) it->second;
 
+            // Apply label offset (label+N expressions)
+            value += info.classified.labelOffset;
+
+            // Apply low/high byte operators (<label, >label)
+            if (info.classified.lowByteOp)
+            {
+                value = value & 0xFF;
+            }
+            else if (info.classified.highByteOp)
+            {
+                value = (value >> 8) & 0xFF;
+            }
+
             // Compute relative branch offset
             if (mode == GlobalAddressingMode::Relative)
             {

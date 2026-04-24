@@ -109,4 +109,56 @@ namespace ParserTests
             Assert::IsFalse (parsed.isEmpty);
         }
     };
+
+
+
+    // =========================================================================
+    // T035: Number Format Tests
+    // =========================================================================
+    TEST_CLASS (NumberFormatTests)
+    {
+    public:
+
+        TEST_METHOD (ParseValue_Hex)
+        {
+            int value = 0;
+            Assert::IsTrue (Parser::ParseValue ("$FF", value));
+            Assert::AreEqual (255, value);
+        }
+
+        TEST_METHOD (ParseValue_HexLowerCase)
+        {
+            int value = 0;
+            Assert::IsTrue (Parser::ParseValue ("$ff", value));
+            Assert::AreEqual (255, value);
+        }
+
+        TEST_METHOD (ParseValue_Binary)
+        {
+            int value = 0;
+            Assert::IsTrue (Parser::ParseValue ("%10101010", value));
+            Assert::AreEqual (170, value);
+        }
+
+        TEST_METHOD (ParseValue_BinaryLowNibble)
+        {
+            int value = 0;
+            Assert::IsTrue (Parser::ParseValue ("%00001111", value));
+            Assert::AreEqual (15, value);
+        }
+
+        TEST_METHOD (ParseValue_Decimal)
+        {
+            int value = 0;
+            Assert::IsTrue (Parser::ParseValue ("255", value));
+            Assert::AreEqual (255, value);
+        }
+
+        TEST_METHOD (ParseValue_DecimalZero)
+        {
+            int value = 0;
+            Assert::IsTrue (Parser::ParseValue ("0", value));
+            Assert::AreEqual (0, value);
+        }
+    };
 }
