@@ -849,16 +849,14 @@ void Cpu::PrintInstructionSet (Microcode::Group group)
 
 bool Cpu::LoadBinary (const std::string & filename, Word address)
 {
-    HRESULT hr = S_OK;
+    HRESULT       hr      = S_OK;
+    std::ifstream file      (filename, std::ios::binary);
+    bool          fLoaded = false;
 
-    std::ifstream file (filename, std::ios::binary);
-    bool          fIsOpen = file.is_open ();
-    bool          fLoadOk = false;
+    CBRA (file.is_open ());
 
-    CBR (fIsOpen);
-
-    fLoadOk = LoadBinary (file, address);
-    CBR (fLoadOk);
+    fLoaded = LoadBinary (file, address);
+    CBR  (fLoaded);
 
 Error:
     return SUCCEEDED (hr);
@@ -870,23 +868,18 @@ bool Cpu::LoadBinary (std::istream & stream, Word address)
 {
     HRESULT hr = S_OK;
 
-    // Read the entire stream into a temporary buffer so we can validate the
-    // size before touching `memory`. This guarantees that on any failure
-    // (read error, oversize) the existing memory contents are unchanged.
-    std::vector<char> buffer ((std::istreambuf_iterator<char> (stream)),
-                               std::istreambuf_iterator<char> ());
+    // Determine stream size
+    stream.seekg (0, std::ios::end);
+    auto size = stream.tellg ();
+    stream.seekg (0, std::ios::beg);
 
-    bool fStreamOk  = !stream.bad ();
-    bool fFitsInMem = (buffer.size () <= memSize - address);
+    CBRA (!stream.bad ());
+    CBR  (size >= 0 && (size_t) size <= memSize - address);
 
-    CBR (fStreamOk);
-    CBR (fFitsInMem);
+    // Read directly into CPU memory — no intermediate buffer
+    stream.read (reinterpret_cast<char *>(memory.data () + address), size);
 
-    if (!buffer.empty ())
-    {
-        std::copy (buffer.begin (), buffer.end (),
-                   reinterpret_cast<char *> (memory.data () + address));
-    }
+    CBRA (!stream.bad ());
 
 Error:
     return SUCCEEDED (hr);
