@@ -324,37 +324,52 @@ namespace IntegrationTests
     {
     public:
 
-        // Helper: write bytes to a uniquely-named temp file in the current
-        // working directory; returns the file path.
-        static std::string WriteTempFile (std::initializer_list<Byte> bytes)
+        // RAII helper: writes bytes to a uniquely-named temp file in the
+        // current working directory and deletes the file on destruction
+        // (even if a test assertion fails partway through).
+        class TempFile
         {
-            static int counter = 0;
-            char       namebuf[64];
-            std::snprintf (namebuf, sizeof (namebuf), "loadbinary_test_%d_%d.bin",
-                          (int) ::GetCurrentProcessId (), ++counter);
-
-            std::string path = namebuf;
-
-            std::ofstream file (path, std::ios::binary);
-            Assert::IsTrue (file.is_open ());
-
-            for (Byte b : bytes)
+        public:
+            explicit TempFile (std::initializer_list<Byte> bytes)
             {
-                file.put ((char) b);
+                static int counter = 0;
+                char namebuf[64];
+                std::snprintf (namebuf, sizeof (namebuf), "loadbinary_test_%d_%d.bin",
+                              (int) ::GetCurrentProcessId (), ++counter);
+
+                m_path = namebuf;
+
+                std::ofstream file (m_path, std::ios::binary);
+                Assert::IsTrue (file.is_open ());
+
+                for (Byte b : bytes)
+                {
+                    file.put ((char) b);
+                }
             }
 
-            file.close ();
-            return path;
-        }
+            ~TempFile ()
+            {
+                std::remove (m_path.c_str ());
+            }
+
+            TempFile             (const TempFile &) = delete;
+            TempFile & operator= (const TempFile &) = delete;
+
+            const std::string & Path () const { return m_path; }
+
+        private:
+            std::string m_path;
+        };
 
         TEST_METHOD (LoadBinary_ValidFile_LoadsBytesAtAddress)
         {
             TestCpu cpu;
             cpu.InitForTest ();
 
-            std::string path = WriteTempFile ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            TempFile bin ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            bool ok = cpu.LoadBinary (path, 0x8000);
+            bool ok = cpu.LoadBinary (bin.Path (), 0x8000);
 
             Assert::IsTrue (ok);
             Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
@@ -366,8 +381,6 @@ namespace IntegrationTests
             // Bytes outside the loaded range are unchanged.
             Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x7FFF));
             Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x8005));
-
-            std::remove (path.c_str ());
         }
 
         TEST_METHOD (LoadBinary_LoadedProgram_Executes)
@@ -376,17 +389,15 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // LDA #$42 ; STA $10 ; BRK
-            std::string path = WriteTempFile ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
+            TempFile bin ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            Assert::IsTrue (cpu.LoadBinary (path, 0x8000));
+            Assert::IsTrue (cpu.LoadBinary (bin.Path (), 0x8000));
 
             cpu.RegPC () = 0x8000;
             cpu.StepN (2); // LDA, STA
 
             Assert::AreEqual ((Byte) 0x42, cpu.RegA ());
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
-
-            std::remove (path.c_str ());
         }
 
         TEST_METHOD (LoadBinary_MissingFile_ReturnsFalse)
@@ -409,19 +420,17 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // 3-byte file, but loading at 0xFFFE would need address 0x10000 (overflow).
-            std::string path = WriteTempFile ({ 0x11, 0x22, 0x33 });
+            TempFile bin ({ 0x11, 0x22, 0x33 });
 
             cpu.Poke (0xFFFE, 0xAB);
             cpu.Poke (0xFFFF, 0xCD);
 
-            bool ok = cpu.LoadBinary (path, 0xFFFE);
+            bool ok = cpu.LoadBinary (bin.Path (), 0xFFFE);
 
             Assert::IsFalse (ok);
             // Memory unchanged on failure.
             Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0xFFFE));
             Assert::AreEqual ((Byte) 0xCD, cpu.Peek (0xFFFF));
-
-            std::remove (path.c_str ());
         }
 
         TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
@@ -430,15 +439,13 @@ namespace IntegrationTests
             cpu.InitForTest ();
 
             // 2-byte file loaded at 0xFFFE fills the last two bytes of the address space.
-            std::string path = WriteTempFile ({ 0xAA, 0xBB });
+            TempFile bin ({ 0xAA, 0xBB });
 
-            bool ok = cpu.LoadBinary (path, 0xFFFE);
+            bool ok = cpu.LoadBinary (bin.Path (), 0xFFFE);
 
             Assert::IsTrue (ok);
             Assert::AreEqual ((Byte) 0xAA, cpu.Peek (0xFFFE));
             Assert::AreEqual ((Byte) 0xBB, cpu.Peek (0xFFFF));
-
-            std::remove (path.c_str ());
         }
 
         TEST_METHOD (LoadBinary_EmptyFile_Succeeds)
@@ -446,17 +453,15 @@ namespace IntegrationTests
             TestCpu cpu;
             cpu.InitForTest ();
 
-            std::string path = WriteTempFile ({});
+            TempFile bin ({});
 
             cpu.Poke (0x8000, 0xAB);
 
-            bool ok = cpu.LoadBinary (path, 0x8000);
+            bool ok = cpu.LoadBinary (bin.Path (), 0x8000);
 
             Assert::IsTrue (ok);
             // Empty file means nothing is overwritten.
             Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x8000));
-
-            std::remove (path.c_str ());
         }
     };
 }
