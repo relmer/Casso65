@@ -265,6 +265,50 @@ static Byte EstimateInstructionSize (OperandSyntax syntax, const std::string & m
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::string ProcessEscapeSequences (const std::string & str)
+{
+    std::string result;
+    result.reserve (str.size ());
+
+
+
+    for (size_t i = 0; i < str.size (); i++)
+    {
+        if (str[i] == '\\' && i + 1 < str.size ())
+        {
+            char next = str[i + 1];
+
+            switch (next)
+            {
+            case 'a':  result += '\a'; i++; break;
+            case 'b':  result += '\b'; i++; break;
+            case 'n':  result += '\n'; i++; break;
+            case 'r':  result += '\r'; i++; break;
+            case 't':  result += '\t'; i++; break;
+            case '\\': result += '\\'; i++; break;
+            case '"':  result += '"';  i++; break;
+            default:   result += str[i]; break;
+            }
+        }
+        else
+        {
+            result += str[i];
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static bool EvaluateDirectiveArgs (
     const std::string &                      argText,
     const ExprContext &                       ctx,
@@ -282,9 +326,10 @@ static bool EvaluateDirectiveArgs (
         // Check for quoted string — emit each character as a value
         if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
         {
-            std::string str = arg.substr (1, arg.size () - 2);
+            std::string raw       = arg.substr (1, arg.size () - 2);
+            std::string processed = ProcessEscapeSequences (raw);
 
-            for (char c : str)
+            for (char c : processed)
             {
                 values.push_back ((int32_t) (unsigned char) c);
             }
@@ -350,6 +395,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     std::unordered_map<std::string, SymbolKind>        symbolKinds;
     Word                                               pc        = result.startAddress;
     bool                                               originSet = false;
+    bool                                               endAssembly = false;
 
     // Build a Pass 1 expression context (symbols populated as we go)
     std::unordered_map<std::string, int32_t>  exprSymbols;
@@ -397,6 +443,12 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     {
         PendingLine current = pendingLines.front ();
         pendingLines.pop_front ();
+
+        // Stop processing if .END was encountered
+        if (endAssembly)
+        {
+            continue;
+        }
 
         LineInfo info     = {};
         info.parsed       = Parser::ParseLine (current.text, current.sourceLineNumber);
@@ -828,6 +880,90 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
                 pc += (Word) text.size ();
             }
+            else if (info.parsed.directive == ".DD")
+            {
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                pc += (Word) (args.size () * 4);
+            }
+            else if (info.parsed.directive == ".DS")
+            {
+                pass1Ctx.currentPC = (int32_t) pc;
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+
+                if (!args.empty ())
+                {
+                    ExprResult er = ExpressionEvaluator::Evaluate (args[0], pass1Ctx);
+
+                    if (!er.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = ".ds size must be resolvable: " + er.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        pc += (Word) er.value;
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".ALIGN")
+            {
+                pass1Ctx.currentPC = (int32_t) pc;
+                int alignment = 2;  // Default: align to even address
+
+                if (!info.parsed.directiveArg.empty ())
+                {
+                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass1Ctx);
+
+                    if (!er.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = ".align expression must be resolvable: " + er.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        alignment = er.value;
+                    }
+                }
+
+                if (alignment > 0)
+                {
+                    int remainder2 = pc % alignment;
+
+                    if (remainder2 != 0)
+                    {
+                        pc += (Word) (alignment - remainder2);
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".END")
+            {
+                endAssembly = true;
+            }
+            else if (info.parsed.directive == ".ERROR")
+            {
+                std::string msg = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                if (msg.empty () && !info.parsed.directiveArg.empty ())
+                {
+                    msg = info.parsed.directiveArg;
+                }
+
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = msg.empty () ? "User error directive" : msg;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else if (info.parsed.directive == ".SEGMENT_NOOP")
+            {
+                // Recognized but intentionally no-op
+            }
 
             lineInfos.push_back (info);
             continue;
@@ -1128,6 +1264,85 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 for (char c : text)
                 {
                     output.push_back ((Byte) c);
+                }
+            }
+            else if (info.parsed.directive == ".DD")
+            {
+                std::vector<int32_t> values;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass2Ctx, values, info.parsed.lineNumber, result.errors);
+
+                if (values.size () != 0 || info.parsed.directiveArg.empty ())
+                {
+                    for (int32_t v : values)
+                    {
+                        output.push_back ((Byte) (v & 0xFF));
+                        output.push_back ((Byte) ((v >> 8) & 0xFF));
+                        output.push_back ((Byte) ((v >> 16) & 0xFF));
+                        output.push_back ((Byte) ((v >> 24) & 0xFF));
+                    }
+                }
+                else
+                {
+                    result.success = false;
+                }
+            }
+            else if (info.parsed.directive == ".DS")
+            {
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+
+                if (!args.empty ())
+                {
+                    ExprResult sizeEr = ExpressionEvaluator::Evaluate (args[0], pass2Ctx);
+
+                    if (sizeEr.success)
+                    {
+                        Byte fillVal = 0;
+
+                        if (args.size () >= 2)
+                        {
+                            ExprResult fillEr = ExpressionEvaluator::Evaluate (args[1], pass2Ctx);
+
+                            if (fillEr.success)
+                            {
+                                fillVal = (Byte) (fillEr.value & 0xFF);
+                            }
+                        }
+
+                        for (int32_t j = 0; j < sizeEr.value; j++)
+                        {
+                            output.push_back (fillVal);
+                        }
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".ALIGN")
+            {
+                int alignment = 2;
+
+                if (!info.parsed.directiveArg.empty ())
+                {
+                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass2Ctx);
+
+                    if (er.success)
+                    {
+                        alignment = er.value;
+                    }
+                }
+
+                if (alignment > 0)
+                {
+                    int remainder2 = info.pc % alignment;
+
+                    if (remainder2 != 0)
+                    {
+                        int padding = alignment - remainder2;
+                        Byte fillVal = m_options.fillByte;
+
+                        for (int j = 0; j < padding; j++)
+                        {
+                            output.push_back (fillVal);
+                        }
+                    }
                 }
             }
         }

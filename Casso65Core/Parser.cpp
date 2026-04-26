@@ -231,13 +231,55 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     }
 
     // Extract mnemonic (first word)
+    std::string firstWordUpper;
+
     if (spacePos == std::string::npos)
     {
-        result.mnemonic = ToUpper (remainder);
+        firstWordUpper = ToUpper (remainder);
+    }
+    else
+    {
+        firstWordUpper = ToUpper (remainder.substr (0, spacePos));
+    }
+
+    // Check for AS65 directive synonyms (without leading dot)
+    std::string canonicalDirective;
+
+    if      (firstWordUpper == "ORG")                                                                    { canonicalDirective = ".ORG";   }
+    else if (firstWordUpper == "DB"  || firstWordUpper == "BYT" || firstWordUpper == "BYTE" ||
+             firstWordUpper == "FCB" || firstWordUpper == "FCC")                                         { canonicalDirective = ".BYTE";  }
+    else if (firstWordUpper == "DW"  || firstWordUpper == "WORD" ||
+             firstWordUpper == "FCW" || firstWordUpper == "FDB")                                         { canonicalDirective = ".WORD";  }
+    else if (firstWordUpper == "DD")                                                                     { canonicalDirective = ".DD";    }
+    else if (firstWordUpper == "END")                                                                    { canonicalDirective = ".END";   }
+    else if (firstWordUpper == "DS"  || firstWordUpper == "DSB" || firstWordUpper == "RMB")              { canonicalDirective = ".DS";    }
+    else if (firstWordUpper == "ALIGN")                                                                  { canonicalDirective = ".ALIGN"; }
+    else if (firstWordUpper == "ERROR")                                                                  { canonicalDirective = ".ERROR"; }
+
+    // Segment keywords recognized as no-ops
+    else if (firstWordUpper == "CODE" || firstWordUpper == "DATA" || firstWordUpper == "BSS")            { canonicalDirective = ".SEGMENT_NOOP"; }
+
+    if (!canonicalDirective.empty ())
+    {
+        result.isDirective = true;
+        result.directive   = canonicalDirective;
+
+        if (spacePos != std::string::npos)
+        {
+            result.directiveArg = Trim (remainder.substr (spacePos + 1));
+        }
+
         return result;
     }
 
-    result.mnemonic = ToUpper (remainder.substr (0, spacePos));
+    // Extract mnemonic (first word)
+    if (spacePos == std::string::npos)
+    {
+        result.mnemonic = firstWordUpper;
+        return result;
+    }
+
+    result.mnemonic = firstWordUpper;
     result.operand  = Trim (remainder.substr (spacePos + 1));
 
     return result;
