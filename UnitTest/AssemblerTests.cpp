@@ -396,7 +396,7 @@ namespace AssemblerTests
         TEST_METHOD (JMP_Label_Absolute)
         {
             // JMP label (3 bytes) + label: NOP
-            // label address = 0x8003
+            // label address = 0x0003
             Assembler asm6502 = BuildAssembler ();
             auto result = asm6502.Assemble (
                 R"(                 JMP label
@@ -406,8 +406,8 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 4, result.bytes.size ());
             Assert::AreEqual ((Byte) 0x4C, result.bytes[0]); // JMP opcode
-            Assert::AreEqual ((Byte) 0x03, result.bytes[1]); // lo byte of 0x8003
-            Assert::AreEqual ((Byte) 0x80, result.bytes[2]); // hi byte of 0x8003
+            Assert::AreEqual ((Byte) 0x03, result.bytes[1]); // lo byte of 0x0003
+            Assert::AreEqual ((Byte) 0x00, result.bytes[2]); // hi byte of 0x0003
             Assert::AreEqual ((Byte) 0xEA, result.bytes[3]); // NOP
         }
 
@@ -424,7 +424,7 @@ namespace AssemblerTests
         TEST_METHOD (JSR_Label_Absolute)
         {
             // JSR sub (3 bytes) + NOP (1 byte) + sub: RTS (1 byte)
-            // sub address = 0x8004
+            // sub address = 0x0004
             Assembler asm6502 = BuildAssembler ();
             auto result = asm6502.Assemble (
                 R"(                 JSR sub
@@ -435,8 +435,8 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 5, result.bytes.size ());
             Assert::AreEqual ((Byte) 0x20, result.bytes[0]); // JSR opcode
-            Assert::AreEqual ((Byte) 0x04, result.bytes[1]); // lo byte of 0x8004
-            Assert::AreEqual ((Byte) 0x80, result.bytes[2]); // hi byte of 0x8004
+            Assert::AreEqual ((Byte) 0x04, result.bytes[1]); // lo byte of 0x0004
+            Assert::AreEqual ((Byte) 0x00, result.bytes[2]); // hi byte of 0x0004
             Assert::AreEqual ((Byte) 0xEA, result.bytes[3]); // NOP
             Assert::AreEqual ((Byte) 0x60, result.bytes[4]); // RTS
         }
@@ -461,8 +461,8 @@ namespace AssemblerTests
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 2, result.symbols.size ());
-            Assert::AreEqual ((Word) 0x8000, result.symbols["start"]);
-            Assert::AreEqual ((Word) 0x8001, result.symbols["end"]);
+            Assert::AreEqual ((Word) 0x0000, result.symbols["start"]);
+            Assert::AreEqual ((Word) 0x0001, result.symbols["end"]);
         }
     };
 
@@ -807,7 +807,7 @@ namespace AssemblerTests
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 1, result.symbols.size ());
-            Assert::AreEqual ((Word) 0x8000, result.symbols["data"]);
+            Assert::AreEqual ((Word) 0x0000, result.symbols["data"]);
             Assert::AreEqual ((size_t) 3, result.bytes.size ());
         }
     };
@@ -1243,7 +1243,7 @@ namespace AssemblerTests
 
             auto it = result.symbols.find ("target");
             Assert::IsTrue (it != result.symbols.end ());
-            Assert::AreEqual ((Word) 0x8003, it->second);
+            Assert::AreEqual ((Word) 0x0003, it->second);
         }
     };
 
@@ -1284,7 +1284,7 @@ namespace AssemblerTests
 
             const auto & line = result.listing[0];
             Assert::IsTrue (line.hasAddress);
-            Assert::AreEqual ((Word) 0x8000, line.address);
+            Assert::AreEqual ((Word) 0x0000, line.address);
             Assert::AreEqual ((size_t) 2, line.bytes.size ());
             Assert::AreEqual ((Byte) 0xA9, line.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, line.bytes[1]);
@@ -1379,7 +1379,7 @@ namespace AssemblerTests
 
             const auto & line = result.listing[0];
             Assert::IsTrue (line.hasAddress);
-            Assert::AreEqual ((Word) 0x8000, line.address);
+            Assert::AreEqual ((Word) 0x0000, line.address);
             Assert::AreEqual ((size_t) 0, line.bytes.size ());
             Assert::AreEqual (std::string ("         start:"), line.sourceText);
         }
@@ -1462,7 +1462,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 1, result.listing.size ());
 
             std::string formatted = Assembler::FormatListingLine (result.listing[0]);
-            Assert::AreEqual (std::string ("$8000  A9 42     LDA #$42"), formatted);
+            Assert::AreEqual (std::string ("$0000  A9 42     LDA #$42"), formatted);
         }
 
 
@@ -1594,7 +1594,7 @@ namespace AssemblerTests
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
             auto result = asm6502.Assemble (
-                R"(                 .org $8000
+                R"(                 .org $0000
                                     NOP
                 )");
 
@@ -1616,7 +1616,7 @@ namespace AssemblerTests
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
             auto result = asm6502.Assemble (
-                R"(                 .org $8000
+                R"(                 .org $0000
                                     NOP
                 )");
 
@@ -1861,18 +1861,18 @@ namespace AssemblerTests
             );
 
             Assert::IsTrue (result.success);
-            Assert::AreEqual ((Word) 0x8000, result.symbols["foo"]);
-            Assert::AreEqual ((Word) 0x8001, result.symbols["FOO"]);
+            Assert::AreEqual ((Word) 0x0000, result.symbols["foo"]);
+            Assert::AreEqual ((Word) 0x0001, result.symbols["FOO"]);
 
-            // JMP foo → bytes at offset 2: 0x4C, 0x00, 0x80
+            // JMP foo → bytes at offset 2: 0x4C, 0x00, 0x00
             Assert::AreEqual ((Byte) 0x4C, result.bytes[2]);
             Assert::AreEqual ((Byte) 0x00, result.bytes[3]);
-            Assert::AreEqual ((Byte) 0x80, result.bytes[4]);
+            Assert::AreEqual ((Byte) 0x00, result.bytes[4]);
 
-            // JMP FOO → bytes at offset 5: 0x4C, 0x01, 0x80
+            // JMP FOO → bytes at offset 5: 0x4C, 0x01, 0x00
             Assert::AreEqual ((Byte) 0x4C, result.bytes[5]);
             Assert::AreEqual ((Byte) 0x01, result.bytes[6]);
-            Assert::AreEqual ((Byte) 0x80, result.bytes[7]);
+            Assert::AreEqual ((Byte) 0x00, result.bytes[7]);
         }
     };
 
@@ -1929,7 +1929,7 @@ namespace AssemblerTests
             for (int i = 0; i < 100; i++)
             {
                 std::string name = "label" + std::to_string (i);
-                Word expectedAddr = 0x8000 + (Word) i;
+                Word expectedAddr = 0x0000 + (Word) i;
 
                 Assert::AreEqual (expectedAddr, result.symbols[name],
                     (std::wstring (L"Label: ") + std::wstring (name.begin (), name.end ())).c_str ());
