@@ -1,7 +1,39 @@
 #include "Pch.h"
 
 #include "Assembler.h"
+#include "ExpressionEvaluator.h"
 #include "Parser.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DefaultFileReader::ReadFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const std::string & baseDir)
+{
+    FileReadResult result = {};
+
+    std::string fullPath = baseDir.empty () ? filename : baseDir + "/" + filename;
+    std::ifstream file (fullPath);
+
+    if (!file.is_open ())
+    {
+        result.success = false;
+        result.error   = "Cannot open file: " + fullPath;
+        return result;
+    }
+
+    std::ostringstream ss;
+    ss << file.rdbuf ();
+    result.success  = true;
+    result.contents = ss.str ();
+    return result;
+}
 
 
 
@@ -64,67 +96,6 @@ void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetInstructionSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte GetInstructionSize (const OpcodeTable & table, const ParsedLine & parsed, const ClassifiedOperand & classified)
-{
-    OpcodeEntry entry = {};
-
-    if (table.Lookup (parsed.mnemonic, classified.mode, entry))
-    {
-        return 1 + entry.operandSize;
-    }
-
-    return 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EstimateInstructionSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte EstimateInstructionSize (const ClassifiedOperand & classified)
-{
-    switch (classified.mode)
-    {
-    case GlobalAddressingMode::SingleByteNoOperand:
-    case GlobalAddressingMode::Accumulator:
-        return 1;
-
-    case GlobalAddressingMode::Immediate:
-    case GlobalAddressingMode::ZeroPage:
-    case GlobalAddressingMode::ZeroPageX:
-    case GlobalAddressingMode::ZeroPageY:
-    case GlobalAddressingMode::ZeroPageXIndirect:
-    case GlobalAddressingMode::ZeroPageIndirectY:
-    case GlobalAddressingMode::Relative:
-        return 2;
-
-    case GlobalAddressingMode::Absolute:
-    case GlobalAddressingMode::AbsoluteX:
-    case GlobalAddressingMode::AbsoluteY:
-    case GlobalAddressingMode::JumpAbsolute:
-    case GlobalAddressingMode::JumpIndirect:
-        return 3;
-
-    default:
-        return 1;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IsBranchMnemonic
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +114,254 @@ static bool IsBranchMnemonic (const std::string & mnemonic)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResolveAddressingMode — derive final 6502 addressing mode from syntax,
+//  mnemonic, and resolved value
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static GlobalAddressingMode::AddressingMode ResolveAddressingMode (
+    OperandSyntax    syntax,
+    const std::string & mnemonic,
+    int32_t          value,
+    bool             resolved,
+    const OpcodeTable & opcodeTable)
+{
+    using AM = GlobalAddressingMode::AddressingMode;
+
+
+
+    switch (syntax)
+    {
+    case OperandSyntax::None:
+        return AM::SingleByteNoOperand;
+
+    case OperandSyntax::Accumulator:
+        return AM::Accumulator;
+
+    case OperandSyntax::Immediate:
+        return AM::Immediate;
+
+    case OperandSyntax::IndirectX:
+        return AM::ZeroPageXIndirect;
+
+    case OperandSyntax::IndirectY:
+        return AM::ZeroPageIndirectY;
+
+    case OperandSyntax::Indirect:
+        return AM::JumpIndirect;
+
+    case OperandSyntax::IndexedX:
+    {
+        // Try ZeroPageX first if value fits and instruction supports it
+        if (resolved && value >= 0 && value <= 0xFF)
+        {
+            OpcodeEntry entry = {};
+
+            if (opcodeTable.Lookup (mnemonic, AM::ZeroPageX, entry))
+            {
+                return AM::ZeroPageX;
+            }
+        }
+
+        return AM::AbsoluteX;
+    }
+
+    case OperandSyntax::IndexedY:
+    {
+        if (resolved && value >= 0 && value <= 0xFF)
+        {
+            OpcodeEntry entry = {};
+
+            if (opcodeTable.Lookup (mnemonic, AM::ZeroPageY, entry))
+            {
+                return AM::ZeroPageY;
+            }
+        }
+
+        return AM::AbsoluteY;
+    }
+
+    case OperandSyntax::Bare:
+    {
+        // Branch instructions are always relative
+        if (IsBranchMnemonic (mnemonic))
+        {
+            return AM::Relative;
+        }
+
+        // JMP/JSR use JumpAbsolute
+        if (mnemonic == "JMP" || mnemonic == "JSR")
+        {
+            return AM::JumpAbsolute;
+        }
+
+        // Try ZeroPage if value fits and instruction supports it
+        if (resolved && value >= 0 && value <= 0xFF)
+        {
+            OpcodeEntry entry = {};
+
+            if (opcodeTable.Lookup (mnemonic, AM::ZeroPage, entry))
+            {
+                return AM::ZeroPage;
+            }
+        }
+
+        return AM::Absolute;
+    }
+    }
+
+    return AM::SingleByteNoOperand;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EstimateInstructionSize — conservative size for unresolved expressions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static Byte EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic)
+{
+    switch (syntax)
+    {
+    case OperandSyntax::None:
+    case OperandSyntax::Accumulator:
+        return 1;
+
+    case OperandSyntax::Immediate:
+    case OperandSyntax::IndirectX:
+    case OperandSyntax::IndirectY:
+        return 2;
+
+    case OperandSyntax::Indirect:
+        return 3;
+
+    case OperandSyntax::IndexedX:
+    case OperandSyntax::IndexedY:
+    case OperandSyntax::Bare:
+    {
+        if (IsBranchMnemonic (mnemonic))
+        {
+            return 2;
+        }
+
+        return 3;  // Conservative: assume absolute
+    }
+    }
+
+    return 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::string ProcessEscapeSequences (const std::string & str)
+{
+    std::string result;
+    result.reserve (str.size ());
+
+
+
+    for (size_t i = 0; i < str.size (); i++)
+    {
+        if (str[i] == '\\' && i + 1 < str.size ())
+        {
+            char next = str[i + 1];
+
+            switch (next)
+            {
+            case 'a':  result += '\a'; i++; break;
+            case 'b':  result += '\b'; i++; break;
+            case 'n':  result += '\n'; i++; break;
+            case 'r':  result += '\r'; i++; break;
+            case 't':  result += '\t'; i++; break;
+            case '\\': result += '\\'; i++; break;
+            case '"':  result += '"';  i++; break;
+            default:   result += str[i]; break;
+            }
+        }
+        else
+        {
+            result += str[i];
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool EvaluateDirectiveArgs (
+    const std::string &                      argText,
+    const ExprContext &                       ctx,
+    std::vector<int32_t> &                   values,
+    int                                      lineNumber,
+    std::vector<AssemblyError> &             errors)
+{
+    auto args = Parser::SplitArgList (argText);
+    bool ok   = true;
+
+
+
+    for (const auto & arg : args)
+    {
+        // Check for quoted string — emit each character as a value
+        if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
+        {
+            std::string raw       = arg.substr (1, arg.size () - 2);
+            std::string processed = ProcessEscapeSequences (raw);
+
+            for (char c : processed)
+            {
+                values.push_back ((int32_t) (unsigned char) c);
+            }
+
+            continue;
+        }
+
+        ExprResult er = ExpressionEvaluator::Evaluate (arg, ctx);
+
+        if (!er.success)
+        {
+            AssemblyError error = {};
+            error.lineNumber = lineNumber;
+            error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
+            errors.push_back (error);
+            ok = false;
+        }
+        else
+        {
+            values.push_back (er.value);
+        }
+    }
+
+    return ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Assemble
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,11 +370,11 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 {
     AssemblyResult result = {};
     result.success      = true;
-    result.startAddress = 0x8000;
+    result.startAddress = 0;
 
     auto lines = Parser::SplitLines (sourceText);
 
-    // ---- Pass 1: Parse lines, collect labels, compute PC values ----
+    // ---- Line info for both passes ----
     struct LineInfo
     {
         ParsedLine        parsed;
@@ -163,35 +382,565 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         Word              pc;
         bool              isInstruction;
         bool              isDirective;
+        bool              isConstant;
         bool              hasError;
+
+        GlobalAddressingMode::AddressingMode resolvedMode;
+        int32_t                              resolvedValue;
+        bool                                 valueResolved;
+
+        int              macroDepth;
+        bool             conditionalSkip;
+        bool             listingSuppressed;
     };
 
-    std::vector<LineInfo>                     lineInfos;
-    std::unordered_map<std::string, Word>     symbols;
-    Word                                      pc        = result.startAddress;
-    bool                                      originSet = false;
+    std::vector<LineInfo>                              lineInfos;
+    std::unordered_map<std::string, Word>              symbols;
+    std::unordered_map<std::string, SymbolKind>        symbolKinds;
+    Word                                               pc        = result.startAddress;
+    bool                                               originSet = false;
+    bool                                               endAssembly = false;
+
+    // Build a Pass 1 expression context (symbols populated as we go)
+    std::unordered_map<std::string, int32_t>  exprSymbols;
+    ExprContext                                pass1Ctx = { &exprSymbols, 0 };
+
+    // Inject predefined symbols (-d flag)
+    for (const auto & predef : m_options.predefinedSymbols)
+    {
+        symbols[predef.first]     = (Word) predef.second;
+        symbolKinds[predef.first] = SymbolKind::Equ;
+        exprSymbols[predef.first] = predef.second;
+    }
+
+    // Conditional assembly stack
+    std::vector<ConditionalState> condStack;
+
+    // Macro definitions and expansion state
+    std::unordered_map<std::string, MacroDefinition> macros;
+    bool         collectingMacro = false;
+    std::string  currentMacroName;
+    int          currentMacroLine = 0;
+    std::vector<std::string> currentMacroBody;
+    std::vector<std::string> currentMacroParams;
+    std::vector<std::string> currentMacroLocals;
+    int          macroUniqueCounter = 0;
+    static const int kMaxMacroDepth   = 15;
+    static const int kMaxIncludeDepth = 16;
+
+    // Listing control state
+    int listingLevel = m_options.generateListing ? 1 : 0;
+
+    // Struct definitions
+    std::unordered_map<std::string, StructDefinition> structs;
+    bool        collectingStruct = false;
+    StructDefinition currentStruct = {};
+
+    // Character map
+    CharacterMap charMap;
+
+    // Helper: check if currently assembling (all enclosing conditions true)
+    auto isAssembling = [&condStack] ()
+    {
+        return condStack.empty () || condStack.back ().assembling;
+    };
+
+    // ---- Pass 1: Parse, collect labels, compute PC ----
+    // Use a processing queue to support macro expansion inline
+    struct PendingLine
+    {
+        std::string text;
+        int         sourceLineNumber;  // Original source line for error reporting
+        int         macroDepth;        // Current macro nesting depth
+        int         includeDepth;      // Current include nesting depth
+        std::string sourceFile;        // Source file name (empty = main)
+    };
+
+    std::deque<PendingLine> pendingLines;
 
     for (int i = 0; i < (int) lines.size (); i++)
     {
-        LineInfo info    = {};
-        info.parsed      = Parser::ParseLine (lines[i], i + 1);
-        info.pc          = pc;
+        PendingLine pl = {};
+        pl.text = lines[i];
+        pl.sourceLineNumber = i + 1;
+        pl.macroDepth = 0;
+        pendingLines.push_back (pl);
+    }
+
+    while (!pendingLines.empty ())
+    {
+        PendingLine current = pendingLines.front ();
+        pendingLines.pop_front ();
+
+        // Stop processing if .END was encountered
+        if (endAssembly)
+        {
+            continue;
+        }
+
+        LineInfo info     = {};
+        info.parsed       = Parser::ParseLine (current.text, current.sourceLineNumber);
+        info.pc           = pc;
         info.isInstruction = false;
         info.isDirective   = false;
+        info.isConstant    = false;
+        info.hasError      = false;
+        info.valueResolved = false;
+        info.resolvedValue = 0;
+        info.resolvedMode  = GlobalAddressingMode::SingleByteNoOperand;
+        info.macroDepth       = current.macroDepth;
+        info.conditionalSkip  = false;
+        info.listingSuppressed = (listingLevel <= 0);
 
-        // Handle .org BEFORE recording label (so label gets the new address)
+        // ---- Struct definition collection ----
+        if (collectingStruct)
+        {
+            std::string mnUpper = info.parsed.mnemonic;
+
+            // Check for "end struct" — Parser converts "end" to .END directive
+            bool isEndStruct = false;
+
+            if (info.parsed.isDirective && info.parsed.directive == ".END")
+            {
+                std::string endArg = info.parsed.directiveArg;
+                std::string endArgUpper = endArg;
+
+                for (auto & c : endArgUpper)
+                {
+                    c = (char) toupper ((unsigned char) c);
+                }
+
+                size_t sp = endArgUpper.find_first_not_of (" \t");
+
+                if (sp != std::string::npos)
+                {
+                    endArgUpper = endArgUpper.substr (sp);
+                }
+
+                size_t ep = endArgUpper.find_first_of (" \t");
+                std::string firstWord = (ep == std::string::npos) ? endArgUpper : endArgUpper.substr (0, ep);
+
+                if (firstWord == "STRUCT")
+                {
+                    isEndStruct = true;
+                }
+            }
+            else if (mnUpper == "END" && !info.parsed.operand.empty ())
+            {
+                std::string opUpper = info.parsed.operand;
+
+                for (auto & c : opUpper)
+                {
+                    c = (char) toupper ((unsigned char) c);
+                }
+
+                size_t sp = opUpper.find_first_of (" \t");
+                std::string first = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
+
+                if (first == "STRUCT")
+                {
+                    isEndStruct = true;
+                }
+            }
+
+            if (isEndStruct)
+            {
+                // Record struct size as a symbol
+                int32_t structSize = currentStruct.currentOffset - currentStruct.startOffset;
+                symbols[currentStruct.name]     = (Word) structSize;
+                symbolKinds[currentStruct.name]  = SymbolKind::Equ;
+                exprSymbols[currentStruct.name] = structSize;
+                structs[currentStruct.name]     = currentStruct;
+                collectingStruct = false;
+            }
+            else if (!info.parsed.isEmpty)
+            {
+                // Parse member: MEMBER ds SIZE or MEMBER db or MEMBER dw etc.
+                // The member name is in the mnemonic position (column 0)
+                // and the size directive is in the operand
+                std::string memberName;
+                int32_t     memberSize = 0;
+
+                if (!mnUpper.empty () && !info.parsed.operand.empty ())
+                {
+                    // Could be: MEMBER ds SIZE
+                    std::string opStr = info.parsed.operand;
+                    std::string opUpper = opStr;
+
+                    for (auto & c : opUpper)
+                    {
+                        c = (char) toupper ((unsigned char) c);
+                    }
+
+                    size_t sp = opUpper.find_first_of (" \t");
+                    std::string directive = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
+                    std::string sizeExpr;
+
+                    if (sp != std::string::npos)
+                    {
+                        sizeExpr = opStr.substr (sp);
+                        size_t ss = sizeExpr.find_first_not_of (" \t");
+
+                        if (ss != std::string::npos)
+                        {
+                            sizeExpr = sizeExpr.substr (ss);
+                        }
+                    }
+
+                    // Recover original-case member name from raw text
+                    std::string rawTrimmed = current.text;
+                    size_t rs = rawTrimmed.find_first_not_of (" \t");
+
+                    if (rs != std::string::npos)
+                    {
+                        rawTrimmed = rawTrimmed.substr (rs);
+                    }
+
+                    size_t re = rawTrimmed.find_first_of (" \t");
+
+                    if (re != std::string::npos)
+                    {
+                        memberName = rawTrimmed.substr (0, re);
+                    }
+                    else
+                    {
+                        memberName = rawTrimmed;
+                    }
+
+                    if (directive == "DS" || directive == "DSB" || directive == "RMB")
+                    {
+                        pass1Ctx.currentPC = (int32_t) pc;
+                        ExprResult er = ExpressionEvaluator::Evaluate (sizeExpr, pass1Ctx);
+
+                        if (er.success)
+                        {
+                            memberSize = er.value;
+                        }
+                        else
+                        {
+                            memberSize = 1;
+                        }
+                    }
+                    else if (directive == "DB" || directive == "BYT" || directive == "BYTE" || directive == "FCB")
+                    {
+                        memberSize = 1;
+                    }
+                    else if (directive == "DW" || directive == "WORD" || directive == "FCW" || directive == "FDB")
+                    {
+                        memberSize = 2;
+                    }
+                    else if (directive == "DD")
+                    {
+                        memberSize = 4;
+                    }
+                }
+
+                if (!memberName.empty () && memberSize > 0)
+                {
+                    StructMember member = {};
+                    member.name   = memberName;
+                    member.offset = currentStruct.currentOffset;
+                    member.size   = memberSize;
+                    currentStruct.members.push_back (member);
+
+                    // Define symbol: STRUCTNAME.MEMBER = offset
+                    std::string symName = currentStruct.name + "." + memberName;
+                    symbols[symName]     = (Word) currentStruct.currentOffset;
+                    symbolKinds[symName]  = SymbolKind::Equ;
+                    exprSymbols[symName] = currentStruct.currentOffset;
+
+                    currentStruct.currentOffset += memberSize;
+                }
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // ---- Macro definition collection ----
+        if (collectingMacro)
+        {
+            // Check for endm (end macro)
+            std::string mnUpper = info.parsed.mnemonic;
+
+            if (mnUpper == "ENDM" || (info.parsed.isDirective && info.parsed.directive == ".ENDM"))
+            {
+                MacroDefinition def = {};
+                def.name       = currentMacroName;
+                def.body       = currentMacroBody;
+                def.paramNames = currentMacroParams;
+                def.localLabels = currentMacroLocals;
+                def.lineNumber = currentMacroLine;
+                macros[currentMacroName] = def;
+                collectingMacro = false;
+            }
+            else
+            {
+                // Check for "local" directive inside macro body
+                std::string bodyMn = info.parsed.mnemonic;
+
+                if (bodyMn == "LOCAL" || (info.parsed.isDirective && info.parsed.directive == ".LOCAL"))
+                {
+                    std::string localArg = bodyMn == "LOCAL" ? info.parsed.operand : info.parsed.directiveArg;
+                    auto localNames = Parser::SplitArgList (localArg);
+
+                    for (const auto & ln : localNames)
+                    {
+                        // Trim and store
+                        std::string name = ln;
+                        size_t ns = name.find_first_not_of (" \t");
+                        size_t ne = name.find_last_not_of (" \t");
+
+                        if (ns != std::string::npos)
+                        {
+                            name = name.substr (ns, ne - ns + 1);
+                        }
+
+                        if (!name.empty ())
+                        {
+                            currentMacroLocals.push_back (name);
+                        }
+                    }
+                }
+
+                currentMacroBody.push_back (current.text);
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // ---- Check for macro definition start (NAME macro) ----
+        if (!info.parsed.mnemonic.empty () && info.parsed.mnemonic == "MACRO" && isAssembling ())
+        {
+            // The macro name is in the label field (label: macro) or
+            // we need to re-parse: the line is "NAME macro [params]"
+            // Actually, ParseLine would have parsed "NAME" as label if it had ':'
+            // For AS65 syntax: "NAME macro" where NAME is at column 0
+            // ParseLine parsed NAME as mnemonic="NAME", operand is empty
+            // But actually ParseLine returns mnemonic="MACRO" because it uppercases
+            // The actual name was the first word before "macro"
+            // Let me re-examine: "trap macro" → mnemonic="TRAP", operand="macro"
+            // Wait no - "trap macro" → first word is "trap", rest is "macro"
+            // With ParseLine: mnemonic="TRAP", operand="macro"
+            // So mnemonic == "MACRO" means the line is literally "macro ..."
+            // For "NAME macro", mnemonic is "NAME" and operand starts with "macro"
+            // I need to handle this differently.
+        }
+
+        // Re-check: For AS65 macro syntax "NAME macro [params]":
+        // ParseLine gives mnemonic="NAME", operand="macro" or "macro param1, param2"
+        // So we detect: if operand starts with "macro" (case-insensitive)
+        std::string operandUpper;
+
+        if (!info.parsed.operand.empty ())
+        {
+            operandUpper = info.parsed.operand;
+
+            for (auto & c : operandUpper)
+            {
+                c = (char) toupper ((unsigned char) c);
+            }
+        }
+
+        bool isMacroDef = false;
+
+        if (!info.parsed.mnemonic.empty () && !info.parsed.isEmpty && isAssembling ())
+        {
+            // "NAME macro [params]" — operand starts with "macro"
+            if (operandUpper.substr (0, 5) == "MACRO" &&
+                (operandUpper.size () == 5 || operandUpper[5] == ' ' || operandUpper[5] == '\t'))
+            {
+                isMacroDef = true;
+            }
+        }
+
+        if (isMacroDef)
+        {
+            // Check for name collision with mnemonics
+            if (m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Macro name conflicts with mnemonic: " + info.parsed.mnemonic;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+
+            collectingMacro  = true;
+            currentMacroName = info.parsed.mnemonic;
+            currentMacroLine = current.sourceLineNumber;
+            currentMacroBody.clear ();
+            currentMacroParams.clear ();
+            currentMacroLocals.clear ();
+
+            // Parse parameter names (after "macro" keyword)
+            std::string paramStr;
+
+            if (operandUpper.size () > 5)
+            {
+                paramStr = info.parsed.operand.substr (6);
+            }
+
+            if (!paramStr.empty ())
+            {
+                auto paramNames = Parser::SplitArgList (paramStr);
+
+                for (const auto & pn : paramNames)
+                {
+                    std::string name = pn;
+                    size_t ns = name.find_first_not_of (" \t");
+                    size_t ne = name.find_last_not_of (" \t");
+
+                    if (ns != std::string::npos)
+                    {
+                        name = name.substr (ns, ne - ns + 1);
+                    }
+
+                    if (!name.empty ())
+                    {
+                        currentMacroParams.push_back (name);
+                    }
+                }
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // ---- Conditional assembly directives ----
+        // Detect if/else/endif in both mnemonic and directive forms
+        std::string condDirective;
+        std::string condArg;
+
+        if (info.parsed.isDirective)
+        {
+            std::string dir = info.parsed.directive;
+
+            if (dir == ".IF")       { condDirective = "IF";    condArg = info.parsed.directiveArg; }
+            else if (dir == ".ELSE")  { condDirective = "ELSE"; }
+            else if (dir == ".ENDIF") { condDirective = "ENDIF"; }
+        }
+        else if (!info.parsed.mnemonic.empty ())
+        {
+            if (info.parsed.mnemonic == "IF")        { condDirective = "IF";    condArg = info.parsed.operand; }
+            else if (info.parsed.mnemonic == "ELSE")  { condDirective = "ELSE"; }
+            else if (info.parsed.mnemonic == "ENDIF") { condDirective = "ENDIF"; }
+        }
+
+        if (!condDirective.empty ())
+        {
+            if (condDirective == "IF")
+            {
+                ConditionalState state = {};
+                state.parentAssembling = isAssembling ();
+                state.seenElse = false;
+
+                if (state.parentAssembling)
+                {
+                    pass1Ctx.currentPC = (int32_t) pc;
+                    ExprResult er = ExpressionEvaluator::Evaluate (condArg, pass1Ctx);
+
+                    if (!er.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = "Cannot evaluate if expression: " + er.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                        state.assembling = false;
+                    }
+                    else
+                    {
+                        state.assembling = (er.value != 0);
+                    }
+                }
+                else
+                {
+                    state.assembling = false;
+                }
+
+                condStack.push_back (state);
+            }
+            else if (condDirective == "ELSE")
+            {
+                if (condStack.empty ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "else without matching if";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else if (condStack.back ().seenElse)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "Duplicate else";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    condStack.back ().seenElse = true;
+
+                    if (condStack.back ().parentAssembling)
+                    {
+                        condStack.back ().assembling = !condStack.back ().assembling;
+                    }
+                }
+            }
+            else if (condDirective == "ENDIF")
+            {
+                if (condStack.empty ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "endif without matching if";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    condStack.pop_back ();
+                }
+            }
+
+            info.isDirective = true;
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // Skip lines in non-assembling conditional blocks
+        if (!isAssembling ())
+        {
+            info.conditionalSkip = true;
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // Handle .org BEFORE recording label
         if (info.parsed.isDirective && info.parsed.directive == ".ORG")
         {
-            int orgAddr = 0;
+            pass1Ctx.currentPC = (int32_t) pc;
+            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass1Ctx);
 
-            if (Parser::ParseValue (info.parsed.directiveArg, orgAddr))
+            if (!er.success)
             {
-                Word newAddr = (Word) orgAddr;
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = ".org expression must be resolvable: " + er.error;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else
+            {
+                Word newAddr = (Word) er.value;
 
                 if (originSet && newAddr < pc)
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
                     error.message    = ".org address is backward from current position";
                     result.errors.push_back (error);
                     result.success = false;
@@ -200,10 +949,10 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 {
                     if (newAddr == pc)
                     {
-                        RecordWarning (result, i + 1, "Redundant .org to current address");
+                        RecordWarning (result, current.sourceLineNumber, "Redundant .org to current address");
                     }
 
-                    pc = newAddr;
+                    pc      = newAddr;
                     info.pc = pc;
 
                     if (!originSet)
@@ -219,7 +968,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             continue;
         }
 
-        // Record label with validation
+        // Record label
         if (!info.parsed.label.empty ())
         {
             std::string labelError;
@@ -227,7 +976,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             if (!Parser::ValidateLabel (info.parsed.label, m_opcodeTable, labelError))
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
                 error.message    = labelError;
                 result.errors.push_back (error);
                 result.success = false;
@@ -235,16 +984,18 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             else if (symbols.count (info.parsed.label) > 0)
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
                 error.message    = "Duplicate label: " + info.parsed.label;
                 result.errors.push_back (error);
                 result.success = false;
             }
             else
             {
-                symbols[info.parsed.label] = pc;
+                symbols[info.parsed.label]     = pc;
+                symbolKinds[info.parsed.label]  = SymbolKind::Label;
+                exprSymbols[info.parsed.label] = (int32_t) pc;
 
-                // Warn if label differs from a mnemonic only by case (FR-033a)
+                // Warn if label resembles mnemonic by case (FR-033a)
                 std::string upper = info.parsed.label;
 
                 for (auto & c : upper)
@@ -254,67 +1005,777 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                 if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
                 {
-                    RecordWarning (result, i + 1, "Label name resembles mnemonic: " + info.parsed.label);
+                    RecordWarning (result, current.sourceLineNumber, "Label name resembles mnemonic: " + info.parsed.label);
                 }
             }
         }
 
-        // Handle data directives (.byte, .word, .text)
+        // Handle constant definitions (NAME = EXPR, NAME equ EXPR, NAME set EXPR)
+        if (info.parsed.isConstant)
+        {
+            info.isConstant = true;
+
+            pass1Ctx.currentPC = (int32_t) pc;
+
+            // For Set/= constants: evaluate eagerly in Pass 1
+            // For Equ constants: defer to Pass 2 (can forward-reference labels)
+            if (info.parsed.constantKind == SymbolKind::Set)
+            {
+                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass1Ctx);
+
+                if (!er.success)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "Cannot evaluate constant expression: " + er.error;
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    // Check for cross-kind redefinition
+                    auto kindIt = symbolKinds.find (info.parsed.constantName);
+
+                    if (kindIt != symbolKinds.end () && kindIt->second != SymbolKind::Set)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = "Cannot redefine " + info.parsed.constantName + " (was defined as immutable)";
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        symbols[info.parsed.constantName]     = (Word) er.value;
+                        symbolKinds[info.parsed.constantName]  = SymbolKind::Set;
+                        exprSymbols[info.parsed.constantName] = er.value;
+                    }
+                }
+            }
+            else // Equ
+            {
+                // Check if already defined
+                auto kindIt = symbolKinds.find (info.parsed.constantName);
+
+                if (kindIt != symbolKinds.end ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+
+                    if (kindIt->second == SymbolKind::Equ)
+                    {
+                        error.message = "Duplicate equ definition: " + info.parsed.constantName;
+                    }
+                    else
+                    {
+                        error.message = "Cannot redefine " + info.parsed.constantName + " as equ (already defined as different kind)";
+                    }
+
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    // Reserve the name — actual value set in Pass 2
+                    symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
+
+                    // Try to evaluate in Pass 1 (may succeed if no forward refs)
+                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass1Ctx);
+
+                    if (er.success)
+                    {
+                        symbols[info.parsed.constantName]     = (Word) er.value;
+                        exprSymbols[info.parsed.constantName] = er.value;
+                    }
+                }
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // Handle data directives
         if (info.parsed.isDirective)
         {
             info.isDirective = true;
 
             if (info.parsed.directive == ".BYTE")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
-                pc += (Word) values.size ();
+                // Count items for PC advancement
+                pass1Ctx.currentPC = (int32_t) pc;
+                std::vector<int32_t> values;
+                std::vector<AssemblyError> tempErrors;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass1Ctx, values, current.sourceLineNumber, tempErrors);
+
+                // If evaluation fails, try counting comma-separated items
+                if (values.empty () && !info.parsed.directiveArg.empty ())
+                {
+                    auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                    pc += (Word) args.size ();
+                }
+                else
+                {
+                    pc += (Word) values.size ();
+                }
             }
             else if (info.parsed.directive == ".WORD")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
-                pc += (Word) (values.size () * 2);
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                pc += (Word) (args.size () * 2);
             }
             else if (info.parsed.directive == ".TEXT")
             {
                 std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
                 pc += (Word) text.size ();
             }
+            else if (info.parsed.directive == ".DD")
+            {
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                pc += (Word) (args.size () * 4);
+            }
+            else if (info.parsed.directive == ".DS")
+            {
+                pass1Ctx.currentPC = (int32_t) pc;
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+
+                if (!args.empty ())
+                {
+                    ExprResult er = ExpressionEvaluator::Evaluate (args[0], pass1Ctx);
+
+                    if (!er.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = ".ds size must be resolvable: " + er.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        pc += (Word) er.value;
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".ALIGN")
+            {
+                pass1Ctx.currentPC = (int32_t) pc;
+                int alignment = 2;  // Default: align to even address
+
+                if (!info.parsed.directiveArg.empty ())
+                {
+                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass1Ctx);
+
+                    if (!er.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = ".align expression must be resolvable: " + er.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        alignment = er.value;
+                    }
+                }
+
+                if (alignment > 0)
+                {
+                    int remainder2 = pc % alignment;
+
+                    if (remainder2 != 0)
+                    {
+                        pc += (Word) (alignment - remainder2);
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".END")
+            {
+                endAssembly = true;
+            }
+            else if (info.parsed.directive == ".ERROR")
+            {
+                std::string msg = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                if (msg.empty () && !info.parsed.directiveArg.empty ())
+                {
+                    msg = info.parsed.directiveArg;
+                }
+
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = msg.empty () ? "User error directive" : msg;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else if (info.parsed.directive == ".SEGMENT_NOOP")
+            {
+                // Recognized but intentionally no-op
+            }
+            else if (info.parsed.directive == ".LIST")
+            {
+                listingLevel++;
+            }
+            else if (info.parsed.directive == ".NOLIST")
+            {
+                listingLevel--;
+            }
+            else if (info.parsed.directive == ".PAGE")
+            {
+                // Page break in listing — handled at listing output time
+            }
+            else if (info.parsed.directive == ".TITLE")
+            {
+                result.listingTitle = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                if (result.listingTitle.empty () && !info.parsed.directiveArg.empty ())
+                {
+                    result.listingTitle = info.parsed.directiveArg;
+                }
+            }
+            else if (info.parsed.directive == ".INCLUDE")
+            {
+                if (m_options.fileReader == nullptr)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "No file reader configured for include";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else if (current.includeDepth >= kMaxIncludeDepth)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    std::string filename = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                    if (filename.empty ())
+                    {
+                        filename = info.parsed.directiveArg;
+
+                        // Trim whitespace
+                        size_t fs = filename.find_first_not_of (" \t");
+                        size_t fe = filename.find_last_not_of (" \t");
+
+                        if (fs != std::string::npos)
+                        {
+                            filename = filename.substr (fs, fe - fs + 1);
+                        }
+                    }
+
+                    FileReadResult fr = m_options.fileReader->ReadFile (filename, m_options.baseDir);
+
+                    if (!fr.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = fr.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        auto includeLines = Parser::SplitLines (fr.contents);
+
+                        // Insert at front of queue (reverse order)
+                        for (int il = (int) includeLines.size () - 1; il >= 0; il--)
+                        {
+                            PendingLine pl = {};
+                            pl.text             = includeLines[il];
+                            pl.sourceLineNumber = il + 1;
+                            pl.macroDepth       = current.macroDepth;
+                            pl.includeDepth     = current.includeDepth + 1;
+                            pl.sourceFile       = filename;
+                            pendingLines.push_front (pl);
+                        }
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".STRUCT")
+            {
+                // Start struct definition: struct NAME [, OFFSET]
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+
+                if (args.empty ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "struct requires a name";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    currentStruct = {};
+                    currentStruct.name = args[0];
+                    currentStruct.startOffset = 0;
+
+                    if (args.size () >= 2)
+                    {
+                        pass1Ctx.currentPC = (int32_t) pc;
+                        ExprResult er = ExpressionEvaluator::Evaluate (args[1], pass1Ctx);
+
+                        if (er.success)
+                        {
+                            currentStruct.startOffset = er.value;
+                        }
+                    }
+
+                    currentStruct.currentOffset = currentStruct.startOffset;
+                    collectingStruct = true;
+                }
+            }
+            else if (info.parsed.directive == ".CMAP")
+            {
+                // Character map directive
+                std::string arg = info.parsed.directiveArg;
+                size_t as = arg.find_first_not_of (" \t");
+
+                if (as != std::string::npos)
+                {
+                    arg = arg.substr (as);
+                }
+
+                size_t ae = arg.find_last_not_of (" \t");
+
+                if (ae != std::string::npos)
+                {
+                    arg = arg.substr (0, ae + 1);
+                }
+
+                if (arg == "0")
+                {
+                    // Reset to identity
+                    for (int ci = 0; ci < 256; ci++)
+                    {
+                        charMap.table[ci] = (Byte) ci;
+                    }
+                }
+                else if (arg.size () >= 5 && arg[0] == '\'')
+                {
+                    // Parse char or range mapping
+                    size_t eqPos = arg.find ('=');
+                    size_t dashPos = arg.find ('-', 1);
+
+                    if (eqPos != std::string::npos)
+                    {
+                        std::string lhs = arg.substr (0, eqPos);
+                        std::string rhs = arg.substr (eqPos + 1);
+
+                        // Trim
+                        size_t ls = lhs.find_last_not_of (" \t");
+
+                        if (ls != std::string::npos)
+                        {
+                            lhs = lhs.substr (0, ls + 1);
+                        }
+
+                        size_t rs = rhs.find_first_not_of (" \t");
+
+                        if (rs != std::string::npos)
+                        {
+                            rhs = rhs.substr (rs);
+                        }
+
+                        pass1Ctx.currentPC = (int32_t) pc;
+                        ExprResult rhsVal = ExpressionEvaluator::Evaluate (rhs, pass1Ctx);
+
+                        if (rhsVal.success)
+                        {
+                            // Check for range: 'A'-'Z'=$C1
+                            if (dashPos != std::string::npos && dashPos < eqPos &&
+                                lhs.size () >= 7 && lhs[0] == '\'' && lhs[2] == '\'')
+                            {
+                                char startChar = lhs[1];
+                                // Find the end char after dash
+                                std::string afterDash = lhs.substr (dashPos + 1);
+                                size_t ads = afterDash.find_first_not_of (" \t");
+
+                                if (ads != std::string::npos)
+                                {
+                                    afterDash = afterDash.substr (ads);
+                                }
+
+                                if (afterDash.size () >= 3 && afterDash[0] == '\'' && afterDash[2] == '\'')
+                                {
+                                    char endChar = afterDash[1];
+
+                                    for (int ci = (unsigned char) startChar; ci <= (unsigned char) endChar; ci++)
+                                    {
+                                        charMap.table[ci] = (Byte) (rhsVal.value + (ci - (unsigned char) startChar));
+                                    }
+                                }
+                            }
+                            else if (lhs.size () >= 3 && lhs[0] == '\'' && lhs[2] == '\'')
+                            {
+                                // Single char: 'A'=$41
+                                charMap.table[(unsigned char) lhs[1]] = (Byte) rhsVal.value;
+                            }
+                        }
+                    }
+                }
+            }
 
             lineInfos.push_back (info);
             continue;
         }
 
-        // Skip empty lines (comments, blanks)
+        // Skip empty lines
         if (info.parsed.mnemonic.empty ())
         {
             lineInfos.push_back (info);
             continue;
         }
 
-        // Classify operand
-        info.classified    = Parser::ClassifyOperand (info.parsed.operand, info.parsed.mnemonic);
-        info.isInstruction = true;
-
-        // For labels used as operands, default to Absolute size (2-byte operand)
-        // in Pass 1 so PC advances correctly
-        GlobalAddressingMode::AddressingMode mode = info.classified.mode;
-
-        if (info.classified.isLabel)
+        // ---- Multi-NOP: nop EXPR emits multiple NOP bytes ----
+        if (info.parsed.mnemonic == "NOP" && !info.parsed.operand.empty ())
         {
-            // Branches are always 1-byte relative offset
-            if (mode == GlobalAddressingMode::Relative)
+            pass1Ctx.currentPC = (int32_t) pc;
+            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.operand, pass1Ctx);
+
+            if (er.success && er.value > 0)
             {
-                // Relative mode — 1 byte operand
+                info.isDirective = true;
+                info.parsed.isDirective = true;
+                info.parsed.directive = ".MULTINOP";
+                info.parsed.directiveArg = info.parsed.operand;
+                pc += (Word) er.value;
             }
-            else if (mode == GlobalAddressingMode::ZeroPage)
-            {
-                // Label operand defaults to Absolute (2 bytes)
-                mode = GlobalAddressingMode::Absolute;
-                info.classified.mode = mode;
-            }
+
+            lineInfos.push_back (info);
+            continue;
         }
 
-        // Compute instruction size for PC advancement
+        // ---- Macro invocation ----
+        auto macroIt = macros.find (info.parsed.mnemonic);
+
+        if (macroIt != macros.end ())
+        {
+            if (current.macroDepth >= kMaxMacroDepth)
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")";
+                result.errors.push_back (error);
+                result.success = false;
+                lineInfos.push_back (info);
+                continue;
+            }
+
+            // Split arguments
+            std::vector<std::string> args;
+
+            if (!info.parsed.operand.empty ())
+            {
+                args = Parser::SplitArgList (info.parsed.operand);
+            }
+
+            // Generate unique suffix for \?
+            macroUniqueCounter++;
+            char uniqueBuf[8];
+            snprintf (uniqueBuf, sizeof (uniqueBuf), "%04d", macroUniqueCounter);
+            std::string uniqueSuffix (uniqueBuf);
+
+            // Expand macro body with argument substitution
+            const auto & macroDef = macroIt->second;
+            const auto & body     = macroDef.body;
+
+            // Build expanded lines, stopping at exitm
+            std::vector<std::string> expandedLines;
+
+            for (int bi = 0; bi < (int) body.size (); bi++)
+            {
+                std::string expanded = body[bi];
+
+                // Check for exitm directive (before substitution)
+                std::string exTrimmed = expanded;
+                size_t exStart = exTrimmed.find_first_not_of (" \t");
+
+                if (exStart != std::string::npos)
+                {
+                    exTrimmed = exTrimmed.substr (exStart);
+                }
+
+                // Strip comments for exitm check
+                size_t scPos = exTrimmed.find (';');
+
+                if (scPos != std::string::npos)
+                {
+                    exTrimmed = exTrimmed.substr (0, scPos);
+                }
+
+                size_t exEnd = exTrimmed.find_last_not_of (" \t");
+
+                if (exEnd != std::string::npos)
+                {
+                    exTrimmed = exTrimmed.substr (0, exEnd + 1);
+                }
+
+                std::string exUpper = exTrimmed;
+
+                for (auto & ec : exUpper)
+                {
+                    ec = (char) toupper ((unsigned char) ec);
+                }
+
+                if (exUpper == "EXITM" || exUpper == ".EXITM")
+                {
+                    break;
+                }
+
+                // Skip local directive lines — already processed during collection
+                std::string localCheck = exUpper;
+                size_t lsp = localCheck.find_first_of (" \t");
+                std::string localFirst = (lsp == std::string::npos) ? localCheck : localCheck.substr (0, lsp);
+
+                if (localFirst == "LOCAL" || localFirst == ".LOCAL")
+                {
+                    continue;
+                }
+
+                // Replace \0 with argument count
+                {
+                    std::string argCountStr = std::to_string ((int) args.size ());
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find ("\\0", pos)) != std::string::npos)
+                    {
+                        expanded.replace (pos, 2, argCountStr);
+                        pos += argCountStr.size ();
+                    }
+                }
+
+                // Replace \1 through \9 with arguments
+                for (int ai = 9; ai >= 1; ai--)
+                {
+                    std::string placeholder = "\\" + std::to_string (ai);
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find (placeholder, pos)) != std::string::npos)
+                    {
+                        std::string replacement = (ai <= (int) args.size ()) ? args[ai - 1] : "";
+                        expanded.replace (pos, placeholder.size (), replacement);
+                        pos += replacement.size ();
+                    }
+                }
+
+                // Replace named parameters as whole-word matches
+                for (int pi = 0; pi < (int) macroDef.paramNames.size (); pi++)
+                {
+                    const std::string & paramName = macroDef.paramNames[pi];
+                    std::string replacement = (pi < (int) args.size ()) ? args[pi] : "";
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find (paramName, pos)) != std::string::npos)
+                    {
+                        // Check whole-word boundary
+                        bool leftOk = (pos == 0) ||
+                                      (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
+                        size_t endPos = pos + paramName.size ();
+                        bool rightOk = (endPos >= expanded.size ()) ||
+                                       (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
+
+                        if (leftOk && rightOk)
+                        {
+                            expanded.replace (pos, paramName.size (), replacement);
+                            pos += replacement.size ();
+                        }
+                        else
+                        {
+                            pos += paramName.size ();
+                        }
+                    }
+                }
+
+                // Replace \? with unique suffix
+                {
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find ("\\?", pos)) != std::string::npos)
+                    {
+                        expanded.replace (pos, 2, uniqueSuffix);
+                        pos += uniqueSuffix.size ();
+                    }
+                }
+
+                // Apply local label suffixing
+                for (const auto & localLabel : macroDef.localLabels)
+                {
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find (localLabel, pos)) != std::string::npos)
+                    {
+                        // Check whole-word boundary
+                        bool leftOk = (pos == 0) ||
+                                      (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
+                        size_t endPos = pos + localLabel.size ();
+                        bool rightOk = (endPos >= expanded.size ()) ||
+                                       (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
+
+                        if (leftOk && rightOk)
+                        {
+                            std::string suffixed = localLabel + uniqueSuffix;
+                            expanded.replace (pos, localLabel.size (), suffixed);
+                            pos += suffixed.size ();
+                        }
+                        else
+                        {
+                            pos += localLabel.size ();
+                        }
+                    }
+                }
+
+                expandedLines.push_back (expanded);
+            }
+
+            // Insert expanded lines at the FRONT of the queue (reverse order)
+            for (int bi = (int) expandedLines.size () - 1; bi >= 0; bi--)
+            {
+                PendingLine pl = {};
+                pl.text = expandedLines[bi];
+                pl.sourceLineNumber = current.sourceLineNumber;
+                pl.macroDepth = current.macroDepth + 1;
+                pendingLines.push_front (pl);
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // ---- Colon-less label detection ----
+        // If line starts at column 0, mnemonic isn't recognized, and isn't a macro,
+        // re-interpret as a colon-less label
+        if (info.parsed.startsAtColumn0 && info.parsed.label.empty () &&
+            !m_opcodeTable.IsMnemonic (info.parsed.mnemonic) &&
+            macros.find (info.parsed.mnemonic) == macros.end ())
+        {
+            // Record the colon-less label
+            std::string labelName = info.parsed.mnemonic;
+            std::string labelError;
+
+            // Validate and record label — use original case from the raw line
+            // The mnemonic was uppercased; get original from the raw text
+            {
+                std::string rawTrimmed = current.text;
+                size_t s = rawTrimmed.find_first_not_of (" \t");
+
+                if (s != std::string::npos)
+                {
+                    rawTrimmed = rawTrimmed.substr (s);
+                }
+
+                size_t e = rawTrimmed.find_first_of (" \t");
+
+                if (e != std::string::npos)
+                {
+                    labelName = rawTrimmed.substr (0, e);
+                }
+                else
+                {
+                    labelName = rawTrimmed;
+                }
+
+                // Strip comment
+                size_t sc = labelName.find (';');
+
+                if (sc != std::string::npos)
+                {
+                    labelName = labelName.substr (0, sc);
+                }
+            }
+
+            if (!Parser::ValidateLabel (labelName, m_opcodeTable, labelError))
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = labelError;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else if (symbols.count (labelName) > 0)
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Duplicate label: " + labelName;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else
+            {
+                symbols[labelName]     = pc;
+                symbolKinds[labelName]  = SymbolKind::Label;
+                exprSymbols[labelName] = (int32_t) pc;
+            }
+
+            info.parsed.label = labelName;
+
+            // If there's remaining text (operand), push it as a new line
+            if (!info.parsed.operand.empty ())
+            {
+                PendingLine pl = {};
+                pl.text = "    " + info.parsed.operand;  // Indent to prevent re-triggering colon-less
+                pl.sourceLineNumber = current.sourceLineNumber;
+                pl.macroDepth = current.macroDepth;
+                pendingLines.push_front (pl);
+            }
+
+            // Record this as a label-only line
+            info.parsed.mnemonic.clear ();
+            info.parsed.operand.clear ();
+            info.isInstruction = false;
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // Classify operand (syntax only)
+        info.classified    = Parser::ClassifyOperand (info.parsed.operand);
+        info.isInstruction = true;
+
+        // Try to evaluate expression in Pass 1 for addressing mode selection
+        pass1Ctx.currentPC = (int32_t) pc;
+        bool exprResolved = false;
+        int32_t exprValue = 0;
+
+        if (info.classified.syntax != OperandSyntax::None &&
+            info.classified.syntax != OperandSyntax::Accumulator &&
+            !info.classified.expression.empty ())
+        {
+            ExprResult er = ExpressionEvaluator::Evaluate (info.classified.expression, pass1Ctx);
+
+            if (er.success)
+            {
+                exprResolved = true;
+                exprValue    = er.value;
+            }
+            else if (!er.hasUnresolved)
+            {
+                // Syntax error — report immediately
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Expression error: " + er.error;
+                result.errors.push_back (error);
+                result.success = false;
+                info.hasError  = true;
+            }
+            // else: hasUnresolved — normal forward ref, will resolve in Pass 2
+        }
+
+        info.valueResolved = exprResolved;
+        info.resolvedValue = exprValue;
+
+        // Determine addressing mode
+        GlobalAddressingMode::AddressingMode mode = ResolveAddressingMode (
+            info.classified.syntax, info.parsed.mnemonic,
+            exprValue, exprResolved, m_opcodeTable);
+        info.resolvedMode = mode;
+
+        // Compute instruction size
         OpcodeEntry entry = {};
 
         if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
@@ -323,37 +1784,31 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
         else
         {
-            // Zero-page preference fallback — try alternate mode
+            // Try fallback: ZP → Absolute
             GlobalAddressingMode::AddressingMode altMode = mode;
 
             if (altMode == GlobalAddressingMode::ZeroPage)
-            {
                 altMode = GlobalAddressingMode::Absolute;
-            }
             else if (altMode == GlobalAddressingMode::ZeroPageX)
-            {
                 altMode = GlobalAddressingMode::AbsoluteX;
-            }
             else if (altMode == GlobalAddressingMode::ZeroPageY)
-            {
                 altMode = GlobalAddressingMode::AbsoluteY;
-            }
 
             if (altMode != mode && m_opcodeTable.Lookup (info.parsed.mnemonic, altMode, entry))
             {
-                info.classified.mode = altMode;
+                info.resolvedMode = altMode;
                 pc += 1 + entry.operandSize;
             }
-            else
+            else if (!info.hasError)
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
 
                 if (!m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
                 {
                     error.message = "Invalid mnemonic: " + info.parsed.mnemonic;
                 }
-                else if (info.classified.mode == GlobalAddressingMode::SingleByteNoOperand)
+                else if (info.classified.syntax == OperandSyntax::None)
                 {
                     error.message = "Missing operand for: " + info.parsed.mnemonic;
                 }
@@ -366,17 +1821,75 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 result.success = false;
                 info.hasError  = true;
 
-                // Best-effort PC estimation (T042)
-                pc += EstimateInstructionSize (info.classified);
+                pc += EstimateInstructionSize (info.classified.syntax, info.parsed.mnemonic);
             }
         }
 
         lineInfos.push_back (info);
     }
 
-    // ---- Pass 2: Emit bytes with label resolution ----
-    std::vector<Byte>                  output;
-    std::unordered_map<std::string, int> referencedLabels;  // label name → line number of first reference
+    // Check for unclosed macro definition
+    if (collectingMacro)
+    {
+        AssemblyError error = {};
+        error.lineNumber = currentMacroLine;
+        error.message    = "Unclosed macro definition: " + currentMacroName;
+        result.errors.push_back (error);
+        result.success = false;
+    }
+
+    // Check for unclosed if blocks
+    if (!condStack.empty ())
+    {
+        AssemblyError error = {};
+        error.lineNumber = (int) lines.size ();
+        error.message    = "Unclosed if block (" + std::to_string (condStack.size ()) + " level(s) open)";
+        result.errors.push_back (error);
+        result.success = false;
+    }
+
+    // ---- Pass 2: Emit bytes with full symbol resolution ----
+    std::vector<Byte>                         output;
+    std::unordered_map<std::string, int>      referencedLabels;
+
+    // Build full expression context with all symbols
+    std::unordered_map<std::string, int32_t>  fullSymbols;
+
+    for (const auto & sym : symbols)
+    {
+        fullSymbols[sym.first] = (int32_t) sym.second;
+    }
+
+    ExprContext pass2Ctx = { &fullSymbols, 0 };
+
+    // Resolve deferred equ constants (can forward-reference labels)
+    for (const auto & info : lineInfos)
+    {
+        if (!info.isConstant || !info.parsed.isConstant)
+        {
+            continue;
+        }
+
+        if (info.parsed.constantKind == SymbolKind::Equ && fullSymbols.find (info.parsed.constantName) == fullSymbols.end ())
+        {
+            pass2Ctx.currentPC = (int32_t) info.pc;
+            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass2Ctx);
+
+            if (!er.success)
+            {
+                AssemblyError error = {};
+                error.lineNumber = info.parsed.lineNumber;
+                error.message    = "Cannot resolve equ expression: " + info.parsed.constantExpr;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else
+            {
+                symbols[info.parsed.constantName]     = (Word) er.value;
+                fullSymbols[info.parsed.constantName] = er.value;
+            }
+        }
+    }
 
     for (const auto & info : lineInfos)
     {
@@ -390,24 +1903,82 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         else if (info.isDirective)
         {
             lineHasAddress = true;
+            pass2Ctx.currentPC = (int32_t) info.pc;
 
-            if (info.parsed.directive == ".BYTE")
+            // Handle .ORG: emit fill bytes for gap between current output and new address
+            if (info.parsed.directive == ".ORG")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+                Word targetAddr = info.pc;
+                Word currentOutputAddr = result.startAddress + (Word) output.size ();
 
-                for (int v : values)
+                if (targetAddr > currentOutputAddr)
                 {
-                    output.push_back ((Byte) (v & 0xFF));
+                    Word gap = targetAddr - currentOutputAddr;
+
+                    for (Word g = 0; g < gap; g++)
+                    {
+                        output.push_back (m_options.fillByte);
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".BYTE")
+            {
+                // Emit bytes, applying character map to quoted strings
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                bool ok = true;
+
+                for (const auto & arg : args)
+                {
+                    if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
+                    {
+                        std::string raw       = arg.substr (1, arg.size () - 2);
+                        std::string processed = ProcessEscapeSequences (raw);
+
+                        for (char c : processed)
+                        {
+                            output.push_back (charMap.table[(unsigned char) c]);
+                        }
+                    }
+                    else
+                    {
+                        ExprResult er = ExpressionEvaluator::Evaluate (arg, pass2Ctx);
+
+                        if (!er.success)
+                        {
+                            AssemblyError error = {};
+                            error.lineNumber = info.parsed.lineNumber;
+                            error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
+                            result.errors.push_back (error);
+                            ok = false;
+                        }
+                        else
+                        {
+                            output.push_back ((Byte) (er.value & 0xFF));
+                        }
+                    }
+                }
+
+                if (!ok)
+                {
+                    result.success = false;
                 }
             }
             else if (info.parsed.directive == ".WORD")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+                std::vector<int32_t> values;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass2Ctx, values, info.parsed.lineNumber, result.errors);
 
-                for (int v : values)
+                if (values.size () != 0 || info.parsed.directiveArg.empty ())
                 {
-                    output.push_back ((Byte) (v & 0xFF));
-                    output.push_back ((Byte) ((v >> 8) & 0xFF));
+                    for (int32_t v : values)
+                    {
+                        output.push_back ((Byte) (v & 0xFF));
+                        output.push_back ((Byte) ((v >> 8) & 0xFF));
+                    }
+                }
+                else
+                {
+                    result.success = false;
                 }
             }
             else if (info.parsed.directive == ".TEXT")
@@ -416,30 +1987,122 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                 for (char c : text)
                 {
-                    output.push_back ((Byte) c);
+                    output.push_back (charMap.table[(unsigned char) c]);
+                }
+            }
+            else if (info.parsed.directive == ".DD")
+            {
+                std::vector<int32_t> values;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass2Ctx, values, info.parsed.lineNumber, result.errors);
+
+                if (values.size () != 0 || info.parsed.directiveArg.empty ())
+                {
+                    for (int32_t v : values)
+                    {
+                        output.push_back ((Byte) (v & 0xFF));
+                        output.push_back ((Byte) ((v >> 8) & 0xFF));
+                        output.push_back ((Byte) ((v >> 16) & 0xFF));
+                        output.push_back ((Byte) ((v >> 24) & 0xFF));
+                    }
+                }
+                else
+                {
+                    result.success = false;
+                }
+            }
+            else if (info.parsed.directive == ".DS")
+            {
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+
+                if (!args.empty ())
+                {
+                    ExprResult sizeEr = ExpressionEvaluator::Evaluate (args[0], pass2Ctx);
+
+                    if (sizeEr.success)
+                    {
+                        Byte fillVal = 0;
+
+                        if (args.size () >= 2)
+                        {
+                            ExprResult fillEr = ExpressionEvaluator::Evaluate (args[1], pass2Ctx);
+
+                            if (fillEr.success)
+                            {
+                                fillVal = (Byte) (fillEr.value & 0xFF);
+                            }
+                        }
+
+                        for (int32_t j = 0; j < sizeEr.value; j++)
+                        {
+                            output.push_back (fillVal);
+                        }
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".ALIGN")
+            {
+                int alignment = 2;
+
+                if (!info.parsed.directiveArg.empty ())
+                {
+                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass2Ctx);
+
+                    if (er.success)
+                    {
+                        alignment = er.value;
+                    }
+                }
+
+                if (alignment > 0)
+                {
+                    int remainder2 = info.pc % alignment;
+
+                    if (remainder2 != 0)
+                    {
+                        int padding = alignment - remainder2;
+                        Byte fillVal = m_options.fillByte;
+
+                        for (int j = 0; j < padding; j++)
+                        {
+                            output.push_back (fillVal);
+                        }
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".MULTINOP")
+            {
+                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass2Ctx);
+
+                if (er.success && er.value > 0)
+                {
+                    for (int32_t j = 0; j < er.value; j++)
+                    {
+                        output.push_back (0xEA);  // NOP opcode
+                    }
                 }
             }
         }
         else if (info.isInstruction)
         {
             lineHasAddress = true;
+            pass2Ctx.currentPC = (int32_t) info.pc;
 
-            GlobalAddressingMode::AddressingMode mode  = info.classified.mode;
-            int                                  value  = info.classified.value;
-            bool                                 emit   = true;
+            GlobalAddressingMode::AddressingMode mode = info.resolvedMode;
+            int32_t value = 0;
+            bool    emit  = true;
 
-            // Resolve label references
-            if (info.classified.isLabel)
+            // Evaluate expression with full symbol table
+            if (info.classified.syntax != OperandSyntax::None &&
+                info.classified.syntax != OperandSyntax::Accumulator &&
+                !info.classified.expression.empty ())
             {
-                referencedLabels[info.classified.labelName] = info.parsed.lineNumber;
+                ExprResult er = ExpressionEvaluator::Evaluate (info.classified.expression, pass2Ctx);
 
-                auto it = symbols.find (info.classified.labelName);
-
-                if (it == symbols.end ())
+                if (!er.success)
                 {
                     AssemblyError error = {};
                     error.lineNumber = info.parsed.lineNumber;
-                    error.message    = "Undefined label: " + info.classified.labelName;
+                    error.message    = "Undefined symbol in: " + info.classified.expression;
                     result.errors.push_back (error);
                     result.success = false;
                     emit = false;
@@ -459,76 +2122,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 }
                 else
                 {
-                    value = (int) it->second;
+                    value = er.value;
 
-                    // Apply label offset (label+N expressions)
-                    value += info.classified.labelOffset;
-
-                    // Apply low/high byte operators (<label, >label)
-                    if (info.classified.lowByteOp)
+                    // Track symbol references for unused-label warnings
+                    // (simple heuristic: if expression contains an identifier from symbols)
+                    for (const auto & sym : symbols)
                     {
-                        value = value & 0xFF;
-                    }
-                    else if (info.classified.highByteOp)
-                    {
-                        value = (value >> 8) & 0xFF;
-                    }
-
-                    // Compute relative branch offset
-                    if (mode == GlobalAddressingMode::Relative)
-                    {
-                        Word pcAfterInstruction = info.pc + 2; // branch instructions are 2 bytes
-                        int  offset = value - (int) pcAfterInstruction;
-
-                        if (offset < -128 || offset > 127)
+                        if (info.classified.expression.find (sym.first) != std::string::npos)
                         {
-                            AssemblyError error = {};
-                            error.lineNumber = info.parsed.lineNumber;
-                            error.message    = "Branch target out of range: " + info.classified.labelName;
-                            result.errors.push_back (error);
-                            result.success = false;
+                            referencedLabels[sym.first] = info.parsed.lineNumber;
                         }
-
-                        value = offset & 0xFF;
                     }
                 }
             }
 
             if (emit)
             {
-                // Zero-page preference for non-label operands
-                if (!info.classified.isLabel)
+                // Handle relative branch offset computation
+                if (mode == GlobalAddressingMode::Relative)
                 {
-                    if (value >= 0 && value <= 0xFF)
+                    Word pcAfterInstruction = info.pc + 2;
+                    int  offset = value - (int) pcAfterInstruction;
+
+                    if (offset < -128 || offset > 127)
                     {
-                        GlobalAddressingMode::AddressingMode zpMode = GlobalAddressingMode::__Count;
-
-                        if (mode == GlobalAddressingMode::Absolute)
-                        {
-                            zpMode = GlobalAddressingMode::ZeroPage;
-                        }
-                        else if (mode == GlobalAddressingMode::AbsoluteX)
-                        {
-                            zpMode = GlobalAddressingMode::ZeroPageX;
-                        }
-                        else if (mode == GlobalAddressingMode::AbsoluteY)
-                        {
-                            zpMode = GlobalAddressingMode::ZeroPageY;
-                        }
-
-                        if (zpMode != GlobalAddressingMode::__Count)
-                        {
-                            OpcodeEntry zpEntry = {};
-
-                            if (m_opcodeTable.Lookup (info.parsed.mnemonic, zpMode, zpEntry))
-                            {
-                                mode = zpMode;
-                            }
-                        }
+                        AssemblyError error = {};
+                        error.lineNumber = info.parsed.lineNumber;
+                        error.message    = "Branch target out of range";
+                        result.errors.push_back (error);
+                        result.success = false;
                     }
+
+                    value = offset & 0xFF;
                 }
 
-                // Check operand value range
+                // Range check for immediate mode
                 if (mode == GlobalAddressingMode::Immediate && (value < -128 || value > 255))
                 {
                     AssemblyError error = {};
@@ -568,39 +2196,74 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
         else if (!info.parsed.label.empty ())
         {
-            // Label-only line — show address but no bytes
             lineHasAddress = true;
         }
 
         // Build listing entry
         if (m_options.generateListing)
         {
-            AssemblyLine listLine = {};
-            listLine.lineNumber = info.parsed.lineNumber;
-            listLine.sourceText = lines[info.parsed.lineNumber - 1];
-            listLine.hasAddress = lineHasAddress;
-            listLine.address    = info.pc;
-
-            for (size_t j = bytesStart; j < output.size (); j++)
+            // Skip listing-suppressed lines unless they are conditional skips
+            if (!info.listingSuppressed || info.conditionalSkip)
             {
-                listLine.bytes.push_back (output[j]);
-            }
+                AssemblyLine listLine = {};
+                listLine.lineNumber = info.parsed.lineNumber;
 
-            result.listing.push_back (listLine);
+                if (info.parsed.lineNumber >= 1 && info.parsed.lineNumber <= (int) lines.size ())
+                {
+                    listLine.sourceText = lines[info.parsed.lineNumber - 1];
+                }
+
+                listLine.hasAddress         = lineHasAddress;
+                listLine.address            = info.pc;
+                listLine.isMacroExpansion   = (info.macroDepth > 0);
+                listLine.isConditionalSkip  = info.conditionalSkip;
+
+                // Look up cycle count for instructions
+                if (info.isInstruction && !info.hasError && output.size () > bytesStart)
+                {
+                    OpcodeEntry cycleEntry = {};
+
+                    if (m_opcodeTable.Lookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
+                    {
+                        listLine.cycleCounts = cycleEntry.cycleCounts;
+                    }
+                }
+
+                for (size_t j = bytesStart; j < output.size (); j++)
+                {
+                    listLine.bytes.push_back (output[j]);
+                }
+
+                result.listing.push_back (listLine);
+            }
         }
     }
 
-    result.bytes      = output;
-    result.symbols    = symbols;
-    result.endAddress = result.startAddress + (Word) output.size ();
+    result.bytes       = output;
+    result.symbols     = symbols;
+    result.symbolKinds = symbolKinds;
+    result.endAddress  = result.startAddress + (Word) output.size ();
 
-    // ---- Post-assembly warnings ----
-    // Warn about unused labels (defined but never referenced)
+    // ---- Post-assembly: unused label warnings ----
+    // Also track references in directive expressions
+    for (const auto & info : lineInfos)
+    {
+        if (info.isDirective)
+        {
+            for (const auto & sym : symbols)
+            {
+                if (info.parsed.directiveArg.find (sym.first) != std::string::npos)
+                {
+                    referencedLabels[sym.first] = info.parsed.lineNumber;
+                }
+            }
+        }
+    }
+
     for (const auto & sym : symbols)
     {
         if (referencedLabels.find (sym.first) == referencedLabels.end ())
         {
-            // Find the line number where the label was defined
             int defLine = 0;
 
             for (const auto & info : lineInfos)
@@ -629,12 +2292,16 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string Assembler::FormatListingLine (const AssemblyLine & line)
+std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCycleCounts)
 {
     char addrBuf[8] = {};
 
     // Address column (5 chars)
-    if (line.hasAddress)
+    if (line.isConditionalSkip)
+    {
+        snprintf (addrBuf, sizeof (addrBuf), "    -");
+    }
+    else if (line.hasAddress)
     {
         snprintf (addrBuf, sizeof (addrBuf), "$%04X", line.address);
     }
@@ -664,5 +2331,84 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line)
         bytesStr += " ";
     }
 
-    return std::string (addrBuf) + "  " + bytesStr + line.sourceText;
+    // Cycle counts column (optional)
+    std::string cycleStr;
+
+    if (showCycleCounts && line.cycleCounts > 0)
+    {
+        char cycleBuf[8];
+        snprintf (cycleBuf, sizeof (cycleBuf), "[%d] ", line.cycleCounts);
+        cycleStr = cycleBuf;
+    }
+
+    // Macro expansion prefix
+    std::string prefix = line.isMacroExpansion ? ">" : " ";
+
+    return std::string (addrBuf) + "  " + bytesStr + cycleStr + prefix + line.sourceText;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatSymbolTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
+                                           const std::unordered_map<std::string, SymbolKind> & symbolKinds)
+{
+    // Sort symbols alphabetically
+    std::vector<std::pair<std::string, Word>> sorted (symbols.begin (), symbols.end ());
+
+    std::sort (sorted.begin (), sorted.end (),
+        [] (const auto & a, const auto & b) { return a.first < b.first; });
+
+    std::string output;
+
+    for (const auto & pair : sorted)
+    {
+        char buf[64];
+        auto kindIt = symbolKinds.find (pair.first);
+        bool isRedefinable = (kindIt != symbolKinds.end () && kindIt->second == SymbolKind::Set);
+
+        snprintf (buf, sizeof (buf), "%-24s = $%04X%s\n",
+                  pair.first.c_str (), pair.second,
+                  isRedefinable ? " *" : "");
+        output += buf;
+    }
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatDebugInfo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
+{
+    // Sort symbols by address for deterministic output
+    std::vector<std::pair<std::string, Word>> sorted (symbols.begin (), symbols.end ());
+
+    std::sort (sorted.begin (), sorted.end (),
+        [] (const auto & a, const auto & b) { return a.second < b.second; });
+
+    std::string output;
+
+    for (const auto & pair : sorted)
+    {
+        char buf[64];
+        snprintf (buf, sizeof (buf), "%s=$%04X\n", pair.first.c_str (), pair.second);
+        output += buf;
+    }
+
+    return output;
 }

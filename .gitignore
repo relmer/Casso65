@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# AS65 conformance testing - downloaded on demand
+tools/
+specs/002-as65-assembler-compat/testdata/conformance/expected/
+*.dormann.tmp
+6502_functional_test.a65
+6502_functional_test.bin
+dormann_temp/

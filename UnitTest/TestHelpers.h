@@ -120,11 +120,11 @@ public:
 
             PC = startAddress;
 
-            // Fixup symbol addresses: the assembler uses 0x8000 as default origin,
-            // but we may be loading at a different address
-            if (startAddress != 0x8000)
+            // Fixup symbol addresses: the assembler origin may differ from
+            // the address we're loading at in memory
+            if (startAddress != result.startAddress)
             {
-                Word offset = startAddress - 0x8000;
+                Word offset = startAddress - result.startAddress;
 
                 for (auto & pair : result.symbols)
                 {

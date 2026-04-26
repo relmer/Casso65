@@ -6,6 +6,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <fstream>
 #include <iostream>
 #include <memory>

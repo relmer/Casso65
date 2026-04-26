@@ -77,6 +77,42 @@ OpcodeTable::OpcodeTable ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCycleCounts — standard 6502 cycle counts per opcode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static Byte GetCycleCounts (Byte opcode)
+{
+    // Standard 6502 cycle counts (no page-crossing or branch-taken penalties)
+    static const Byte s_cycles[256] =
+    {
+        7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,  // $00-$0F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $10-$1F
+        6,6,0,0,3,3,5,0,4,2,2,0,4,4,6,0,  // $20-$2F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $30-$3F
+        6,6,0,0,0,3,5,0,3,2,2,0,3,4,6,0,  // $40-$4F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $50-$5F
+        6,6,0,0,0,3,5,0,4,2,2,0,5,4,6,0,  // $60-$6F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $70-$7F
+        0,6,0,0,3,3,3,0,2,0,2,0,4,4,4,0,  // $80-$8F
+        2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,  // $90-$9F
+        2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,  // $A0-$AF
+        2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,  // $B0-$BF
+        2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,  // $C0-$CF
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $D0-$DF
+        2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,  // $E0-$EF
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $F0-$FF
+    };
+
+    return s_cycles[opcode];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OpcodeTable
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,8 +134,30 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
         OpcodeEntry entry = {};
         entry.opcode      = (Byte) i;
         entry.operandSize = GetOperandSize (mc.globalAddressingMode);
+        entry.cycleCounts = GetCycleCounts ((Byte) i);
 
         m_table[mnemonic][mode] = entry;
+    }
+
+    // Instruction synonyms: alias → existing mnemonic's entries
+    struct Synonym { const char * alias; const char * target; };
+    Synonym synonyms[] =
+    {
+        { "DISABLE", "SEI" },
+        { "ENABLE",  "CLI" },
+        { "STC",     "SEC" },
+        { "STI",     "SEI" },
+        { "STD",     "SED" },
+    };
+
+    for (const auto & syn : synonyms)
+    {
+        auto it = m_table.find (syn.target);
+
+        if (it != m_table.end ())
+        {
+            m_table[syn.alias] = it->second;
+        }
     }
 }
 
