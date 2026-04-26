@@ -15,10 +15,10 @@
 
 **Purpose**: Add new source files to the build, extend types, prepare test infrastructure
 
-- [ ] T001 Add ExpressionEvaluator.h/.cpp and OutputFormats.h/.cpp to Casso65Core/Casso65Core.vcxproj
-- [ ] T002 [P] Add new test .cpp files to UnitTest/UnitTest.vcxproj (ExpressionEvaluatorTests, ConditionalAssemblyTests, MacroTests, ConstantTests, DirectiveTests, IncludeTests, StructTests, CmapTests, OutputFormatTests, DormannIntegrationTests, ConformanceTests)
-- [ ] T003 [P] Extend AssemblerTypes.h with new types: MacroDefinition, StructDefinition, StructMember, CharacterMap, SymbolKind enum, ConditionalState, FileReader interface in Casso65Core/AssemblerTypes.h
-- [ ] T004 [P] Download AS65 manual (`as65.man`) and `testcase.a65` from Klaus2m5 repo (text files only — NO executables) to specs/002-as65-assembler-compat/reference/
+- [X] T001 Add ExpressionEvaluator.h/.cpp and OutputFormats.h/.cpp to Casso65Core/Casso65Core.vcxproj
+- [X] T002 [P] Add new test .cpp files to UnitTest/UnitTest.vcxproj (ExpressionEvaluatorTests, ConditionalAssemblyTests, MacroTests, ConstantTests, DirectiveTests, IncludeTests, StructTests, CmapTests, OutputFormatTests, DormannIntegrationTests, ConformanceTests)
+- [X] T003 [P] Extend AssemblerTypes.h with new types: MacroDefinition, StructDefinition, StructMember, CharacterMap, SymbolKind enum, ConditionalState, FileReader interface in Casso65Core/AssemblerTypes.h
+- [X] T004 [P] Download AS65 manual (`as65.man`) and `testcase.a65` from Klaus2m5 repo (text files only — NO executables) to specs/002-as65-assembler-compat/reference/
 - [ ] T004a [P] Create conformance test input files (.a65) with hand-computed expected outputs (.expected.bin) per conformance-test-plan.md categories 1–14 in specs/002-as65-assembler-compat/testdata/conformance/ (our own work, committed)
 - [ ] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
 - [ ] T004c [P] Add downloaded temp files to .gitignore
@@ -31,17 +31,17 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Create ExpressionEvaluator.h with ExprContext, ExprResult structs and static Evaluate method in Casso65Core/ExpressionEvaluator.h
-- [ ] T006 Implement recursive descent expression parser with all 13 precedence levels (unary, mul/div/mod, add/sub, shift, comparison, equality, bitAnd, bitXor, bitOr, logAnd, logOr, lo/hi) in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T007 Implement tokenizer with basic number formats ($hex, %bin, decimal, 'char') in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T008 Implement `*` and `$` (bare, not followed by hex digit) disambiguation as current-PC vs multiplication/hex-prefix based on context (FR-012) in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T008a Implement `++` and `--` as unary prefix operators (FR-001a) in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T008b Implement `[` and `]` as alternative grouping symbols equivalent to `(` and `)` (FR-001b) in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T009 Implement `lo`/`hi` keyword operators, `!` logical NOT, `&&` logical AND, and `||` logical OR in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T010 [P] Create expression evaluator unit tests (categories 1.1–1.9 from conformance-test-plan.md, ~35 cases) in UnitTest/ExpressionEvaluatorTests.cpp
-- [ ] T011 Rewrite Parser::ParseLine to support colon-less labels (column-0 identifier detection), constant definitions (`NAME = EXPR`, `NAME equ EXPR`, `NAME set EXPR`), and AS65 directive recognition in Casso65Core/Parser.cpp
-- [ ] T012 Replace Parser::ClassifyOperand with expression-based operand evaluation (delegate to ExpressionEvaluator instead of manual label+offset parsing) in Casso65Core/Parser.cpp
-- [ ] T013 Verify all existing AssemblerTests.cpp and ParserTests.cpp pass unchanged (backward compatibility SC-004)
+- [X] T005 Create ExpressionEvaluator.h with ExprContext, ExprResult structs and static Evaluate method in Casso65Core/ExpressionEvaluator.h
+- [X] T006 Implement recursive descent expression parser with all 13 precedence levels (unary, mul/div/mod, add/sub, shift, comparison, equality, bitAnd, bitXor, bitOr, logAnd, logOr, lo/hi) in Casso65Core/ExpressionEvaluator.cpp
+- [X] T007 Implement tokenizer with basic number formats ($hex, %bin, decimal, 'char') in Casso65Core/ExpressionEvaluator.cpp
+- [X] T008 Implement `*` and `$` (bare, not followed by hex digit) disambiguation as current-PC vs multiplication/hex-prefix based on context (FR-012) in Casso65Core/ExpressionEvaluator.cpp
+- [X] T008a Implement `++` and `--` as unary prefix operators (FR-001a) in Casso65Core/ExpressionEvaluator.cpp
+- [X] T008b Implement `[` and `]` as alternative grouping symbols equivalent to `(` and `)` (FR-001b) in Casso65Core/ExpressionEvaluator.cpp
+- [X] T009 Implement `lo`/`hi` keyword operators, `!` logical NOT, `&&` logical AND, and `||` logical OR in Casso65Core/ExpressionEvaluator.cpp
+- [X] T010 [P] Create expression evaluator unit tests (categories 1.1–1.9 from conformance-test-plan.md, ~35 cases) in UnitTest/ExpressionEvaluatorTests.cpp
+- [X] T011 Rewrite Parser::ParseLine to support colon-less labels (column-0 identifier detection), constant definitions (`NAME = EXPR`, `NAME equ EXPR`, `NAME set EXPR`), and AS65 directive recognition in Casso65Core/Parser.cpp
+- [X] T012 Replace Parser::ClassifyOperand with expression-based operand evaluation (delegate to ExpressionEvaluator instead of manual label+offset parsing) in Casso65Core/Parser.cpp
+- [X] T013 Verify all existing AssemblerTests.cpp and ParserTests.cpp pass unchanged (backward compatibility SC-004)
 
 **Checkpoint**: Expression evaluator and parser foundation ready — user story work can begin
 
@@ -53,10 +53,10 @@
 
 **Independent Test**: Assemble `LDA #$FF & $0F` and verify operand byte is `$0F`
 
-- [ ] T014 [US1] Integrate ExpressionEvaluator into Assembler pass 2 for resolving instruction operands in Casso65Core/Assembler.cpp
-- [ ] T015 [US1] Integrate ExpressionEvaluator into directive arguments (.org, .byte, .word value lists) in Casso65Core/Assembler.cpp
-- [ ] T016 [US1] Add range-checking: truncate to 1 byte for immediate/zp, 2 bytes for absolute, signed byte for branch in Casso65Core/Assembler.cpp
-- [ ] T017 [US1] Verify backward compatibility: `<label`, `>label`, `label+offset` produce identical output to spec 001
+- [X] T014 [US1] Integrate ExpressionEvaluator into Assembler pass 2 for resolving instruction operands in Casso65Core/Assembler.cpp
+- [X] T015 [US1] Integrate ExpressionEvaluator into directive arguments (.org, .byte, .word value lists) in Casso65Core/Assembler.cpp
+- [X] T016 [US1] Add range-checking: truncate to 1 byte for immediate/zp, 2 bytes for absolute, signed byte for branch in Casso65Core/Assembler.cpp
+- [X] T017 [US1] Verify backward compatibility: `<label`, `>label`, `label+offset` produce identical output to spec 001
 
 **Checkpoint**: Expression evaluator working in all operand and directive contexts
 
@@ -68,14 +68,14 @@
 
 **Independent Test**: Assemble `value = $42` / `LDA #value` and verify `$42`; assemble `jmp *` and verify self-targeting JMP
 
-- [ ] T018 [US2] Add symbol kind tracking (Label/Equ/Set) to symbol table in Casso65Core/Assembler.cpp
-- [ ] T019 [US2] Implement `NAME = EXPR` and `NAME set EXPR` (eager evaluation, reassignable) in Casso65Core/Assembler.cpp
-- [ ] T020 [US2] Implement `NAME equ EXPR` (deferred to pass 2, immutable) in Casso65Core/Assembler.cpp
-- [ ] T021 [US2] Implement cross-kind redefinition errors (equ→=, label→=, etc.) in Casso65Core/Assembler.cpp
-- [ ] T022 [US3] Wire `*` and `$` (current-PC) into ExpressionEvaluator via ExprContext.currentPC in Casso65Core/Assembler.cpp
-- [ ] T022a [US3] Change default origin from $8000 to 0 when no .org is given (FR-034b2) in Casso65Core/Assembler.cpp
-- [ ] T023 [US3] Verify `jmp *`, `beq *`, `jmp $`, `name = *+1` all produce correct output
-- [ ] T024 [P] [US2] Create constant definition tests (category 2 from conformance-test-plan.md, ~20 cases) in UnitTest/ConstantTests.cpp
+- [X] T018 [US2] Add symbol kind tracking (Label/Equ/Set) to symbol table in Casso65Core/Assembler.cpp
+- [X] T019 [US2] Implement `NAME = EXPR` and `NAME set EXPR` (eager evaluation, reassignable) in Casso65Core/Assembler.cpp
+- [X] T020 [US2] Implement `NAME equ EXPR` (deferred to pass 2, immutable) in Casso65Core/Assembler.cpp
+- [X] T021 [US2] Implement cross-kind redefinition errors (equ→=, label→=, etc.) in Casso65Core/Assembler.cpp
+- [X] T022 [US3] Wire `*` and `$` (current-PC) into ExpressionEvaluator via ExprContext.currentPC in Casso65Core/Assembler.cpp
+- [X] T022a [US3] Change default origin from $8000 to 0 when no .org is given (FR-034b2) in Casso65Core/Assembler.cpp
+- [X] T023 [US3] Verify `jmp *`, `beq *`, `jmp $`, `name = *+1` all produce correct output
+- [X] T024 [P] [US2] Create constant definition tests (category 2 from conformance-test-plan.md, ~20 cases) in UnitTest/ConstantTests.cpp
 
 **Checkpoint**: Constants and current-PC working — prerequisite for conditionals and macros
 
@@ -87,13 +87,13 @@
 
 **Independent Test**: Assemble `flag = 1` / `if flag` / `NOP` / `endif` and verify one NOP
 
-- [ ] T025 [US4] Implement conditional state stack (assembling/skipping, seenElse, parentAssembling) in Casso65Core/Assembler.cpp
-- [ ] T026 [US4] Implement `if EXPR` directive processing with expression evaluation in Casso65Core/Assembler.cpp
-- [ ] T027 [US4] Implement `else` and `endif` directive processing with stack management in Casso65Core/Assembler.cpp
-- [ ] T028 [US4] Ensure skipped blocks define zero symbols, emit zero bytes, but still track if/else/endif nesting in Casso65Core/Assembler.cpp
-- [ ] T029 [US4] Support `.if`/`.else`/`.endif` dot-prefixed forms in Casso65Core/Assembler.cpp
-- [ ] T030 [US4] Add error reporting for unmatched else/endif and unclosed if in Casso65Core/Assembler.cpp
-- [ ] T031 [P] [US4] Create conditional assembly tests (category 3 from conformance-test-plan.md, ~20 cases) in UnitTest/ConditionalAssemblyTests.cpp
+- [X] T025 [US4] Implement conditional state stack (assembling/skipping, seenElse, parentAssembling) in Casso65Core/Assembler.cpp
+- [X] T026 [US4] Implement `if EXPR` directive processing with expression evaluation in Casso65Core/Assembler.cpp
+- [X] T027 [US4] Implement `else` and `endif` directive processing with stack management in Casso65Core/Assembler.cpp
+- [X] T028 [US4] Ensure skipped blocks define zero symbols, emit zero bytes, but still track if/else/endif nesting in Casso65Core/Assembler.cpp
+- [X] T029 [US4] Support `.if`/`.else`/`.endif` dot-prefixed forms in Casso65Core/Assembler.cpp
+- [X] T030 [US4] Add error reporting for unmatched else/endif and unclosed if in Casso65Core/Assembler.cpp
+- [X] T031 [P] [US4] Create conditional assembly tests (category 3 from conformance-test-plan.md, ~20 cases) in UnitTest/ConditionalAssemblyTests.cpp
 
 **Checkpoint**: Conditional assembly working — prerequisite for Dormann's config-guarded sections
 
@@ -105,14 +105,14 @@
 
 **Independent Test**: Define `trap macro` / `jmp *` / `endm`, invoke `trap`, verify JMP to self
 
-- [ ] T032 [US5] Implement macro definition collection (`NAME macro`/`endm`) in pass 1 in Casso65Core/Assembler.cpp
-- [ ] T033 [US5] Implement macro invocation detection (name matches macro table) in Casso65Core/Assembler.cpp
-- [ ] T034 [US5] Implement argument splitting (comma-separated, respecting parentheses) and `\1`–`\9` substitution in Casso65Core/Assembler.cpp
-- [ ] T035 [US5] Implement `\?` unique suffix replacement with per-expansion 4-digit counter in Casso65Core/Assembler.cpp
-- [ ] T036 [US5] Implement nested macro expansion with 15-level depth limit in Casso65Core/Assembler.cpp
-- [ ] T037 [US5] Implement macro-inside-conditional and conditional-inside-macro interactions in Casso65Core/Assembler.cpp
-- [ ] T038 [US5] Add error reporting: macro name collision with mnemonic, exceeding depth limit in Casso65Core/Assembler.cpp
-- [ ] T039 [P] [US5] Create macro tests (category 4 from conformance-test-plan.md, ~30 cases including Dormann patterns) in UnitTest/MacroTests.cpp
+- [X] T032 [US5] Implement macro definition collection (`NAME macro`/`endm`) in pass 1 in Casso65Core/Assembler.cpp
+- [X] T033 [US5] Implement macro invocation detection (name matches macro table) in Casso65Core/Assembler.cpp
+- [X] T034 [US5] Implement argument splitting (comma-separated, respecting parentheses) and `\1`–`\9` substitution in Casso65Core/Assembler.cpp
+- [X] T035 [US5] Implement `\?` unique suffix replacement with per-expansion 4-digit counter in Casso65Core/Assembler.cpp
+- [X] T036 [US5] Implement nested macro expansion with 15-level depth limit in Casso65Core/Assembler.cpp
+- [X] T037 [US5] Implement macro-inside-conditional and conditional-inside-macro interactions in Casso65Core/Assembler.cpp
+- [X] T038 [US5] Add error reporting: macro name collision with mnemonic, exceeding depth limit in Casso65Core/Assembler.cpp
+- [X] T039 [P] [US5] Create macro tests (category 4 from conformance-test-plan.md, ~30 cases including Dormann patterns) in UnitTest/MacroTests.cpp
 
 **Checkpoint**: Basic macros working — Dormann suite macros should expand correctly
 
@@ -124,18 +124,18 @@
 
 **Independent Test**: Assemble Dormann-style source with colon-less labels, `ds`, `org` (no dot), `db`
 
-- [ ] T040 [US6] Finalize colon-less label support in Parser (column-0 + not-a-mnemonic/directive/macro → label) in Casso65Core/Parser.cpp
-- [ ] T041 [US7] Implement `ds`/`dsb`/`.res`/`rmb` storage directives with expression count and optional fill in Casso65Core/Assembler.cpp
-- [ ] T042 [US8] Add AS65 directive synonym recognition: `org`, `db`/`byt`/`byte`/`fcb`/`fcc`, `dw`/`word`/`fcw`/`fdb`, `dd`, `noopt`/`opt` in Casso65Core/Parser.cpp
-- [ ] T042a [US8] Implement `fcb` (expressions only) and `fcc` (strings only) distinct behavior per FR-072 in Casso65Core/Assembler.cpp
-- [ ] T042b [US8] Implement `dd` define-double-word directive (4 bytes, little-endian) per FR-074a in Casso65Core/Assembler.cpp
-- [ ] T043 [US8] Implement `data`/`bss`/`code` segment switching (update current segment and PC) in Casso65Core/Assembler.cpp
-- [ ] T043a [US8] Implement three-segment model (code/data/bss with independent PCs; flatten to binary on output) in Casso65Core/Assembler.cpp (FR-077)
-- [ ] T044 [US8] Implement `end` directive (stop assembly, capture optional entry-point expression, display on stderr) in Casso65Core/Assembler.cpp
-- [ ] T045 [US8] Implement `align EXPR` (pad to modulus) and `align` (pad to even) in Casso65Core/Assembler.cpp
-- [ ] T046 [US9] Implement `ERROR` directive (fatal error when in taken block, silent in skipped block) in Casso65Core/Assembler.cpp
-- [ ] T047 [US7] Implement `db` string escape sequences (`\a`, `\b`, `\n`, `\r`, `\t`, `\\`, `\"`) in Casso65Core/Assembler.cpp
-- [ ] T048 [P] [US7] Create directive and label tests (categories 5–6 from conformance-test-plan.md, ~35 cases) in UnitTest/DirectiveTests.cpp
+- [X] T040 [US6] Finalize colon-less label support in Parser (column-0 + not-a-mnemonic/directive/macro → label) in Casso65Core/Parser.cpp
+- [X] T041 [US7] Implement `ds`/`dsb`/`.res`/`rmb` storage directives with expression count and optional fill in Casso65Core/Assembler.cpp
+- [X] T042 [US8] Add AS65 directive synonym recognition: `org`, `db`/`byt`/`byte`/`fcb`/`fcc`, `dw`/`word`/`fcw`/`fdb`, `dd`, `noopt`/`opt` in Casso65Core/Parser.cpp
+- [X] T042a [US8] Implement `fcb` (expressions only) and `fcc` (strings only) distinct behavior per FR-072 in Casso65Core/Assembler.cpp
+- [X] T042b [US8] Implement `dd` define-double-word directive (4 bytes, little-endian) per FR-074a in Casso65Core/Assembler.cpp
+- [X] T043 [US8] Implement `data`/`bss`/`code` segment switching (update current segment and PC) in Casso65Core/Assembler.cpp
+- [X] T043a [US8] Implement three-segment model (code/data/bss with independent PCs; flatten to binary on output) in Casso65Core/Assembler.cpp (FR-077)
+- [X] T044 [US8] Implement `end` directive (stop assembly, capture optional entry-point expression, display on stderr) in Casso65Core/Assembler.cpp
+- [X] T045 [US8] Implement `align EXPR` (pad to modulus) and `align` (pad to even) in Casso65Core/Assembler.cpp
+- [X] T046 [US9] Implement `ERROR` directive (fatal error when in taken block, silent in skipped block) in Casso65Core/Assembler.cpp
+- [X] T047 [US7] Implement `db` string escape sequences (`\a`, `\b`, `\n`, `\r`, `\t`, `\\`, `\"`) in Casso65Core/Assembler.cpp
+- [X] T048 [P] [US7] Create directive and label tests (categories 5–6 from conformance-test-plan.md, ~35 cases) in UnitTest/DirectiveTests.cpp
 
 **Checkpoint**: All Dormann-required features complete — ready for integration test
 
