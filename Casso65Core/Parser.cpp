@@ -189,24 +189,6 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsBranchMnemonic
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool IsBranchMnemonic (const std::string & mnemonic)
-{
-    return mnemonic == "BPL" || mnemonic == "BMI" ||
-           mnemonic == "BVC" || mnemonic == "BVS" ||
-           mnemonic == "BCC" || mnemonic == "BCS" ||
-           mnemonic == "BNE" || mnemonic == "BEQ";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TrimOperand
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,32 +234,42 @@ static std::string ToUpperStr (const std::string & s)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseLabelWithOffset
+//  FindMatchingClose — find matching ')' or ']' respecting nesting
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ParseLabelWithOffset (const std::string & text, ClassifiedOperand & result)
+static size_t FindMatchingClose (const std::string & s, size_t openPos)
 {
-    result.isLabel = true;
+    char openChar  = s[openPos];
+    char closeChar = (openChar == '(') ? ')' : ']';
+    int  depth     = 1;
 
-    size_t plusPos = text.find ('+');
 
-    if (plusPos != std::string::npos)
+
+    for (size_t i = openPos + 1; i < s.size (); i++)
     {
-        result.labelName = TrimOperand (text.substr (0, plusPos));
+        char c = s[i];
 
-        std::string offsetStr = TrimOperand (text.substr (plusPos + 1));
-        int         offset    = 0;
-
-        if (Parser::ParseValue (offsetStr, offset))
+        if (c == '\'' && i + 2 < s.size () && s[i + 2] == '\'')
         {
-            result.labelOffset = offset;
+            i += 2;  // skip char literal
+        }
+        else if (c == openChar)
+        {
+            depth++;
+        }
+        else if (c == closeChar)
+        {
+            depth--;
+
+            if (depth == 0)
+            {
+                return i;
+            }
         }
     }
-    else
-    {
-        result.labelName = text;
-    }
+
+    return std::string::npos;
 }
 
 
@@ -286,248 +278,160 @@ static void ParseLabelWithOffset (const std::string & text, ClassifiedOperand & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ClassifyOperand
+//  FindTopLevelComma — find ',' not inside () [] or ''
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ClassifiedOperand Parser::ClassifyOperand (const std::string & operand, const std::string & mnemonic)
+static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
+{
+    int depth = 0;
+
+
+
+    for (size_t i = start; i < s.size (); i++)
+    {
+        char c = s[i];
+
+        if (c == '\'' && i + 2 < s.size () && s[i + 2] == '\'')
+        {
+            i += 2;  // skip char literal
+        }
+        else if (c == '(' || c == '[')
+        {
+            depth++;
+        }
+        else if (c == ')' || c == ']')
+        {
+            depth--;
+        }
+        else if (c == ',' && depth == 0)
+        {
+            return i;
+        }
+    }
+
+    return std::string::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClassifyOperand — syntax detection only, no value parsing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 {
     ClassifiedOperand result = {};
-    result.mode        = GlobalAddressingMode::SingleByteNoOperand;
-    result.value       = 0;
-    result.isLabel     = false;
-    result.labelOffset = 0;
-    result.lowByteOp   = false;
-    result.highByteOp  = false;
+    result.syntax = OperandSyntax::None;
 
     std::string op = TrimOperand (operand);
 
-    // No operand — implied / single byte
     if (op.empty ())
     {
-        result.mode = GlobalAddressingMode::SingleByteNoOperand;
         return result;
     }
 
-    // Immediate: #value
+    // Immediate: #expr
     if (op[0] == '#')
     {
-        std::string valueStr = op.substr (1);
-        result.mode = GlobalAddressingMode::Immediate;
-
-        // Check for < (low byte) or > (high byte) operator
-        if (!valueStr.empty () && valueStr[0] == '<')
-        {
-            result.lowByteOp = true;
-            valueStr = valueStr.substr (1);
-        }
-        else if (!valueStr.empty () && valueStr[0] == '>')
-        {
-            result.highByteOp = true;
-            valueStr = valueStr.substr (1);
-        }
-
-        if (!ParseValue (valueStr, result.value))
-        {
-            ParseLabelWithOffset (valueStr, result);
-        }
-
+        result.syntax     = OperandSyntax::Immediate;
+        result.expression = TrimOperand (op.substr (1));
         return result;
     }
 
-    // Accumulator: "A"
+    // Accumulator: "A" (exact match, case-insensitive)
     if (ToUpperStr (op) == "A")
     {
-        result.mode = GlobalAddressingMode::Accumulator;
+        result.syntax = OperandSyntax::Accumulator;
         return result;
     }
 
-    // Indirect modes: (...)
+    // Indirect modes: starts with '('
     if (op[0] == '(')
     {
-        size_t closeParen = op.find (')');
+        size_t closePos = FindMatchingClose (op, 0);
 
-        if (closeParen == std::string::npos)
+        if (closePos == std::string::npos)
         {
+            // Unmatched paren — treat as bare expression
+            result.syntax     = OperandSyntax::Bare;
+            result.expression = op;
             return result;
         }
 
-        std::string inner = op.substr (1, closeParen - 1);
+        std::string inner = TrimOperand (op.substr (1, closePos - 1));
+        std::string after = TrimOperand (op.substr (closePos + 1));
 
-        // ($ZZ,X) — ZeroPageXIndirect
-        size_t commaPos = inner.find (',');
+        // Check for (expr,X) — IndirectX
+        size_t commaPos = FindTopLevelComma (inner);
 
         if (commaPos != std::string::npos)
         {
-            std::string valueStr = TrimOperand (inner.substr (0, commaPos));
-            std::string reg      = ToUpperStr (TrimOperand (inner.substr (commaPos + 1)));
+            std::string beforeComma = TrimOperand (inner.substr (0, commaPos));
+            std::string afterComma  = ToUpperStr (TrimOperand (inner.substr (commaPos + 1)));
 
-            if (reg == "X")
+            if (afterComma == "X")
             {
-                result.mode = GlobalAddressingMode::ZeroPageXIndirect;
-                ParseValue (valueStr, result.value);
+                result.syntax     = OperandSyntax::IndirectX;
+                result.expression = beforeComma;
                 return result;
             }
         }
 
-        // ($ZZ),Y — ZeroPageIndirectY
-        // ($HHHH) — JumpIndirect
-        std::string afterParen = TrimOperand (op.substr (closeParen + 1));
-
-        if (!afterParen.empty () && afterParen[0] == ',')
+        // Check for (expr),Y — IndirectY
+        if (!after.empty () && after[0] == ',')
         {
-            std::string reg = ToUpperStr (TrimOperand (afterParen.substr (1)));
+            std::string reg = ToUpperStr (TrimOperand (after.substr (1)));
 
             if (reg == "Y")
             {
-                result.mode = GlobalAddressingMode::ZeroPageIndirectY;
-                ParseValue (TrimOperand (inner), result.value);
+                result.syntax     = OperandSyntax::IndirectY;
+                result.expression = inner;
                 return result;
             }
         }
 
-        // JMP ($HHHH) — JumpIndirect
-        result.mode = GlobalAddressingMode::JumpIndirect;
-        ParseValue (TrimOperand (inner), result.value);
+        // Plain (expr) — Indirect (for JMP)
+        result.syntax     = OperandSyntax::Indirect;
+        result.expression = inner;
         return result;
     }
 
-    // Check for ,X or ,Y suffix
-    size_t commaPos = op.find (',');
+    // Check for top-level ,X or ,Y suffix
+    size_t commaPos = FindTopLevelComma (op);
 
     if (commaPos != std::string::npos)
     {
-        std::string valueStr = TrimOperand (op.substr (0, commaPos));
+        std::string exprPart = TrimOperand (op.substr (0, commaPos));
         std::string reg      = ToUpperStr (TrimOperand (op.substr (commaPos + 1)));
-        int         value    = 0;
-        bool        isNumeric = ParseValue (valueStr, value);
 
         if (reg == "X")
         {
-            if (isNumeric && value >= 0 && value <= 0xFF)
-            {
-                result.mode  = GlobalAddressingMode::ZeroPageX;
-                result.value = value;
-            }
-            else
-            {
-                result.mode = GlobalAddressingMode::AbsoluteX;
-
-                if (isNumeric)
-                {
-                    result.value = value;
-                }
-                else
-                {
-                    ParseLabelWithOffset (valueStr, result);
-                }
-            }
-
+            result.syntax     = OperandSyntax::IndexedX;
+            result.expression = exprPart;
             return result;
         }
 
         if (reg == "Y")
         {
-            if (isNumeric && value >= 0 && value <= 0xFF)
-            {
-                result.mode  = GlobalAddressingMode::ZeroPageY;
-                result.value = value;
-            }
-            else
-            {
-                result.mode = GlobalAddressingMode::AbsoluteY;
-
-                if (isNumeric)
-                {
-                    result.value = value;
-                }
-                else
-                {
-                    ParseLabelWithOffset (valueStr, result);
-                }
-            }
-
+            result.syntax     = OperandSyntax::IndexedY;
+            result.expression = exprPart;
             return result;
         }
 
+        // Comma but not ,X or ,Y — treat as bare (shouldn't happen for 6502)
+        result.syntax     = OperandSyntax::Bare;
+        result.expression = op;
         return result;
     }
 
-    // Plain value or label — determine mode from mnemonic and value
-    int  value     = 0;
-    bool isNumeric = ParseValue (op, value);
-
-    // Branch instructions always use Relative mode
-    if (IsBranchMnemonic (mnemonic))
-    {
-        result.mode = GlobalAddressingMode::Relative;
-
-        if (isNumeric)
-        {
-            result.value = value;
-        }
-        else
-        {
-            ParseLabelWithOffset (op, result);
-        }
-
-        return result;
-    }
-
-    // JMP uses JumpAbsolute (not Absolute)
-    if (mnemonic == "JMP")
-    {
-        result.mode = GlobalAddressingMode::JumpAbsolute;
-
-        if (isNumeric)
-        {
-            result.value = value;
-        }
-        else
-        {
-            ParseLabelWithOffset (op, result);
-        }
-
-        return result;
-    }
-
-    // JSR uses JumpAbsolute
-    if (mnemonic == "JSR")
-    {
-        result.mode = GlobalAddressingMode::JumpAbsolute;
-
-        if (isNumeric)
-        {
-            result.value = value;
-        }
-        else
-        {
-            ParseLabelWithOffset (op, result);
-        }
-
-        return result;
-    }
-
-    // Numeric literal — ZeroPage or Absolute based on value size
-    if (isNumeric)
-    {
-        if (value >= 0 && value <= 0xFF)
-        {
-            result.mode  = GlobalAddressingMode::ZeroPage;
-            result.value = value;
-        }
-        else
-        {
-            result.mode  = GlobalAddressingMode::Absolute;
-            result.value = value;
-        }
-
-        return result;
-    }
-
-    // Must be a label — default to Absolute (will be resolved in Pass 2)
-    result.mode = GlobalAddressingMode::Absolute;
-    ParseLabelWithOffset (op, result);
+    // Bare expression (no prefix, no suffix)
+    result.syntax     = OperandSyntax::Bare;
+    result.expression = op;
     return result;
 }
 
@@ -689,40 +593,44 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseValueList
+//  SplitArgList — split comma-separated list respecting () [] '' nesting
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> Parser::ParseValueList (const std::string & text)
+std::vector<std::string> Parser::SplitArgList (const std::string & text)
 {
-    std::vector<int> values;
-    std::string      current;
+    std::vector<std::string> args;
+    size_t                   start = 0;
 
-    for (size_t i = 0; i <= text.size (); i++)
+
+
+    while (start <= text.size ())
     {
-        if (i == text.size () || text[i] == ',')
+        size_t commaPos = FindTopLevelComma (text, start);
+
+        if (commaPos == std::string::npos)
         {
-            std::string trimmed = TrimOperand (current);
+            std::string arg = TrimOperand (text.substr (start));
 
-            if (!trimmed.empty ())
+            if (!arg.empty ())
             {
-                int value = 0;
-
-                if (ParseValue (trimmed, value))
-                {
-                    values.push_back (value);
-                }
+                args.push_back (arg);
             }
 
-            current.clear ();
+            break;
         }
-        else
+
+        std::string arg = TrimOperand (text.substr (start, commaPos - start));
+
+        if (!arg.empty ())
         {
-            current += text[i];
+            args.push_back (arg);
         }
+
+        start = commaPos + 1;
     }
 
-    return values;
+    return args;
 }
 
 

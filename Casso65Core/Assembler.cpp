@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Assembler.h"
+#include "ExpressionEvaluator.h"
 #include "Parser.h"
 
 
@@ -95,67 +96,6 @@ void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetInstructionSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte GetInstructionSize (const OpcodeTable & table, const ParsedLine & parsed, const ClassifiedOperand & classified)
-{
-    OpcodeEntry entry = {};
-
-    if (table.Lookup (parsed.mnemonic, classified.mode, entry))
-    {
-        return 1 + entry.operandSize;
-    }
-
-    return 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EstimateInstructionSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte EstimateInstructionSize (const ClassifiedOperand & classified)
-{
-    switch (classified.mode)
-    {
-    case GlobalAddressingMode::SingleByteNoOperand:
-    case GlobalAddressingMode::Accumulator:
-        return 1;
-
-    case GlobalAddressingMode::Immediate:
-    case GlobalAddressingMode::ZeroPage:
-    case GlobalAddressingMode::ZeroPageX:
-    case GlobalAddressingMode::ZeroPageY:
-    case GlobalAddressingMode::ZeroPageXIndirect:
-    case GlobalAddressingMode::ZeroPageIndirectY:
-    case GlobalAddressingMode::Relative:
-        return 2;
-
-    case GlobalAddressingMode::Absolute:
-    case GlobalAddressingMode::AbsoluteX:
-    case GlobalAddressingMode::AbsoluteY:
-    case GlobalAddressingMode::JumpAbsolute:
-    case GlobalAddressingMode::JumpIndirect:
-        return 3;
-
-    default:
-        return 1;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IsBranchMnemonic
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,6 +106,209 @@ static bool IsBranchMnemonic (const std::string & mnemonic)
            mnemonic == "BVC" || mnemonic == "BVS" ||
            mnemonic == "BCC" || mnemonic == "BCS" ||
            mnemonic == "BNE" || mnemonic == "BEQ";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveAddressingMode — derive final 6502 addressing mode from syntax,
+//  mnemonic, and resolved value
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static GlobalAddressingMode::AddressingMode ResolveAddressingMode (
+    OperandSyntax    syntax,
+    const std::string & mnemonic,
+    int32_t          value,
+    bool             resolved,
+    const OpcodeTable & opcodeTable)
+{
+    using AM = GlobalAddressingMode::AddressingMode;
+
+
+
+    switch (syntax)
+    {
+    case OperandSyntax::None:
+        return AM::SingleByteNoOperand;
+
+    case OperandSyntax::Accumulator:
+        return AM::Accumulator;
+
+    case OperandSyntax::Immediate:
+        return AM::Immediate;
+
+    case OperandSyntax::IndirectX:
+        return AM::ZeroPageXIndirect;
+
+    case OperandSyntax::IndirectY:
+        return AM::ZeroPageIndirectY;
+
+    case OperandSyntax::Indirect:
+        return AM::JumpIndirect;
+
+    case OperandSyntax::IndexedX:
+    {
+        // Try ZeroPageX first if value fits and instruction supports it
+        if (resolved && value >= 0 && value <= 0xFF)
+        {
+            OpcodeEntry entry = {};
+
+            if (opcodeTable.Lookup (mnemonic, AM::ZeroPageX, entry))
+            {
+                return AM::ZeroPageX;
+            }
+        }
+
+        return AM::AbsoluteX;
+    }
+
+    case OperandSyntax::IndexedY:
+    {
+        if (resolved && value >= 0 && value <= 0xFF)
+        {
+            OpcodeEntry entry = {};
+
+            if (opcodeTable.Lookup (mnemonic, AM::ZeroPageY, entry))
+            {
+                return AM::ZeroPageY;
+            }
+        }
+
+        return AM::AbsoluteY;
+    }
+
+    case OperandSyntax::Bare:
+    {
+        // Branch instructions are always relative
+        if (IsBranchMnemonic (mnemonic))
+        {
+            return AM::Relative;
+        }
+
+        // JMP/JSR use JumpAbsolute
+        if (mnemonic == "JMP" || mnemonic == "JSR")
+        {
+            return AM::JumpAbsolute;
+        }
+
+        // Try ZeroPage if value fits and instruction supports it
+        if (resolved && value >= 0 && value <= 0xFF)
+        {
+            OpcodeEntry entry = {};
+
+            if (opcodeTable.Lookup (mnemonic, AM::ZeroPage, entry))
+            {
+                return AM::ZeroPage;
+            }
+        }
+
+        return AM::Absolute;
+    }
+    }
+
+    return AM::SingleByteNoOperand;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EstimateInstructionSize — conservative size for unresolved expressions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static Byte EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic)
+{
+    switch (syntax)
+    {
+    case OperandSyntax::None:
+    case OperandSyntax::Accumulator:
+        return 1;
+
+    case OperandSyntax::Immediate:
+    case OperandSyntax::IndirectX:
+    case OperandSyntax::IndirectY:
+        return 2;
+
+    case OperandSyntax::Indirect:
+        return 3;
+
+    case OperandSyntax::IndexedX:
+    case OperandSyntax::IndexedY:
+    case OperandSyntax::Bare:
+    {
+        if (IsBranchMnemonic (mnemonic))
+        {
+            return 2;
+        }
+
+        return 3;  // Conservative: assume absolute
+    }
+    }
+
+    return 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool EvaluateDirectiveArgs (
+    const std::string &                      argText,
+    const ExprContext &                       ctx,
+    std::vector<int32_t> &                   values,
+    int                                      lineNumber,
+    std::vector<AssemblyError> &             errors)
+{
+    auto args = Parser::SplitArgList (argText);
+    bool ok   = true;
+
+
+
+    for (const auto & arg : args)
+    {
+        // Check for quoted string — emit each character as a value
+        if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
+        {
+            std::string str = arg.substr (1, arg.size () - 2);
+
+            for (char c : str)
+            {
+                values.push_back ((int32_t) (unsigned char) c);
+            }
+
+            continue;
+        }
+
+        ExprResult er = ExpressionEvaluator::Evaluate (arg, ctx);
+
+        if (!er.success)
+        {
+            AssemblyError error = {};
+            error.lineNumber = lineNumber;
+            error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
+            errors.push_back (error);
+            ok = false;
+        }
+        else
+        {
+            values.push_back (er.value);
+        }
+    }
+
+    return ok;
 }
 
 
@@ -186,7 +329,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
     auto lines = Parser::SplitLines (sourceText);
 
-    // ---- Pass 1: Parse lines, collect labels, compute PC values ----
+    // ---- Line info for both passes ----
     struct LineInfo
     {
         ParsedLine        parsed;
@@ -195,6 +338,10 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         bool              isInstruction;
         bool              isDirective;
         bool              hasError;
+
+        GlobalAddressingMode::AddressingMode resolvedMode;
+        int32_t                              resolvedValue;
+        bool                                 valueResolved;
     };
 
     std::vector<LineInfo>                     lineInfos;
@@ -202,22 +349,40 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     Word                                      pc        = result.startAddress;
     bool                                      originSet = false;
 
+    // Build a Pass 1 expression context (no symbols yet)
+    std::unordered_map<std::string, int32_t>  exprSymbols;
+    ExprContext                                pass1Ctx = { &exprSymbols, 0 };
+
+    // ---- Pass 1: Parse, collect labels, compute PC ----
     for (int i = 0; i < (int) lines.size (); i++)
     {
-        LineInfo info    = {};
-        info.parsed      = Parser::ParseLine (lines[i], i + 1);
-        info.pc          = pc;
+        LineInfo info     = {};
+        info.parsed       = Parser::ParseLine (lines[i], i + 1);
+        info.pc           = pc;
         info.isInstruction = false;
         info.isDirective   = false;
+        info.hasError      = false;
+        info.valueResolved = false;
+        info.resolvedValue = 0;
+        info.resolvedMode  = GlobalAddressingMode::SingleByteNoOperand;
 
-        // Handle .org BEFORE recording label (so label gets the new address)
+        // Handle .org BEFORE recording label
         if (info.parsed.isDirective && info.parsed.directive == ".ORG")
         {
-            int orgAddr = 0;
+            pass1Ctx.currentPC = (int32_t) pc;
+            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass1Ctx);
 
-            if (Parser::ParseValue (info.parsed.directiveArg, orgAddr))
+            if (!er.success)
             {
-                Word newAddr = (Word) orgAddr;
+                AssemblyError error = {};
+                error.lineNumber = i + 1;
+                error.message    = ".org expression must be resolvable: " + er.error;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+            else
+            {
+                Word newAddr = (Word) er.value;
 
                 if (originSet && newAddr < pc)
                 {
@@ -234,7 +399,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                         RecordWarning (result, i + 1, "Redundant .org to current address");
                     }
 
-                    pc = newAddr;
+                    pc      = newAddr;
                     info.pc = pc;
 
                     if (!originSet)
@@ -250,7 +415,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             continue;
         }
 
-        // Record label with validation
+        // Record label
         if (!info.parsed.label.empty ())
         {
             std::string labelError;
@@ -274,8 +439,9 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             else
             {
                 symbols[info.parsed.label] = pc;
+                exprSymbols[info.parsed.label] = (int32_t) pc;
 
-                // Warn if label differs from a mnemonic only by case (FR-033a)
+                // Warn if label resembles mnemonic by case (FR-033a)
                 std::string upper = info.parsed.label;
 
                 for (auto & c : upper)
@@ -290,20 +456,34 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             }
         }
 
-        // Handle data directives (.byte, .word, .text)
+        // Handle data directives
         if (info.parsed.isDirective)
         {
             info.isDirective = true;
 
             if (info.parsed.directive == ".BYTE")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
-                pc += (Word) values.size ();
+                // Count items for PC advancement
+                pass1Ctx.currentPC = (int32_t) pc;
+                std::vector<int32_t> values;
+                std::vector<AssemblyError> tempErrors;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass1Ctx, values, i + 1, tempErrors);
+
+                // If evaluation fails, try counting comma-separated items
+                if (values.empty () && !info.parsed.directiveArg.empty ())
+                {
+                    auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                    pc += (Word) args.size ();
+                }
+                else
+                {
+                    pc += (Word) values.size ();
+                }
             }
             else if (info.parsed.directive == ".WORD")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
-                pc += (Word) (values.size () * 2);
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                pc += (Word) (args.size () * 2);
             }
             else if (info.parsed.directive == ".TEXT")
             {
@@ -315,37 +495,56 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             continue;
         }
 
-        // Skip empty lines (comments, blanks)
+        // Skip empty lines
         if (info.parsed.mnemonic.empty ())
         {
             lineInfos.push_back (info);
             continue;
         }
 
-        // Classify operand
-        info.classified    = Parser::ClassifyOperand (info.parsed.operand, info.parsed.mnemonic);
+        // Classify operand (syntax only)
+        info.classified    = Parser::ClassifyOperand (info.parsed.operand);
         info.isInstruction = true;
 
-        // For labels used as operands, default to Absolute size (2-byte operand)
-        // in Pass 1 so PC advances correctly
-        GlobalAddressingMode::AddressingMode mode = info.classified.mode;
+        // Try to evaluate expression in Pass 1 for addressing mode selection
+        pass1Ctx.currentPC = (int32_t) pc;
+        bool exprResolved = false;
+        int32_t exprValue = 0;
 
-        if (info.classified.isLabel)
+        if (info.classified.syntax != OperandSyntax::None &&
+            info.classified.syntax != OperandSyntax::Accumulator &&
+            !info.classified.expression.empty ())
         {
-            // Branches are always 1-byte relative offset
-            if (mode == GlobalAddressingMode::Relative)
+            ExprResult er = ExpressionEvaluator::Evaluate (info.classified.expression, pass1Ctx);
+
+            if (er.success)
             {
-                // Relative mode — 1 byte operand
+                exprResolved = true;
+                exprValue    = er.value;
             }
-            else if (mode == GlobalAddressingMode::ZeroPage)
+            else if (!er.hasUnresolved)
             {
-                // Label operand defaults to Absolute (2 bytes)
-                mode = GlobalAddressingMode::Absolute;
-                info.classified.mode = mode;
+                // Syntax error — report immediately
+                AssemblyError error = {};
+                error.lineNumber = i + 1;
+                error.message    = "Expression error: " + er.error;
+                result.errors.push_back (error);
+                result.success = false;
+                info.hasError  = true;
             }
+            // else: hasUnresolved — normal forward ref, will resolve in Pass 2
         }
 
-        // Compute instruction size for PC advancement
+        info.valueResolved = exprResolved;
+        info.resolvedValue = exprValue;
+
+        // Determine addressing mode
+        GlobalAddressingMode::AddressingMode mode = ResolveAddressingMode (
+            info.classified.syntax, info.parsed.mnemonic,
+            exprValue, exprResolved, m_opcodeTable);
+        info.resolvedMode = mode;
+
+        // Compute instruction size
         OpcodeEntry entry = {};
 
         if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
@@ -354,28 +553,22 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
         else
         {
-            // Zero-page preference fallback — try alternate mode
+            // Try fallback: ZP → Absolute
             GlobalAddressingMode::AddressingMode altMode = mode;
 
             if (altMode == GlobalAddressingMode::ZeroPage)
-            {
                 altMode = GlobalAddressingMode::Absolute;
-            }
             else if (altMode == GlobalAddressingMode::ZeroPageX)
-            {
                 altMode = GlobalAddressingMode::AbsoluteX;
-            }
             else if (altMode == GlobalAddressingMode::ZeroPageY)
-            {
                 altMode = GlobalAddressingMode::AbsoluteY;
-            }
 
             if (altMode != mode && m_opcodeTable.Lookup (info.parsed.mnemonic, altMode, entry))
             {
-                info.classified.mode = altMode;
+                info.resolvedMode = altMode;
                 pc += 1 + entry.operandSize;
             }
-            else
+            else if (!info.hasError)
             {
                 AssemblyError error = {};
                 error.lineNumber = i + 1;
@@ -384,7 +577,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 {
                     error.message = "Invalid mnemonic: " + info.parsed.mnemonic;
                 }
-                else if (info.classified.mode == GlobalAddressingMode::SingleByteNoOperand)
+                else if (info.classified.syntax == OperandSyntax::None)
                 {
                     error.message = "Missing operand for: " + info.parsed.mnemonic;
                 }
@@ -397,17 +590,26 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 result.success = false;
                 info.hasError  = true;
 
-                // Best-effort PC estimation (T042)
-                pc += EstimateInstructionSize (info.classified);
+                pc += EstimateInstructionSize (info.classified.syntax, info.parsed.mnemonic);
             }
         }
 
         lineInfos.push_back (info);
     }
 
-    // ---- Pass 2: Emit bytes with label resolution ----
-    std::vector<Byte>                  output;
-    std::unordered_map<std::string, int> referencedLabels;  // label name → line number of first reference
+    // ---- Pass 2: Emit bytes with full symbol resolution ----
+    std::vector<Byte>                         output;
+    std::unordered_map<std::string, int>      referencedLabels;
+
+    // Build full expression context with all symbols
+    std::unordered_map<std::string, int32_t>  fullSymbols;
+
+    for (const auto & sym : symbols)
+    {
+        fullSymbols[sym.first] = (int32_t) sym.second;
+    }
+
+    ExprContext pass2Ctx = { &fullSymbols, 0 };
 
     for (const auto & info : lineInfos)
     {
@@ -421,24 +623,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         else if (info.isDirective)
         {
             lineHasAddress = true;
+            pass2Ctx.currentPC = (int32_t) info.pc;
 
             if (info.parsed.directive == ".BYTE")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+                std::vector<int32_t> values;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass2Ctx, values, info.parsed.lineNumber, result.errors);
 
-                for (int v : values)
+                if (values.size () != 0 || info.parsed.directiveArg.empty ())
                 {
-                    output.push_back ((Byte) (v & 0xFF));
+                    for (int32_t v : values)
+                    {
+                        output.push_back ((Byte) (v & 0xFF));
+                    }
+                }
+                else
+                {
+                    result.success = false;
                 }
             }
             else if (info.parsed.directive == ".WORD")
             {
-                auto values = Parser::ParseValueList (info.parsed.directiveArg);
+                std::vector<int32_t> values;
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass2Ctx, values, info.parsed.lineNumber, result.errors);
 
-                for (int v : values)
+                if (values.size () != 0 || info.parsed.directiveArg.empty ())
                 {
-                    output.push_back ((Byte) (v & 0xFF));
-                    output.push_back ((Byte) ((v >> 8) & 0xFF));
+                    for (int32_t v : values)
+                    {
+                        output.push_back ((Byte) (v & 0xFF));
+                        output.push_back ((Byte) ((v >> 8) & 0xFF));
+                    }
+                }
+                else
+                {
+                    result.success = false;
                 }
             }
             else if (info.parsed.directive == ".TEXT")
@@ -454,23 +673,24 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         else if (info.isInstruction)
         {
             lineHasAddress = true;
+            pass2Ctx.currentPC = (int32_t) info.pc;
 
-            GlobalAddressingMode::AddressingMode mode  = info.classified.mode;
-            int                                  value  = info.classified.value;
-            bool                                 emit   = true;
+            GlobalAddressingMode::AddressingMode mode = info.resolvedMode;
+            int32_t value = 0;
+            bool    emit  = true;
 
-            // Resolve label references
-            if (info.classified.isLabel)
+            // Evaluate expression with full symbol table
+            if (info.classified.syntax != OperandSyntax::None &&
+                info.classified.syntax != OperandSyntax::Accumulator &&
+                !info.classified.expression.empty ())
             {
-                referencedLabels[info.classified.labelName] = info.parsed.lineNumber;
+                ExprResult er = ExpressionEvaluator::Evaluate (info.classified.expression, pass2Ctx);
 
-                auto it = symbols.find (info.classified.labelName);
-
-                if (it == symbols.end ())
+                if (!er.success)
                 {
                     AssemblyError error = {};
                     error.lineNumber = info.parsed.lineNumber;
-                    error.message    = "Undefined label: " + info.classified.labelName;
+                    error.message    = "Undefined symbol in: " + info.classified.expression;
                     result.errors.push_back (error);
                     result.success = false;
                     emit = false;
@@ -490,76 +710,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 }
                 else
                 {
-                    value = (int) it->second;
+                    value = er.value;
 
-                    // Apply label offset (label+N expressions)
-                    value += info.classified.labelOffset;
-
-                    // Apply low/high byte operators (<label, >label)
-                    if (info.classified.lowByteOp)
+                    // Track symbol references for unused-label warnings
+                    // (simple heuristic: if expression contains an identifier from symbols)
+                    for (const auto & sym : symbols)
                     {
-                        value = value & 0xFF;
-                    }
-                    else if (info.classified.highByteOp)
-                    {
-                        value = (value >> 8) & 0xFF;
-                    }
-
-                    // Compute relative branch offset
-                    if (mode == GlobalAddressingMode::Relative)
-                    {
-                        Word pcAfterInstruction = info.pc + 2; // branch instructions are 2 bytes
-                        int  offset = value - (int) pcAfterInstruction;
-
-                        if (offset < -128 || offset > 127)
+                        if (info.classified.expression.find (sym.first) != std::string::npos)
                         {
-                            AssemblyError error = {};
-                            error.lineNumber = info.parsed.lineNumber;
-                            error.message    = "Branch target out of range: " + info.classified.labelName;
-                            result.errors.push_back (error);
-                            result.success = false;
+                            referencedLabels[sym.first] = info.parsed.lineNumber;
                         }
-
-                        value = offset & 0xFF;
                     }
                 }
             }
 
             if (emit)
             {
-                // Zero-page preference for non-label operands
-                if (!info.classified.isLabel)
+                // Handle relative branch offset computation
+                if (mode == GlobalAddressingMode::Relative)
                 {
-                    if (value >= 0 && value <= 0xFF)
+                    Word pcAfterInstruction = info.pc + 2;
+                    int  offset = value - (int) pcAfterInstruction;
+
+                    if (offset < -128 || offset > 127)
                     {
-                        GlobalAddressingMode::AddressingMode zpMode = GlobalAddressingMode::__Count;
-
-                        if (mode == GlobalAddressingMode::Absolute)
-                        {
-                            zpMode = GlobalAddressingMode::ZeroPage;
-                        }
-                        else if (mode == GlobalAddressingMode::AbsoluteX)
-                        {
-                            zpMode = GlobalAddressingMode::ZeroPageX;
-                        }
-                        else if (mode == GlobalAddressingMode::AbsoluteY)
-                        {
-                            zpMode = GlobalAddressingMode::ZeroPageY;
-                        }
-
-                        if (zpMode != GlobalAddressingMode::__Count)
-                        {
-                            OpcodeEntry zpEntry = {};
-
-                            if (m_opcodeTable.Lookup (info.parsed.mnemonic, zpMode, zpEntry))
-                            {
-                                mode = zpMode;
-                            }
-                        }
+                        AssemblyError error = {};
+                        error.lineNumber = info.parsed.lineNumber;
+                        error.message    = "Branch target out of range";
+                        result.errors.push_back (error);
+                        result.success = false;
                     }
+
+                    value = offset & 0xFF;
                 }
 
-                // Check operand value range
+                // Range check for immediate mode
                 if (mode == GlobalAddressingMode::Immediate && (value < -128 || value > 255))
                 {
                     AssemblyError error = {};
@@ -599,7 +784,6 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
         else if (!info.parsed.label.empty ())
         {
-            // Label-only line — show address but no bytes
             lineHasAddress = true;
         }
 
@@ -625,13 +809,26 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     result.symbols    = symbols;
     result.endAddress = result.startAddress + (Word) output.size ();
 
-    // ---- Post-assembly warnings ----
-    // Warn about unused labels (defined but never referenced)
+    // ---- Post-assembly: unused label warnings ----
+    // Also track references in directive expressions
+    for (const auto & info : lineInfos)
+    {
+        if (info.isDirective)
+        {
+            for (const auto & sym : symbols)
+            {
+                if (info.parsed.directiveArg.find (sym.first) != std::string::npos)
+                {
+                    referencedLabels[sym.first] = info.parsed.lineNumber;
+                }
+            }
+        }
+    }
+
     for (const auto & sym : symbols)
     {
         if (referencedLabels.find (sym.first) == referencedLabels.end ())
         {
-            // Find the line number where the label was defined
             int defLine = 0;
 
             for (const auto & info : lineInfos)
