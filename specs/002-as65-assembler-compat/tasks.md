@@ -160,11 +160,11 @@
 
 **Independent Test**: Macro with `local` label invoked twice produces unique labels; `exitm` terminates early
 
-- [ ] T052 [US11] Implement `local` label declarations in macro definitions in Casso65Core/Assembler.cpp
-- [ ] T053 [US11] Implement `exitm` early termination during macro expansion in Casso65Core/Assembler.cpp
-- [ ] T054 [US11] Implement `\0` argument count substitution in Casso65Core/Assembler.cpp
-- [ ] T055 [US11] Implement named parameter mapping (`NAME macro text, value` → `text`/`value` substitution including inside quoted strings) in Casso65Core/Assembler.cpp
-- [ ] T056 [P] [US11] Add advanced macro tests (category 4.2–4.6 from conformance-test-plan.md: local, exitm, \0, named params) to UnitTest/MacroTests.cpp
+- [X] T052 [US11] Implement `local` label declarations in macro definitions in Casso65Core/Assembler.cpp
+- [X] T053 [US11] Implement `exitm` early termination during macro expansion in Casso65Core/Assembler.cpp
+- [X] T054 [US11] Implement `\0` argument count substitution in Casso65Core/Assembler.cpp
+- [X] T055 [US11] Implement named parameter mapping (`NAME macro text, value` → `text`/`value` substitution including inside quoted strings) in Casso65Core/Assembler.cpp
+- [X] T056 [P] [US11] Add advanced macro tests (category 4.2–4.6 from conformance-test-plan.md: local, exitm, \0, named params) to UnitTest/MacroTests.cpp
 
 **Checkpoint**: Full AS65 macro feature parity
 
@@ -176,10 +176,10 @@
 
 **Independent Test**: Main file includes a file with a label; main file references that label
 
-- [ ] T057 [US12] Implement FileReader interface and default filesystem implementation in Casso65Core/AssemblerTypes.h and Casso65Core/Assembler.cpp
-- [ ] T058 [US12] Implement `include "filename"` processing with nesting limit (16 levels) in Casso65Core/Assembler.cpp
-- [ ] T059 [US12] Implement file:line error reporting for included files in Casso65Core/Assembler.cpp
-- [ ] T060 [P] [US12] Create include tests with mock FileReader (category 8 from conformance-test-plan.md, ~5 cases) in UnitTest/IncludeTests.cpp
+- [X] T057 [US12] Implement FileReader interface and default filesystem implementation in Casso65Core/AssemblerTypes.h and Casso65Core/Assembler.cpp
+- [X] T058 [US12] Implement `include "filename"` processing with nesting limit (16 levels) in Casso65Core/Assembler.cpp
+- [X] T059 [US12] Implement file:line error reporting for included files in Casso65Core/Assembler.cpp
+- [X] T060 [P] [US12] Create include tests with mock FileReader (category 8 from conformance-test-plan.md, ~5 cases) in UnitTest/IncludeTests.cpp
 
 **Checkpoint**: Include files working — Dormann `report = 1` mode now possible
 
@@ -191,9 +191,9 @@
 
 **Independent Test**: `LDA #@17` produces `$0F`; `LDA #16#FF` produces `$FF`
 
-- [ ] T061 [US18] Add `@` octal, `0x` hex, `0b` binary prefixes to tokenizer in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T062 [US18] Add `<base>#<value>` arbitrary base format (2–36) to tokenizer in Casso65Core/ExpressionEvaluator.cpp
-- [ ] T063 [P] [US18] Add number format tests (category 1.6 from conformance-test-plan.md, ~8 cases) to UnitTest/ExpressionEvaluatorTests.cpp
+- [X] T061 [US18] Add `@` octal, `0x` hex, `0b` binary prefixes to tokenizer in Casso65Core/ExpressionEvaluator.cpp
+- [X] T062 [US18] Add `<base>#<value>` arbitrary base format (2–36) to tokenizer in Casso65Core/ExpressionEvaluator.cpp
+- [X] T063 [P] [US18] Add number format tests (category 1.6 from conformance-test-plan.md, ~8 cases) to UnitTest/ExpressionEvaluatorTests.cpp
 
 **Checkpoint**: All AS65 number formats supported
 
@@ -205,10 +205,10 @@
 
 **Independent Test**: Assemble simple program, output as S-record, verify valid S19 structure
 
-- [ ] T064 [US15] Create OutputFormats.h with WriteBinary, WriteSRecord, WriteIntelHex declarations in Casso65Core/OutputFormats.h
-- [ ] T065 [US15] Implement WriteSRecord (S0 header, S1 data, S9 start address) in Casso65Core/OutputFormats.cpp
-- [ ] T066 [US15] Implement WriteIntelHex (data records, EOF record) in Casso65Core/OutputFormats.cpp
-- [ ] T067 [P] [US15] Create output format tests (category 11 from conformance-test-plan.md, ~5 cases) in UnitTest/OutputFormatTests.cpp
+- [X] T064 [US15] Create OutputFormats.h with WriteBinary, WriteSRecord, WriteIntelHex declarations in Casso65Core/OutputFormats.h
+- [X] T065 [US15] Implement WriteSRecord (S0 header, S1 data, S9 start address) in Casso65Core/OutputFormats.cpp
+- [X] T066 [US15] Implement WriteIntelHex (data records, EOF record) in Casso65Core/OutputFormats.cpp
+- [X] T067 [P] [US15] Create output format tests (category 11 from conformance-test-plan.md, ~5 cases) in UnitTest/OutputFormatTests.cpp
 
 **Checkpoint**: All three output formats working
 
@@ -252,15 +252,15 @@
 
 **Independent Test**: Define struct, verify offsets; `cmap` and verify remapped db output; `disable` emits SEI
 
-- [ ] T080 [US13] Implement `struct NAME`/`end struct` with db/dw/ds/label/align member definitions in Casso65Core/Assembler.cpp
-- [ ] T081 [US13] Implement struct starting offset (`struct NAME, EXPR`) in Casso65Core/Assembler.cpp
-- [ ] T082 [P] [US13] Create struct tests in UnitTest/StructTests.cpp
-- [ ] T083 [US14] Implement `cmap` directive (identity reset, force value, range mapping) in Casso65Core/Assembler.cpp
-- [ ] T084 [US14] Apply character map to db/fcb/fcc string emission in Casso65Core/Assembler.cpp
-- [ ] T085 [P] [US14] Create cmap tests in UnitTest/CmapTests.cpp
-- [ ] T086 [US19] Add instruction synonyms to OpcodeTable (disable=SEI, enable=CLI, stc=SEC, sti=SEI, std=SED) in Casso65Core/OpcodeTable.cpp
-- [ ] T087 [US19] Implement `nop EXPR` multi-NOP emission in Casso65Core/Assembler.cpp
-- [ ] T088 [US8] Implement `set` keyword as synonym for `=` in Casso65Core/Parser.cpp
+- [X] T080 [US13] Implement `struct NAME`/`end struct` with db/dw/ds/label/align member definitions in Casso65Core/Assembler.cpp
+- [X] T081 [US13] Implement struct starting offset (`struct NAME, EXPR`) in Casso65Core/Assembler.cpp
+- [X] T082 [P] [US13] Create struct tests in UnitTest/StructTests.cpp
+- [X] T083 [US14] Implement `cmap` directive (identity reset, force value, range mapping) in Casso65Core/Assembler.cpp
+- [X] T084 [US14] Apply character map to db/fcb/fcc string emission in Casso65Core/Assembler.cpp
+- [X] T085 [P] [US14] Create cmap tests in UnitTest/CmapTests.cpp
+- [X] T086 [US19] Add instruction synonyms to OpcodeTable (disable=SEI, enable=CLI, stc=SEC, sti=SEI, std=SED) in Casso65Core/OpcodeTable.cpp
+- [X] T087 [US19] Implement `nop EXPR` multi-NOP emission in Casso65Core/Assembler.cpp
+- [X] T088 [US8] Implement `set` keyword as synonym for `=` in Casso65Core/Parser.cpp
 
 **Checkpoint**: All AS65 features implemented
 

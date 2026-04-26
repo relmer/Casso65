@@ -410,8 +410,19 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     std::string  currentMacroName;
     int          currentMacroLine = 0;
     std::vector<std::string> currentMacroBody;
+    std::vector<std::string> currentMacroParams;
+    std::vector<std::string> currentMacroLocals;
     int          macroUniqueCounter = 0;
-    static const int kMaxMacroDepth = 15;
+    static const int kMaxMacroDepth   = 15;
+    static const int kMaxIncludeDepth = 16;
+
+    // Struct definitions
+    std::unordered_map<std::string, StructDefinition> structs;
+    bool        collectingStruct = false;
+    StructDefinition currentStruct = {};
+
+    // Character map
+    CharacterMap charMap;
 
     // Helper: check if currently assembling (all enclosing conditions true)
     auto isAssembling = [&condStack] ()
@@ -426,6 +437,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         std::string text;
         int         sourceLineNumber;  // Original source line for error reporting
         int         macroDepth;        // Current macro nesting depth
+        int         includeDepth;      // Current include nesting depth
+        std::string sourceFile;        // Source file name (empty = main)
     };
 
     std::deque<PendingLine> pendingLines;
@@ -461,6 +474,171 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         info.resolvedValue = 0;
         info.resolvedMode  = GlobalAddressingMode::SingleByteNoOperand;
 
+        // ---- Struct definition collection ----
+        if (collectingStruct)
+        {
+            std::string mnUpper = info.parsed.mnemonic;
+
+            // Check for "end struct" — Parser converts "end" to .END directive
+            bool isEndStruct = false;
+
+            if (info.parsed.isDirective && info.parsed.directive == ".END")
+            {
+                std::string endArg = info.parsed.directiveArg;
+                std::string endArgUpper = endArg;
+
+                for (auto & c : endArgUpper)
+                {
+                    c = (char) toupper ((unsigned char) c);
+                }
+
+                size_t sp = endArgUpper.find_first_not_of (" \t");
+
+                if (sp != std::string::npos)
+                {
+                    endArgUpper = endArgUpper.substr (sp);
+                }
+
+                size_t ep = endArgUpper.find_first_of (" \t");
+                std::string firstWord = (ep == std::string::npos) ? endArgUpper : endArgUpper.substr (0, ep);
+
+                if (firstWord == "STRUCT")
+                {
+                    isEndStruct = true;
+                }
+            }
+            else if (mnUpper == "END" && !info.parsed.operand.empty ())
+            {
+                std::string opUpper = info.parsed.operand;
+
+                for (auto & c : opUpper)
+                {
+                    c = (char) toupper ((unsigned char) c);
+                }
+
+                size_t sp = opUpper.find_first_of (" \t");
+                std::string first = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
+
+                if (first == "STRUCT")
+                {
+                    isEndStruct = true;
+                }
+            }
+
+            if (isEndStruct)
+            {
+                // Record struct size as a symbol
+                int32_t structSize = currentStruct.currentOffset - currentStruct.startOffset;
+                symbols[currentStruct.name]     = (Word) structSize;
+                symbolKinds[currentStruct.name]  = SymbolKind::Equ;
+                exprSymbols[currentStruct.name] = structSize;
+                structs[currentStruct.name]     = currentStruct;
+                collectingStruct = false;
+            }
+            else if (!info.parsed.isEmpty)
+            {
+                // Parse member: MEMBER ds SIZE or MEMBER db or MEMBER dw etc.
+                // The member name is in the mnemonic position (column 0)
+                // and the size directive is in the operand
+                std::string memberName;
+                int32_t     memberSize = 0;
+
+                if (!mnUpper.empty () && !info.parsed.operand.empty ())
+                {
+                    // Could be: MEMBER ds SIZE
+                    std::string opStr = info.parsed.operand;
+                    std::string opUpper = opStr;
+
+                    for (auto & c : opUpper)
+                    {
+                        c = (char) toupper ((unsigned char) c);
+                    }
+
+                    size_t sp = opUpper.find_first_of (" \t");
+                    std::string directive = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
+                    std::string sizeExpr;
+
+                    if (sp != std::string::npos)
+                    {
+                        sizeExpr = opStr.substr (sp);
+                        size_t ss = sizeExpr.find_first_not_of (" \t");
+
+                        if (ss != std::string::npos)
+                        {
+                            sizeExpr = sizeExpr.substr (ss);
+                        }
+                    }
+
+                    // Recover original-case member name from raw text
+                    std::string rawTrimmed = current.text;
+                    size_t rs = rawTrimmed.find_first_not_of (" \t");
+
+                    if (rs != std::string::npos)
+                    {
+                        rawTrimmed = rawTrimmed.substr (rs);
+                    }
+
+                    size_t re = rawTrimmed.find_first_of (" \t");
+
+                    if (re != std::string::npos)
+                    {
+                        memberName = rawTrimmed.substr (0, re);
+                    }
+                    else
+                    {
+                        memberName = rawTrimmed;
+                    }
+
+                    if (directive == "DS" || directive == "DSB" || directive == "RMB")
+                    {
+                        pass1Ctx.currentPC = (int32_t) pc;
+                        ExprResult er = ExpressionEvaluator::Evaluate (sizeExpr, pass1Ctx);
+
+                        if (er.success)
+                        {
+                            memberSize = er.value;
+                        }
+                        else
+                        {
+                            memberSize = 1;
+                        }
+                    }
+                    else if (directive == "DB" || directive == "BYT" || directive == "BYTE" || directive == "FCB")
+                    {
+                        memberSize = 1;
+                    }
+                    else if (directive == "DW" || directive == "WORD" || directive == "FCW" || directive == "FDB")
+                    {
+                        memberSize = 2;
+                    }
+                    else if (directive == "DD")
+                    {
+                        memberSize = 4;
+                    }
+                }
+
+                if (!memberName.empty () && memberSize > 0)
+                {
+                    StructMember member = {};
+                    member.name   = memberName;
+                    member.offset = currentStruct.currentOffset;
+                    member.size   = memberSize;
+                    currentStruct.members.push_back (member);
+
+                    // Define symbol: STRUCTNAME.MEMBER = offset
+                    std::string symName = currentStruct.name + "." + memberName;
+                    symbols[symName]     = (Word) currentStruct.currentOffset;
+                    symbolKinds[symName]  = SymbolKind::Equ;
+                    exprSymbols[symName] = currentStruct.currentOffset;
+
+                    currentStruct.currentOffset += memberSize;
+                }
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
         // ---- Macro definition collection ----
         if (collectingMacro)
         {
@@ -472,12 +650,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 MacroDefinition def = {};
                 def.name       = currentMacroName;
                 def.body       = currentMacroBody;
+                def.paramNames = currentMacroParams;
+                def.localLabels = currentMacroLocals;
                 def.lineNumber = currentMacroLine;
                 macros[currentMacroName] = def;
                 collectingMacro = false;
             }
             else
             {
+                // Check for "local" directive inside macro body
+                std::string bodyMn = info.parsed.mnemonic;
+
+                if (bodyMn == "LOCAL" || (info.parsed.isDirective && info.parsed.directive == ".LOCAL"))
+                {
+                    std::string localArg = bodyMn == "LOCAL" ? info.parsed.operand : info.parsed.directiveArg;
+                    auto localNames = Parser::SplitArgList (localArg);
+
+                    for (const auto & ln : localNames)
+                    {
+                        // Trim and store
+                        std::string name = ln;
+                        size_t ns = name.find_first_not_of (" \t");
+                        size_t ne = name.find_last_not_of (" \t");
+
+                        if (ns != std::string::npos)
+                        {
+                            name = name.substr (ns, ne - ns + 1);
+                        }
+
+                        if (!name.empty ())
+                        {
+                            currentMacroLocals.push_back (name);
+                        }
+                    }
+                }
+
                 currentMacroBody.push_back (current.text);
             }
 
@@ -546,6 +753,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             currentMacroName = info.parsed.mnemonic;
             currentMacroLine = current.sourceLineNumber;
             currentMacroBody.clear ();
+            currentMacroParams.clear ();
+            currentMacroLocals.clear ();
 
             // Parse parameter names (after "macro" keyword)
             std::string paramStr;
@@ -555,7 +764,27 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 paramStr = info.parsed.operand.substr (6);
             }
 
-            // TODO: parse named params for Phase 9
+            if (!paramStr.empty ())
+            {
+                auto paramNames = Parser::SplitArgList (paramStr);
+
+                for (const auto & pn : paramNames)
+                {
+                    std::string name = pn;
+                    size_t ns = name.find_first_not_of (" \t");
+                    size_t ne = name.find_last_not_of (" \t");
+
+                    if (ns != std::string::npos)
+                    {
+                        name = name.substr (ns, ne - ns + 1);
+                    }
+
+                    if (!name.empty ())
+                    {
+                        currentMacroParams.push_back (name);
+                    }
+                }
+            }
 
             lineInfos.push_back (info);
             continue;
@@ -964,6 +1193,194 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             {
                 // Recognized but intentionally no-op
             }
+            else if (info.parsed.directive == ".INCLUDE")
+            {
+                if (m_options.fileReader == nullptr)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "No file reader configured for include";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else if (current.includeDepth >= kMaxIncludeDepth)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    std::string filename = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                    if (filename.empty ())
+                    {
+                        filename = info.parsed.directiveArg;
+
+                        // Trim whitespace
+                        size_t fs = filename.find_first_not_of (" \t");
+                        size_t fe = filename.find_last_not_of (" \t");
+
+                        if (fs != std::string::npos)
+                        {
+                            filename = filename.substr (fs, fe - fs + 1);
+                        }
+                    }
+
+                    FileReadResult fr = m_options.fileReader->ReadFile (filename, m_options.baseDir);
+
+                    if (!fr.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = current.sourceLineNumber;
+                        error.message    = fr.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                    }
+                    else
+                    {
+                        auto includeLines = Parser::SplitLines (fr.contents);
+
+                        // Insert at front of queue (reverse order)
+                        for (int il = (int) includeLines.size () - 1; il >= 0; il--)
+                        {
+                            PendingLine pl = {};
+                            pl.text             = includeLines[il];
+                            pl.sourceLineNumber = il + 1;
+                            pl.macroDepth       = current.macroDepth;
+                            pl.includeDepth     = current.includeDepth + 1;
+                            pl.sourceFile       = filename;
+                            pendingLines.push_front (pl);
+                        }
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".STRUCT")
+            {
+                // Start struct definition: struct NAME [, OFFSET]
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+
+                if (args.empty ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = current.sourceLineNumber;
+                    error.message    = "struct requires a name";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    currentStruct = {};
+                    currentStruct.name = args[0];
+                    currentStruct.startOffset = 0;
+
+                    if (args.size () >= 2)
+                    {
+                        pass1Ctx.currentPC = (int32_t) pc;
+                        ExprResult er = ExpressionEvaluator::Evaluate (args[1], pass1Ctx);
+
+                        if (er.success)
+                        {
+                            currentStruct.startOffset = er.value;
+                        }
+                    }
+
+                    currentStruct.currentOffset = currentStruct.startOffset;
+                    collectingStruct = true;
+                }
+            }
+            else if (info.parsed.directive == ".CMAP")
+            {
+                // Character map directive
+                std::string arg = info.parsed.directiveArg;
+                size_t as = arg.find_first_not_of (" \t");
+
+                if (as != std::string::npos)
+                {
+                    arg = arg.substr (as);
+                }
+
+                size_t ae = arg.find_last_not_of (" \t");
+
+                if (ae != std::string::npos)
+                {
+                    arg = arg.substr (0, ae + 1);
+                }
+
+                if (arg == "0")
+                {
+                    // Reset to identity
+                    for (int ci = 0; ci < 256; ci++)
+                    {
+                        charMap.table[ci] = (Byte) ci;
+                    }
+                }
+                else if (arg.size () >= 5 && arg[0] == '\'')
+                {
+                    // Parse char or range mapping
+                    size_t eqPos = arg.find ('=');
+                    size_t dashPos = arg.find ('-', 1);
+
+                    if (eqPos != std::string::npos)
+                    {
+                        std::string lhs = arg.substr (0, eqPos);
+                        std::string rhs = arg.substr (eqPos + 1);
+
+                        // Trim
+                        size_t ls = lhs.find_last_not_of (" \t");
+
+                        if (ls != std::string::npos)
+                        {
+                            lhs = lhs.substr (0, ls + 1);
+                        }
+
+                        size_t rs = rhs.find_first_not_of (" \t");
+
+                        if (rs != std::string::npos)
+                        {
+                            rhs = rhs.substr (rs);
+                        }
+
+                        pass1Ctx.currentPC = (int32_t) pc;
+                        ExprResult rhsVal = ExpressionEvaluator::Evaluate (rhs, pass1Ctx);
+
+                        if (rhsVal.success)
+                        {
+                            // Check for range: 'A'-'Z'=$C1
+                            if (dashPos != std::string::npos && dashPos < eqPos &&
+                                lhs.size () >= 7 && lhs[0] == '\'' && lhs[2] == '\'')
+                            {
+                                char startChar = lhs[1];
+                                // Find the end char after dash
+                                std::string afterDash = lhs.substr (dashPos + 1);
+                                size_t ads = afterDash.find_first_not_of (" \t");
+
+                                if (ads != std::string::npos)
+                                {
+                                    afterDash = afterDash.substr (ads);
+                                }
+
+                                if (afterDash.size () >= 3 && afterDash[0] == '\'' && afterDash[2] == '\'')
+                                {
+                                    char endChar = afterDash[1];
+
+                                    for (int ci = (unsigned char) startChar; ci <= (unsigned char) endChar; ci++)
+                                    {
+                                        charMap.table[ci] = (Byte) (rhsVal.value + (ci - (unsigned char) startChar));
+                                    }
+                                }
+                            }
+                            else if (lhs.size () >= 3 && lhs[0] == '\'' && lhs[2] == '\'')
+                            {
+                                // Single char: 'A'=$41
+                                charMap.table[(unsigned char) lhs[1]] = (Byte) rhsVal.value;
+                            }
+                        }
+                    }
+                }
+            }
 
             lineInfos.push_back (info);
             continue;
@@ -972,6 +1389,25 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         // Skip empty lines
         if (info.parsed.mnemonic.empty ())
         {
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // ---- Multi-NOP: nop EXPR emits multiple NOP bytes ----
+        if (info.parsed.mnemonic == "NOP" && !info.parsed.operand.empty ())
+        {
+            pass1Ctx.currentPC = (int32_t) pc;
+            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.operand, pass1Ctx);
+
+            if (er.success && er.value > 0)
+            {
+                info.isDirective = true;
+                info.parsed.isDirective = true;
+                info.parsed.directive = ".MULTINOP";
+                info.parsed.directiveArg = info.parsed.operand;
+                pc += (Word) er.value;
+            }
+
             lineInfos.push_back (info);
             continue;
         }
@@ -1007,12 +1443,73 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             std::string uniqueSuffix (uniqueBuf);
 
             // Expand macro body with argument substitution
-            const auto & body = macroIt->second.body;
+            const auto & macroDef = macroIt->second;
+            const auto & body     = macroDef.body;
 
-            // Insert expanded lines at the FRONT of the queue (so they process next)
-            for (int bi = (int) body.size () - 1; bi >= 0; bi--)
+            // Build expanded lines, stopping at exitm
+            std::vector<std::string> expandedLines;
+
+            for (int bi = 0; bi < (int) body.size (); bi++)
             {
                 std::string expanded = body[bi];
+
+                // Check for exitm directive (before substitution)
+                std::string exTrimmed = expanded;
+                size_t exStart = exTrimmed.find_first_not_of (" \t");
+
+                if (exStart != std::string::npos)
+                {
+                    exTrimmed = exTrimmed.substr (exStart);
+                }
+
+                // Strip comments for exitm check
+                size_t scPos = exTrimmed.find (';');
+
+                if (scPos != std::string::npos)
+                {
+                    exTrimmed = exTrimmed.substr (0, scPos);
+                }
+
+                size_t exEnd = exTrimmed.find_last_not_of (" \t");
+
+                if (exEnd != std::string::npos)
+                {
+                    exTrimmed = exTrimmed.substr (0, exEnd + 1);
+                }
+
+                std::string exUpper = exTrimmed;
+
+                for (auto & ec : exUpper)
+                {
+                    ec = (char) toupper ((unsigned char) ec);
+                }
+
+                if (exUpper == "EXITM" || exUpper == ".EXITM")
+                {
+                    break;
+                }
+
+                // Skip local directive lines — already processed during collection
+                std::string localCheck = exUpper;
+                size_t lsp = localCheck.find_first_of (" \t");
+                std::string localFirst = (lsp == std::string::npos) ? localCheck : localCheck.substr (0, lsp);
+
+                if (localFirst == "LOCAL" || localFirst == ".LOCAL")
+                {
+                    continue;
+                }
+
+                // Replace \0 with argument count
+                {
+                    std::string argCountStr = std::to_string ((int) args.size ());
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find ("\\0", pos)) != std::string::npos)
+                    {
+                        expanded.replace (pos, 2, argCountStr);
+                        pos += argCountStr.size ();
+                    }
+                }
 
                 // Replace \1 through \9 with arguments
                 for (int ai = 9; ai >= 1; ai--)
@@ -1028,6 +1525,34 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     }
                 }
 
+                // Replace named parameters as whole-word matches
+                for (int pi = 0; pi < (int) macroDef.paramNames.size (); pi++)
+                {
+                    const std::string & paramName = macroDef.paramNames[pi];
+                    std::string replacement = (pi < (int) args.size ()) ? args[pi] : "";
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find (paramName, pos)) != std::string::npos)
+                    {
+                        // Check whole-word boundary
+                        bool leftOk = (pos == 0) ||
+                                      (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
+                        size_t endPos = pos + paramName.size ();
+                        bool rightOk = (endPos >= expanded.size ()) ||
+                                       (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
+
+                        if (leftOk && rightOk)
+                        {
+                            expanded.replace (pos, paramName.size (), replacement);
+                            pos += replacement.size ();
+                        }
+                        else
+                        {
+                            pos += paramName.size ();
+                        }
+                    }
+                }
+
                 // Replace \? with unique suffix
                 {
                     size_t pos = 0;
@@ -1039,8 +1564,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     }
                 }
 
+                // Apply local label suffixing
+                for (const auto & localLabel : macroDef.localLabels)
+                {
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find (localLabel, pos)) != std::string::npos)
+                    {
+                        // Check whole-word boundary
+                        bool leftOk = (pos == 0) ||
+                                      (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
+                        size_t endPos = pos + localLabel.size ();
+                        bool rightOk = (endPos >= expanded.size ()) ||
+                                       (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
+
+                        if (leftOk && rightOk)
+                        {
+                            std::string suffixed = localLabel + uniqueSuffix;
+                            expanded.replace (pos, localLabel.size (), suffixed);
+                            pos += suffixed.size ();
+                        }
+                        else
+                        {
+                            pos += localLabel.size ();
+                        }
+                    }
+                }
+
+                expandedLines.push_back (expanded);
+            }
+
+            // Insert expanded lines at the FRONT of the queue (reverse order)
+            for (int bi = (int) expandedLines.size () - 1; bi >= 0; bi--)
+            {
                 PendingLine pl = {};
-                pl.text = expanded;
+                pl.text = expandedLines[bi];
                 pl.sourceLineNumber = current.sourceLineNumber;
                 pl.macroDepth = current.macroDepth + 1;
                 pendingLines.push_front (pl);
@@ -1309,17 +1867,42 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
             if (info.parsed.directive == ".BYTE")
             {
-                std::vector<int32_t> values;
-                EvaluateDirectiveArgs (info.parsed.directiveArg, pass2Ctx, values, info.parsed.lineNumber, result.errors);
+                // Emit bytes, applying character map to quoted strings
+                auto args = Parser::SplitArgList (info.parsed.directiveArg);
+                bool ok = true;
 
-                if (values.size () != 0 || info.parsed.directiveArg.empty ())
+                for (const auto & arg : args)
                 {
-                    for (int32_t v : values)
+                    if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
                     {
-                        output.push_back ((Byte) (v & 0xFF));
+                        std::string raw       = arg.substr (1, arg.size () - 2);
+                        std::string processed = ProcessEscapeSequences (raw);
+
+                        for (char c : processed)
+                        {
+                            output.push_back (charMap.table[(unsigned char) c]);
+                        }
+                    }
+                    else
+                    {
+                        ExprResult er = ExpressionEvaluator::Evaluate (arg, pass2Ctx);
+
+                        if (!er.success)
+                        {
+                            AssemblyError error = {};
+                            error.lineNumber = info.parsed.lineNumber;
+                            error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
+                            result.errors.push_back (error);
+                            ok = false;
+                        }
+                        else
+                        {
+                            output.push_back ((Byte) (er.value & 0xFF));
+                        }
                     }
                 }
-                else
+
+                if (!ok)
                 {
                     result.success = false;
                 }
@@ -1348,7 +1931,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                 for (char c : text)
                 {
-                    output.push_back ((Byte) c);
+                    output.push_back (charMap.table[(unsigned char) c]);
                 }
             }
             else if (info.parsed.directive == ".DD")
@@ -1427,6 +2010,18 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                         {
                             output.push_back (fillVal);
                         }
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".MULTINOP")
+            {
+                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, pass2Ctx);
+
+                if (er.success && er.value > 0)
+                {
+                    for (int32_t j = 0; j < er.value; j++)
+                    {
+                        output.push_back (0xEA);  // NOP opcode
                     }
                 }
             }
@@ -1553,7 +2148,12 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         {
             AssemblyLine listLine = {};
             listLine.lineNumber = info.parsed.lineNumber;
-            listLine.sourceText = lines[info.parsed.lineNumber - 1];
+
+            if (info.parsed.lineNumber >= 1 && info.parsed.lineNumber <= (int) lines.size ())
+            {
+                listLine.sourceText = lines[info.parsed.lineNumber - 1];
+            }
+
             listLine.hasAddress = lineHasAddress;
             listLine.address    = info.pc;
 

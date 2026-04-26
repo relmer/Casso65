@@ -263,6 +263,15 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     else if (firstWordUpper == "CODE" || firstWordUpper == "DATA" || firstWordUpper == "BSS")            { canonicalDirective = ".SEGMENT_NOOP"; }
     else if (firstWordUpper == "NOOPT" || firstWordUpper == "OPT")                                      { canonicalDirective = ".SEGMENT_NOOP"; }
 
+    // Include
+    else if (firstWordUpper == "INCLUDE")                                                                { canonicalDirective = ".INCLUDE"; }
+
+    // Struct
+    else if (firstWordUpper == "STRUCT")                                                                 { canonicalDirective = ".STRUCT"; }
+
+    // Cmap
+    else if (firstWordUpper == "CMAP")                                                                   { canonicalDirective = ".CMAP"; }
+
     if (!canonicalDirective.empty ())
     {
         result.isDirective = true;

@@ -180,8 +180,63 @@ Token Tokenizer::ReadDecimalNumber ()
 {
     size_t start = m_pos;
 
+    // Check for 0x (hex) or 0b (binary) prefix
+    if (m_text[m_pos] == '0' && m_pos + 1 < m_text.size ())
+    {
+        char next = (char) tolower ((unsigned char) m_text[m_pos + 1]);
+
+        if (next == 'x')
+        {
+            m_pos += 2;
+            size_t hexStart = m_pos;
+
+            while (m_pos < m_text.size () && isxdigit ((unsigned char) m_text[m_pos]))
+                m_pos++;
+
+            if (m_pos == hexStart)
+                return { TokType::Error, 0, "Expected hex digit after 0x" };
+
+            int32_t val = (int32_t) strtoul (m_text.substr (hexStart, m_pos - hexStart).c_str (), nullptr, 16);
+            return { TokType::Number, val, "" };
+        }
+
+        if (next == 'b' && m_pos + 2 < m_text.size () && (m_text[m_pos + 2] == '0' || m_text[m_pos + 2] == '1'))
+        {
+            m_pos += 2;
+            size_t binStart = m_pos;
+
+            while (m_pos < m_text.size () && (m_text[m_pos] == '0' || m_text[m_pos] == '1'))
+                m_pos++;
+
+            int32_t val = (int32_t) strtoul (m_text.substr (binStart, m_pos - binStart).c_str (), nullptr, 2);
+            return { TokType::Number, val, "" };
+        }
+    }
+
     while (m_pos < m_text.size () && isdigit ((unsigned char) m_text[m_pos]))
         m_pos++;
+
+    // Check for base#value format: digits followed by #
+    if (m_pos < m_text.size () && m_text[m_pos] == '#')
+    {
+        std::string baseStr = m_text.substr (start, m_pos - start);
+        int base = (int) strtol (baseStr.c_str (), nullptr, 10);
+
+        if (base >= 2 && base <= 36)
+        {
+            m_pos++;  // skip '#'
+            size_t valStart = m_pos;
+
+            while (m_pos < m_text.size () && isalnum ((unsigned char) m_text[m_pos]))
+                m_pos++;
+
+            if (m_pos == valStart)
+                return { TokType::Error, 0, "Expected value after base#" };
+
+            int32_t val = (int32_t) strtoul (m_text.substr (valStart, m_pos - valStart).c_str (), nullptr, base);
+            return { TokType::Number, val, "" };
+        }
+    }
 
     int32_t val = (int32_t) strtol (m_text.substr (start, m_pos - start).c_str (), nullptr, 10);
     return { TokType::Number, val, "" };
@@ -201,7 +256,7 @@ Token Tokenizer::ReadIdentifier ()
 {
     size_t start = m_pos;
 
-    while (m_pos < m_text.size () && (isalnum ((unsigned char) m_text[m_pos]) || m_text[m_pos] == '_'))
+    while (m_pos < m_text.size () && (isalnum ((unsigned char) m_text[m_pos]) || m_text[m_pos] == '_' || m_text[m_pos] == '.'))
         m_pos++;
 
     std::string name = m_text.substr (start, m_pos - start);
@@ -250,6 +305,22 @@ Token Tokenizer::ReadNext ()
 
         m_pos++;
         return { TokType::Percent, 0, "" };
+    }
+
+    if (c == '@')
+    {
+        // @octal prefix
+        m_pos++;
+        size_t start = m_pos;
+
+        while (m_pos < m_text.size () && m_text[m_pos] >= '0' && m_text[m_pos] <= '7')
+            m_pos++;
+
+        if (m_pos == start)
+            return { TokType::Error, 0, "Expected octal digit after @" };
+
+        int32_t val = (int32_t) strtoul (m_text.substr (start, m_pos - start).c_str (), nullptr, 8);
+        return { TokType::Number, val, "" };
     }
 
     if (isdigit ((unsigned char) c))

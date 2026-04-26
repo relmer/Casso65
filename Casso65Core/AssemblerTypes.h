@@ -54,11 +54,17 @@ struct AssemblyResult
 
 
 
+class FileReader;
+
+
+
 struct AssemblerOptions
 {
     Byte        fillByte        = 0xFF;
     bool        generateListing = false;
     WarningMode warningMode     = WarningMode::Warn;
+    FileReader * fileReader     = nullptr;
+    std::string  baseDir;
 };
 
 
@@ -104,7 +110,7 @@ struct MacroDefinition
     std::vector<std::string> paramNames;    // Named parameters (optional)
     std::vector<std::string> body;          // Raw source lines between macro and endm
     std::vector<std::string> localLabels;   // Labels declared with local
-    int                      lineNumber;    // Source line of macro keyword
+    int                      lineNumber = 0; // Source line of macro keyword
 };
 
 
@@ -154,8 +160,8 @@ struct StructMember
 struct StructDefinition
 {
     std::string              name;
-    int32_t                  startOffset;
-    int32_t                  currentOffset;
+    int32_t                  startOffset   = 0;
+    int32_t                  currentOffset = 0;
     std::vector<StructMember> members;
 };
 

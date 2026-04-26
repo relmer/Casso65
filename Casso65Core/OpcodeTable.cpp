@@ -101,6 +101,27 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
 
         m_table[mnemonic][mode] = entry;
     }
+
+    // Instruction synonyms: alias → existing mnemonic's entries
+    struct Synonym { const char * alias; const char * target; };
+    Synonym synonyms[] =
+    {
+        { "DISABLE", "SEI" },
+        { "ENABLE",  "CLI" },
+        { "STC",     "SEC" },
+        { "STI",     "SEI" },
+        { "STD",     "SED" },
+    };
+
+    for (const auto & syn : synonyms)
+    {
+        auto it = m_table.find (syn.target);
+
+        if (it != m_table.end ())
+        {
+            m_table[syn.alias] = it->second;
+        }
+    }
 }
 
 

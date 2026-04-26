@@ -298,4 +298,33 @@ namespace ExpressionEvaluatorTests
         TEST_METHOD (UnmatchedParen) { auto r = ExpressionEvaluator::Evaluate ("(5+3", MakeCtx ()); Assert::IsFalse (r.success); }
         TEST_METHOD (TrailingGarbage){ auto r = ExpressionEvaluator::Evaluate ("5 6",  MakeCtx ()); Assert::IsFalse (r.success); }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExtendedNumberFormatTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ExtendedNumberFormatTests)
+    {
+    public:
+
+        TEST_METHOD (OctalAt)          { auto r = ExpressionEvaluator::Evaluate ("@17",       MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (15,  r.value); }
+        TEST_METHOD (OctalAtZero)      { auto r = ExpressionEvaluator::Evaluate ("@0",        MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (0,   r.value); }
+        TEST_METHOD (OctalAt377)       { auto r = ExpressionEvaluator::Evaluate ("@377",      MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (255, r.value); }
+
+        TEST_METHOD (CStyleHex)        { auto r = ExpressionEvaluator::Evaluate ("0xFF",      MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (255, r.value); }
+        TEST_METHOD (CStyleHexLower)   { auto r = ExpressionEvaluator::Evaluate ("0xff",      MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (255, r.value); }
+
+        TEST_METHOD (CStyleBinary)     { auto r = ExpressionEvaluator::Evaluate ("0b10101010", MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (170, r.value); }
+        TEST_METHOD (CStyleBinarySmall){ auto r = ExpressionEvaluator::Evaluate ("0b101",      MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (5,   r.value); }
+
+        TEST_METHOD (BaseHashHex)      { auto r = ExpressionEvaluator::Evaluate ("16#FF",     MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (255, r.value); }
+        TEST_METHOD (BaseHashOctal)    { auto r = ExpressionEvaluator::Evaluate ("8#17",      MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (15,  r.value); }
+        TEST_METHOD (BaseHashBinary)   { auto r = ExpressionEvaluator::Evaluate ("2#10101010", MakeCtx ()); Assert::IsTrue (r.success); Assert::AreEqual (170, r.value); }
+    };
 }
