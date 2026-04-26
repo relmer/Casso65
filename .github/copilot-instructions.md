@@ -167,3 +167,10 @@ void Function2()
 
 - **ALL** terminal windows use PowerShell, not CMD
 - **ALWAYS** format commands for PowerShell syntax
+
+## Security Rules
+
+- **NEVER** download or execute external binaries — no `.exe`, `.dll`, `.com`, or other executables from any source
+- **NEVER** run `Invoke-WebRequest` or `curl` to fetch executables
+- If a tool is needed, it MUST be buildable from source within the repo
+- GPL-licensed source files (e.g., Dormann test suite) may be downloaded for on-demand testing but MUST be deleted after use and MUST NOT be committed to the repository
