@@ -23,6 +23,93 @@ Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
 - Keep functions focused and short — ideally under ~50 lines
 - Each function should have a single clear purpose
 
+### Code Formatting — CRITICAL RULES
+
+#### **NEVER** Delete Blank Lines
+- **NEVER** delete blank lines between file-level constructs (functions, classes, structs)
+- **NEVER** delete blank lines between different groups (e.g., C++ includes vs C includes)
+- **NEVER** delete blank lines between variable declaration blocks
+- Preserve all existing vertical spacing in code
+
+#### Top-Level Constructs (File Scope)
+- **EXACTLY 5 blank lines** between all top-level file constructs:
+  - Between preprocessor directives (#include, #define, etc.) and first function
+  - Between include blocks and namespace declarations
+  - Between namespace and struct/class definitions
+  - Between structs/classes and global variables
+  - Between global variables and first function
+  - Between all function definitions
+  - **After the last function in the file**
+- **NEVER** add more than 5 blank lines
+- **NEVER** delete blank lines if it would result in fewer than 5
+
+#### Function/Block Internal Spacing
+- **EXACTLY 3 blank lines** between variable definitions at the top of a function/block and the first real statement
+- **1 blank line** for standard code separation within functions
+
+#### Correct Spacing Example:
+```cpp
+#include "Pch.h"
+
+#include "Header.h"
+#include "Header2.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Function1
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Function1()
+{
+    Type var1;
+    Type var2;
+
+    Type var3 = value;  // Different semantic group
+
+
+
+    // Code section
+    DoSomething();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Function2
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Function2()
+{
+    // ...
+}
+```
+
+#### **NEVER** Break Column Alignment
+- **NEVER** break existing column alignment in variable declarations
+- **NEVER** break alignment of:
+  - Type names
+  - Pointer/reference symbols (`*`, `&`)
+  - Variable names
+  - Assignment operators (`=`)
+  - Initialization values
+- **ALWAYS** preserve exact column positions when replacing lines
+- When modifying a line, ensure replacement maintains same indentation as original
+
+#### Indentation Rules
+- **ALWAYS** preserve exact indentation when replacing code
+- **NEVER** start code at column 1 unless original was at column 1
+- Count spaces carefully — if original had 12 spaces, replacement must have 12 spaces
+- Use spaces for indentation (match existing code style)
+
 ### Comment Blocks
 - Function and class comment blocks use 80 `/` characters as delimiters
 - One empty comment line before and after the actual comment text:

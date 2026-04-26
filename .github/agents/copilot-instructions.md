@@ -1,6 +1,6 @@
 # TCDir Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-23
+Auto-generated from all feature plans. Last updated: 2026-04-25
 
 ## Active Technologies
 - C++ (stdcpplatest / MSVC v145+) + Windows SDK, STL only (no third-party libraries) (004-tree-view)
@@ -37,9 +37,9 @@ All coding conventions are defined in [/.github/copilot-instructions.md](/.githu
 - Use VS Code build tasks, not direct msbuild
 
 ## Recent Changes
+- 002-assembler-dormann-support: Added C++ (stdcpplatest, MSVC v145 / Visual Studio 2026) + STL only (no third-party libraries)
 - 001-assembler: Added C++ (stdcpplatest, MSVC v145 / Visual Studio 2026) + STL only (no third-party libraries)
 - 009-variable-width-columns: Added C++ (stdcpplatest, MSVC v145+) + Windows SDK, STL only
-- 008-ellipsize-targets: Added C++ (stdcpplatest, MSVC v145+) + Windows SDK, STL only
 
 
 <!-- MANUAL ADDITIONS START -->
