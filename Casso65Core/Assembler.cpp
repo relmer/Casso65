@@ -358,6 +358,15 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     // Conditional assembly stack
     std::vector<ConditionalState> condStack;
 
+    // Macro definitions and expansion state
+    std::unordered_map<std::string, MacroDefinition> macros;
+    bool         collectingMacro = false;
+    std::string  currentMacroName;
+    int          currentMacroLine = 0;
+    std::vector<std::string> currentMacroBody;
+    int          macroUniqueCounter = 0;
+    static const int kMaxMacroDepth = 15;
+
     // Helper: check if currently assembling (all enclosing conditions true)
     auto isAssembling = [&condStack] ()
     {
@@ -365,10 +374,32 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     };
 
     // ---- Pass 1: Parse, collect labels, compute PC ----
+    // Use a processing queue to support macro expansion inline
+    struct PendingLine
+    {
+        std::string text;
+        int         sourceLineNumber;  // Original source line for error reporting
+        int         macroDepth;        // Current macro nesting depth
+    };
+
+    std::deque<PendingLine> pendingLines;
+
     for (int i = 0; i < (int) lines.size (); i++)
     {
+        PendingLine pl = {};
+        pl.text = lines[i];
+        pl.sourceLineNumber = i + 1;
+        pl.macroDepth = 0;
+        pendingLines.push_back (pl);
+    }
+
+    while (!pendingLines.empty ())
+    {
+        PendingLine current = pendingLines.front ();
+        pendingLines.pop_front ();
+
         LineInfo info     = {};
-        info.parsed       = Parser::ParseLine (lines[i], i + 1);
+        info.parsed       = Parser::ParseLine (current.text, current.sourceLineNumber);
         info.pc           = pc;
         info.isInstruction = false;
         info.isDirective   = false;
@@ -377,6 +408,106 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         info.valueResolved = false;
         info.resolvedValue = 0;
         info.resolvedMode  = GlobalAddressingMode::SingleByteNoOperand;
+
+        // ---- Macro definition collection ----
+        if (collectingMacro)
+        {
+            // Check for endm (end macro)
+            std::string mnUpper = info.parsed.mnemonic;
+
+            if (mnUpper == "ENDM" || (info.parsed.isDirective && info.parsed.directive == ".ENDM"))
+            {
+                MacroDefinition def = {};
+                def.name       = currentMacroName;
+                def.body       = currentMacroBody;
+                def.lineNumber = currentMacroLine;
+                macros[currentMacroName] = def;
+                collectingMacro = false;
+            }
+            else
+            {
+                currentMacroBody.push_back (current.text);
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // ---- Check for macro definition start (NAME macro) ----
+        if (!info.parsed.mnemonic.empty () && info.parsed.mnemonic == "MACRO" && isAssembling ())
+        {
+            // The macro name is in the label field (label: macro) or
+            // we need to re-parse: the line is "NAME macro [params]"
+            // Actually, ParseLine would have parsed "NAME" as label if it had ':'
+            // For AS65 syntax: "NAME macro" where NAME is at column 0
+            // ParseLine parsed NAME as mnemonic="NAME", operand is empty
+            // But actually ParseLine returns mnemonic="MACRO" because it uppercases
+            // The actual name was the first word before "macro"
+            // Let me re-examine: "trap macro" → mnemonic="TRAP", operand="macro"
+            // Wait no - "trap macro" → first word is "trap", rest is "macro"
+            // With ParseLine: mnemonic="TRAP", operand="macro"
+            // So mnemonic == "MACRO" means the line is literally "macro ..."
+            // For "NAME macro", mnemonic is "NAME" and operand starts with "macro"
+            // I need to handle this differently.
+        }
+
+        // Re-check: For AS65 macro syntax "NAME macro [params]":
+        // ParseLine gives mnemonic="NAME", operand="macro" or "macro param1, param2"
+        // So we detect: if operand starts with "macro" (case-insensitive)
+        std::string operandUpper;
+
+        if (!info.parsed.operand.empty ())
+        {
+            operandUpper = info.parsed.operand;
+
+            for (auto & c : operandUpper)
+            {
+                c = (char) toupper ((unsigned char) c);
+            }
+        }
+
+        bool isMacroDef = false;
+
+        if (!info.parsed.mnemonic.empty () && !info.parsed.isEmpty && isAssembling ())
+        {
+            // "NAME macro [params]" — operand starts with "macro"
+            if (operandUpper.substr (0, 5) == "MACRO" &&
+                (operandUpper.size () == 5 || operandUpper[5] == ' ' || operandUpper[5] == '\t'))
+            {
+                isMacroDef = true;
+            }
+        }
+
+        if (isMacroDef)
+        {
+            // Check for name collision with mnemonics
+            if (m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Macro name conflicts with mnemonic: " + info.parsed.mnemonic;
+                result.errors.push_back (error);
+                result.success = false;
+            }
+
+            collectingMacro  = true;
+            currentMacroName = info.parsed.mnemonic;
+            currentMacroLine = current.sourceLineNumber;
+            currentMacroBody.clear ();
+
+            // Parse parameter names (after "macro" keyword)
+            std::string paramStr;
+
+            if (operandUpper.size () > 5)
+            {
+                paramStr = info.parsed.operand.substr (6);
+            }
+
+            // TODO: parse named params for Phase 9
+
+            lineInfos.push_back (info);
+            continue;
+        }
 
         // ---- Conditional assembly directives ----
         // Detect if/else/endif in both mnemonic and directive forms
@@ -414,7 +545,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     if (!er.success)
                     {
                         AssemblyError error = {};
-                        error.lineNumber = i + 1;
+                        error.lineNumber = current.sourceLineNumber;
                         error.message    = "Cannot evaluate if expression: " + er.error;
                         result.errors.push_back (error);
                         result.success = false;
@@ -437,7 +568,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 if (condStack.empty ())
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
                     error.message    = "else without matching if";
                     result.errors.push_back (error);
                     result.success = false;
@@ -445,7 +576,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 else if (condStack.back ().seenElse)
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
                     error.message    = "Duplicate else";
                     result.errors.push_back (error);
                     result.success = false;
@@ -465,7 +596,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 if (condStack.empty ())
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
                     error.message    = "endif without matching if";
                     result.errors.push_back (error);
                     result.success = false;
@@ -497,7 +628,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             if (!er.success)
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
                 error.message    = ".org expression must be resolvable: " + er.error;
                 result.errors.push_back (error);
                 result.success = false;
@@ -509,7 +640,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 if (originSet && newAddr < pc)
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
                     error.message    = ".org address is backward from current position";
                     result.errors.push_back (error);
                     result.success = false;
@@ -518,7 +649,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 {
                     if (newAddr == pc)
                     {
-                        RecordWarning (result, i + 1, "Redundant .org to current address");
+                        RecordWarning (result, current.sourceLineNumber, "Redundant .org to current address");
                     }
 
                     pc      = newAddr;
@@ -545,7 +676,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             if (!Parser::ValidateLabel (info.parsed.label, m_opcodeTable, labelError))
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
                 error.message    = labelError;
                 result.errors.push_back (error);
                 result.success = false;
@@ -553,7 +684,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             else if (symbols.count (info.parsed.label) > 0)
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
                 error.message    = "Duplicate label: " + info.parsed.label;
                 result.errors.push_back (error);
                 result.success = false;
@@ -574,7 +705,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                 if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
                 {
-                    RecordWarning (result, i + 1, "Label name resembles mnemonic: " + info.parsed.label);
+                    RecordWarning (result, current.sourceLineNumber, "Label name resembles mnemonic: " + info.parsed.label);
                 }
             }
         }
@@ -595,7 +726,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 if (!er.success)
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
                     error.message    = "Cannot evaluate constant expression: " + er.error;
                     result.errors.push_back (error);
                     result.success = false;
@@ -608,7 +739,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     if (kindIt != symbolKinds.end () && kindIt->second != SymbolKind::Set)
                     {
                         AssemblyError error = {};
-                        error.lineNumber = i + 1;
+                        error.lineNumber = current.sourceLineNumber;
                         error.message    = "Cannot redefine " + info.parsed.constantName + " (was defined as immutable)";
                         result.errors.push_back (error);
                         result.success = false;
@@ -629,7 +760,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 if (kindIt != symbolKinds.end ())
                 {
                     AssemblyError error = {};
-                    error.lineNumber = i + 1;
+                    error.lineNumber = current.sourceLineNumber;
 
                     if (kindIt->second == SymbolKind::Equ)
                     {
@@ -674,7 +805,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 pass1Ctx.currentPC = (int32_t) pc;
                 std::vector<int32_t> values;
                 std::vector<AssemblyError> tempErrors;
-                EvaluateDirectiveArgs (info.parsed.directiveArg, pass1Ctx, values, i + 1, tempErrors);
+                EvaluateDirectiveArgs (info.parsed.directiveArg, pass1Ctx, values, current.sourceLineNumber, tempErrors);
 
                 // If evaluation fails, try counting comma-separated items
                 if (values.empty () && !info.parsed.directiveArg.empty ())
@@ -709,6 +840,80 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             continue;
         }
 
+        // ---- Macro invocation ----
+        auto macroIt = macros.find (info.parsed.mnemonic);
+
+        if (macroIt != macros.end ())
+        {
+            if (current.macroDepth >= kMaxMacroDepth)
+            {
+                AssemblyError error = {};
+                error.lineNumber = current.sourceLineNumber;
+                error.message    = "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")";
+                result.errors.push_back (error);
+                result.success = false;
+                lineInfos.push_back (info);
+                continue;
+            }
+
+            // Split arguments
+            std::vector<std::string> args;
+
+            if (!info.parsed.operand.empty ())
+            {
+                args = Parser::SplitArgList (info.parsed.operand);
+            }
+
+            // Generate unique suffix for \?
+            macroUniqueCounter++;
+            char uniqueBuf[8];
+            snprintf (uniqueBuf, sizeof (uniqueBuf), "%04d", macroUniqueCounter);
+            std::string uniqueSuffix (uniqueBuf);
+
+            // Expand macro body with argument substitution
+            const auto & body = macroIt->second.body;
+
+            // Insert expanded lines at the FRONT of the queue (so they process next)
+            for (int bi = (int) body.size () - 1; bi >= 0; bi--)
+            {
+                std::string expanded = body[bi];
+
+                // Replace \1 through \9 with arguments
+                for (int ai = 9; ai >= 1; ai--)
+                {
+                    std::string placeholder = "\\" + std::to_string (ai);
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find (placeholder, pos)) != std::string::npos)
+                    {
+                        std::string replacement = (ai <= (int) args.size ()) ? args[ai - 1] : "";
+                        expanded.replace (pos, placeholder.size (), replacement);
+                        pos += replacement.size ();
+                    }
+                }
+
+                // Replace \? with unique suffix
+                {
+                    size_t pos = 0;
+
+                    while ((pos = expanded.find ("\\?", pos)) != std::string::npos)
+                    {
+                        expanded.replace (pos, 2, uniqueSuffix);
+                        pos += uniqueSuffix.size ();
+                    }
+                }
+
+                PendingLine pl = {};
+                pl.text = expanded;
+                pl.sourceLineNumber = current.sourceLineNumber;
+                pl.macroDepth = current.macroDepth + 1;
+                pendingLines.push_front (pl);
+            }
+
+            lineInfos.push_back (info);
+            continue;
+        }
+
         // Classify operand (syntax only)
         info.classified    = Parser::ClassifyOperand (info.parsed.operand);
         info.isInstruction = true;
@@ -733,7 +938,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             {
                 // Syntax error — report immediately
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
                 error.message    = "Expression error: " + er.error;
                 result.errors.push_back (error);
                 result.success = false;
@@ -778,7 +983,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             else if (!info.hasError)
             {
                 AssemblyError error = {};
-                error.lineNumber = i + 1;
+                error.lineNumber = current.sourceLineNumber;
 
                 if (!m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
                 {
@@ -802,6 +1007,16 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
 
         lineInfos.push_back (info);
+    }
+
+    // Check for unclosed macro definition
+    if (collectingMacro)
+    {
+        AssemblyError error = {};
+        error.lineNumber = currentMacroLine;
+        error.message    = "Unclosed macro definition: " + currentMacroName;
+        result.errors.push_back (error);
+        result.success = false;
     }
 
     // Check for unclosed if blocks
