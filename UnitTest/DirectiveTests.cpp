@@ -964,4 +964,122 @@ namespace DirectiveTests
             Assert::AreEqual ((size_t) 2, r.bytes.size ());
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ColonlessLabelTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ColonlessLabelTests)
+    {
+    public:
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Column0_Identifier_IsLabel
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Column0_Identifier_IsLabel)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble ("myLabel\n    NOP");
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
+            Assert::IsTrue (r.symbols.count ("myLabel") > 0);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Column0_Label_WithIndentedMnemonic
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Column0_Label_WithIndentedMnemonic)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble ("org $1000\nmyLabel\n    LDA #$42");
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((Word) 0x1000, r.symbols.at ("myLabel"));
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Column0_Label_WithSameLineDirective
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Column0_Label_WithSameLineDirective)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble ("org $2000\nmyLabel  ds 2");
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((Word) 0x2000, r.symbols.at ("myLabel"));
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  IndentedMnemonic_IsNotLabel
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (IndentedMnemonic_IsNotLabel)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble ("    NOP");
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
+
+            // NOP should not appear as a symbol
+            Assert::IsTrue (r.symbols.count ("NOP") == 0);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Column0_Label_WithSameLineInstruction
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Column0_Label_WithSameLineInstruction)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble ("org $3000\nstart  LDA #$42");
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, r.bytes[0]);
+            Assert::AreEqual ((Byte) 0x42, r.bytes[1]);
+            Assert::AreEqual ((Word) 0x3000, r.symbols.at ("start"));
+        }
+    };
 }

@@ -162,6 +162,48 @@ static bool WriteBinaryFile (const std::string & path, const std::vector<Byte> &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WriteFlatBinaryFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool WriteFlatBinaryFile (const std::string & path,
+                                 const std::vector<Byte> & data,
+                                 Word startAddress,
+                                 Byte fillByte)
+{
+    std::ofstream file (path, std::ios::binary);
+
+    if (!file.is_open ())
+    {
+        return false;
+    }
+
+    // Pad from address 0 to startAddress
+    for (Word i = 0; i < startAddress; i++)
+    {
+        file.put ((char) fillByte);
+    }
+
+    // Write assembled bytes
+    file.write (reinterpret_cast<const char *> (data.data ()), data.size ());
+
+    // Pad from end to fill full 64KB address space
+    uint32_t endAddress = (uint32_t) startAddress + (uint32_t) data.size ();
+
+    for (uint32_t i = endAddress; i < 0x10000u; i++)
+    {
+        file.put ((char) fillByte);
+    }
+
+    return file.good ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WriteSymbolFile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1281,7 +1323,7 @@ int DoAs65 (const CommandLineOptions & options)
         }
         else
         {
-            if (!WriteBinaryFile (options.outputFile, result.bytes))
+            if (!WriteFlatBinaryFile (options.outputFile, result.bytes, result.startAddress, options.fillByte))
             {
                 std::cerr << "Error: Cannot write output file: " << options.outputFile << "\n";
                 return 2;

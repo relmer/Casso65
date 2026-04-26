@@ -20,8 +20,8 @@
 - [X] T003 [P] Extend AssemblerTypes.h with new types: MacroDefinition, StructDefinition, StructMember, CharacterMap, SymbolKind enum, ConditionalState, FileReader interface in Casso65Core/AssemblerTypes.h
 - [X] T004 [P] Download AS65 manual (`as65.man`) and `testcase.a65` from Klaus2m5 repo (text files only — NO executables) to specs/002-as65-assembler-compat/reference/
 - [ ] T004a [P] Create conformance test input files (.a65) with hand-computed expected outputs (.expected.bin) per conformance-test-plan.md categories 1–14 in specs/002-as65-assembler-compat/testdata/conformance/ (our own work, committed)
-- [ ] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
-- [ ] T004c [P] Add downloaded temp files to .gitignore
+- [X] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
+- [X] T004c [P] Add downloaded temp files to .gitignore
 
 ---
 
@@ -148,7 +148,7 @@
 **Independent Test**: Assemble Dormann-style source with colon-less labels
 
 - [X] T040a [US6] Implement colon-less label detection in Parser: column-0 identifier + not-a-mnemonic/directive/macro → label
-- [ ] T040b [P] Add colon-less label tests to UnitTest
+- [X] T040b [P] Add colon-less label tests to UnitTest
 
 **Checkpoint**: Colon-less labels working — Dormann source labels recognized
 
@@ -271,19 +271,19 @@
 **Purpose**: End-to-end Dormann validation, conformance testing, final polish
 
 - [ ] T004a [P] Create conformance test input files (.a65) with hand-computed expected outputs (.expected.bin) per conformance-test-plan.md categories 1–14 in specs/002-as65-assembler-compat/testdata/conformance/ (our own work, committed)
-- [ ] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
-- [ ] T004c [P] Add downloaded temp files to .gitignore
-- [ ] T049 [US10] Attempt assembly of 6502_functional_test.a65 (downloaded on demand) and iteratively fix any remaining issues in Casso65Core/Assembler.cpp
-- [ ] T050 [US10] Create Dormann integration test using scripts/RunDormannTest.ps1: download source + reference binary, assemble, compare, delete in UnitTest/DormannIntegrationTests.cpp (NOTE: gated behind TEST_CATEGORY("Integration") — excluded from normal unit test runs per constitution principle II)
-- [ ] T051 [US10] Verify assembled binary runs in CPU emulator and reaches success trap — informational only, emulator bugs tracked as separate GitHub issues
+- [X] T004b [P] Create scripts/RunDormannTest.ps1 — downloads 6502_functional_test.a65 and reference binary from Klaus2m5 bin_files/, assembles with Casso65, compares against reference, deletes all downloaded files on completion
+- [X] T004c [P] Add downloaded temp files to .gitignore
+- [X] T049 [US10] Attempt assembly of 6502_functional_test.a65 (downloaded on demand) and iteratively fix any remaining issues in Casso65Core/Assembler.cpp
+- [X] T050 [US10] Create Dormann integration test using scripts/RunDormannTest.ps1: download source + reference binary, assemble, compare, delete in UnitTest/DormannIntegrationTests.cpp (NOTE: gated behind TEST_CATEGORY("Integration") — excluded from normal unit test runs per constitution principle II)
+- [X] T051 [US10] Verify assembled binary runs in CPU emulator and reaches success trap — informational only, emulator bugs tracked as separate GitHub issues
 - [ ] T089 Verify AS65 testcase.a65 assembles without errors (SC-008) in UnitTest/DormannIntegrationTests.cpp
 - [ ] T089a Verify listing output matches AS65 format per as65.man documentation (SC-011) in UnitTest/DormannIntegrationTests.cpp
 - [ ] T089b [P] Create ConformanceTests.cpp: data-driven test runner that loops over all testdata/conformance/*.a65 files, assembles each, and compares output against *.expected.bin (FR-079, SC-012) in UnitTest/ConformanceTests.cpp
 - [ ] T089c Run full conformance suite — all ~200 test cases pass against hand-computed expected outputs
-- [ ] T090 Re-verify Dormann suite assembly after all additions (regression check)
-- [ ] T091 Run full test suite: Build + Test Debug (current arch) — all tests pass
+- [X] T090 Re-verify Dormann suite assembly after all additions (regression check)
+- [X] T091 Run full test suite: Build + Test Debug (current arch) — all tests pass
 - [ ] T092 Run quickstart.md validation steps
-- [ ] T093 Code cleanup: verify all new files follow formatting rules (5 blank lines, 80-char comment blocks, Pch.h first)
+- [X] T093 Code cleanup: verify all new files follow formatting rules (5 blank lines, 80-char comment blocks, Pch.h first)
 
 **Checkpoint**: EXIT GATE — Dormann binary byte-identical to reference + all success criteria (SC-001 through SC-012) verified
 
