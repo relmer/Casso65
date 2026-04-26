@@ -147,7 +147,7 @@
 
 **Independent Test**: Assemble Dormann-style source with colon-less labels
 
-- [ ] T040a [US6] Implement colon-less label detection in Parser: column-0 identifier + not-a-mnemonic/directive/macro → label
+- [X] T040a [US6] Implement colon-less label detection in Parser: column-0 identifier + not-a-mnemonic/directive/macro → label
 - [ ] T040b [P] Add colon-less label tests to UnitTest
 
 **Checkpoint**: Colon-less labels working — Dormann source labels recognized
