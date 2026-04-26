@@ -405,7 +405,19 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     std::unordered_map<std::string, int32_t>  exprSymbols;
     ExprContext                                pass1Ctx = { &exprSymbols, 0 };
 
-    // Inject predefined symbols (-d flag)
+    // Inject AS65 built-in symbols (overridable by -d flag)
+    auto injectBuiltin = [&] (const std::string & name, int32_t value)
+    {
+        symbols[name]     = (Word) value;
+        symbolKinds[name] = SymbolKind::Set;
+        exprSymbols[name] = value;
+    };
+
+    injectBuiltin ("ERRORS",     0);
+    injectBuiltin ("__65SC02__", 0);
+    injectBuiltin ("__6502X__",  0);
+
+    // Inject predefined symbols (-d flag) — after built-ins so user can override
     for (const auto & predef : m_options.predefinedSymbols)
     {
         symbols[predef.first]     = (Word) predef.second;
@@ -937,17 +949,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             {
                 Word newAddr = (Word) er.value;
 
-                if (originSet && newAddr < pc)
                 {
-                    AssemblyError error = {};
-                    error.lineNumber = current.sourceLineNumber;
-                    error.message    = ".org address is backward from current position";
-                    result.errors.push_back (error);
-                    result.success = false;
-                }
-                else
-                {
-                    if (newAddr == pc)
+                    if (originSet && newAddr == pc)
                     {
                         RecordWarning (result, current.sourceLineNumber, "Redundant .org to current address");
                     }
@@ -1079,13 +1082,25 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     // Reserve the name — actual value set in Pass 2
                     symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
 
-                    // Try to evaluate in Pass 1 (may succeed if no forward refs)
-                    ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass1Ctx);
+                    // Check for string literal — value is the string length
+                    const std::string & expr = info.parsed.constantExpr;
 
-                    if (er.success)
+                    if (expr.size () >= 2 && expr.front () == '"' && expr.back () == '"')
                     {
-                        symbols[info.parsed.constantName]     = (Word) er.value;
-                        exprSymbols[info.parsed.constantName] = er.value;
+                        int32_t len = (int32_t) (expr.size () - 2);
+                        symbols[info.parsed.constantName]     = (Word) len;
+                        exprSymbols[info.parsed.constantName] = len;
+                    }
+                    else
+                    {
+                        // Try to evaluate in Pass 1 (may succeed if no forward refs)
+                        ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass1Ctx);
+
+                        if (er.success)
+                        {
+                            symbols[info.parsed.constantName]     = (Word) er.value;
+                            exprSymbols[info.parsed.constantName] = er.value;
+                        }
                     }
                 }
             }
@@ -1526,6 +1541,61 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                 if (exUpper == "EXITM" || exUpper == ".EXITM")
                 {
+                    // Count unmatched if blocks in already-expanded lines
+                    // and add compensating endif lines
+                    int ifDepth = 0;
+
+                    for (const auto & el : expandedLines)
+                    {
+                        std::string elTrimmed = el;
+                        size_t elStart = elTrimmed.find_first_not_of (" \t");
+
+                        if (elStart != std::string::npos)
+                        {
+                            elTrimmed = elTrimmed.substr (elStart);
+                        }
+
+                        // Strip comments
+                        size_t elSemi = elTrimmed.find (';');
+
+                        if (elSemi != std::string::npos)
+                        {
+                            elTrimmed = elTrimmed.substr (0, elSemi);
+                        }
+
+                        size_t elEnd2 = elTrimmed.find_last_not_of (" \t");
+
+                        if (elEnd2 != std::string::npos)
+                        {
+                            elTrimmed = elTrimmed.substr (0, elEnd2 + 1);
+                        }
+
+                        std::string elUpper2 = elTrimmed;
+
+                        for (auto & c2 : elUpper2)
+                        {
+                            c2 = (char) toupper ((unsigned char) c2);
+                        }
+
+                        // Check first word
+                        size_t sp2 = elUpper2.find_first_of (" \t");
+                        std::string firstWord = (sp2 == std::string::npos) ? elUpper2 : elUpper2.substr (0, sp2);
+
+                        if (firstWord == "IF" || firstWord == ".IF")
+                        {
+                            ifDepth++;
+                        }
+                        else if (firstWord == "ENDIF" || firstWord == ".ENDIF")
+                        {
+                            ifDepth--;
+                        }
+                    }
+
+                    for (int ed = 0; ed < ifDepth; ed++)
+                    {
+                        expandedLines.push_back ("                ENDIF");
+                    }
+
                     break;
                 }
 
@@ -1627,6 +1697,41 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                         else
                         {
                             pos += localLabel.size ();
+                        }
+                    }
+                }
+
+                // Strip AS65 single-quote forced substitution zones
+                // (single quotes delimit areas where parameter substitution is forced,
+                //  then the quotes themselves are removed)
+                {
+                    size_t sq = 0;
+                    bool inDouble = false;
+
+                    while (sq < expanded.size ())
+                    {
+                        if (expanded[sq] == '"')
+                        {
+                            inDouble = !inDouble;
+                            sq++;
+                        }
+                        else if (!inDouble && expanded[sq] == '\'')
+                        {
+                            size_t sq2 = expanded.find ('\'', sq + 1);
+
+                            if (sq2 != std::string::npos)
+                            {
+                                expanded.erase (sq2, 1);
+                                expanded.erase (sq, 1);
+                            }
+                            else
+                            {
+                                sq++;
+                            }
+                        }
+                        else
+                        {
+                            sq++;
                         }
                     }
                 }
@@ -1849,7 +1954,9 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     }
 
     // ---- Pass 2: Emit bytes with full symbol resolution ----
-    std::vector<Byte>                         output;
+    std::vector<Byte>                         image (65536, m_options.fillByte);
+    Word                                      lowestAddr  = 0xFFFF;
+    Word                                      highestAddr = 0x0000;
     std::unordered_map<std::string, int>      referencedLabels;
 
     // Build full expression context with all symbols
@@ -1872,29 +1979,52 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
         if (info.parsed.constantKind == SymbolKind::Equ && fullSymbols.find (info.parsed.constantName) == fullSymbols.end ())
         {
-            pass2Ctx.currentPC = (int32_t) info.pc;
-            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass2Ctx);
+            const std::string & expr = info.parsed.constantExpr;
 
-            if (!er.success)
+            // Check for string literal — value is the string length
+            if (expr.size () >= 2 && expr.front () == '"' && expr.back () == '"')
             {
-                AssemblyError error = {};
-                error.lineNumber = info.parsed.lineNumber;
-                error.message    = "Cannot resolve equ expression: " + info.parsed.constantExpr;
-                result.errors.push_back (error);
-                result.success = false;
+                int32_t len = (int32_t) (expr.size () - 2);
+                symbols[info.parsed.constantName]     = (Word) len;
+                fullSymbols[info.parsed.constantName] = len;
             }
             else
             {
-                symbols[info.parsed.constantName]     = (Word) er.value;
-                fullSymbols[info.parsed.constantName] = er.value;
+                pass2Ctx.currentPC = (int32_t) info.pc;
+                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass2Ctx);
+
+                if (!er.success)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = info.parsed.lineNumber;
+                    error.message    = "Cannot resolve equ expression: " + info.parsed.constantExpr;
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    symbols[info.parsed.constantName]     = (Word) er.value;
+                    fullSymbols[info.parsed.constantName] = er.value;
+                }
             }
         }
     }
 
     for (const auto & info : lineInfos)
     {
-        size_t bytesStart     = output.size ();
+        Word   emitPCStart    = info.pc;
+        Word   emitPC         = info.pc;
         bool   lineHasAddress = false;
+
+        auto emitByte = [&] (Byte b)
+        {
+            image[emitPC] = b;
+
+            if (emitPC < lowestAddr)  lowestAddr  = emitPC;
+            if (emitPC > highestAddr) highestAddr = emitPC;
+
+            emitPC++;
+        };
 
         if (info.hasError)
         {
@@ -1905,21 +2035,10 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             lineHasAddress = true;
             pass2Ctx.currentPC = (int32_t) info.pc;
 
-            // Handle .ORG: emit fill bytes for gap between current output and new address
+            // .ORG just moves emitPC — the image handles gaps automatically
             if (info.parsed.directive == ".ORG")
             {
-                Word targetAddr = info.pc;
-                Word currentOutputAddr = result.startAddress + (Word) output.size ();
-
-                if (targetAddr > currentOutputAddr)
-                {
-                    Word gap = targetAddr - currentOutputAddr;
-
-                    for (Word g = 0; g < gap; g++)
-                    {
-                        output.push_back (m_options.fillByte);
-                    }
-                }
+                // Nothing to emit — PC already set via info.pc
             }
             else if (info.parsed.directive == ".BYTE")
             {
@@ -1936,7 +2055,59 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                         for (char c : processed)
                         {
-                            output.push_back (charMap.table[(unsigned char) c]);
+                            emitByte (charMap.table[(unsigned char) c]);
+                        }
+                    }
+                    else if (arg.size () >= 2 && arg.front () == '"')
+                    {
+                        // Handle string followed by escape sequence: "text"\n
+                        size_t closeQuote = arg.find ('"', 1);
+
+                        if (closeQuote != std::string::npos)
+                        {
+                            std::string raw       = arg.substr (1, closeQuote - 1);
+                            std::string processed = ProcessEscapeSequences (raw);
+
+                            for (char c : processed)
+                            {
+                                emitByte (charMap.table[(unsigned char) c]);
+                            }
+
+                            // Process trailing escape sequences
+                            std::string suffix = arg.substr (closeQuote + 1);
+                            std::string suffixProcessed = ProcessEscapeSequences (suffix);
+
+                            for (char c : suffixProcessed)
+                            {
+                                emitByte ((Byte) (unsigned char) c);
+                            }
+                        }
+                        else
+                        {
+                            ExprResult er = ExpressionEvaluator::Evaluate (arg, pass2Ctx);
+
+                            if (!er.success)
+                            {
+                                AssemblyError error = {};
+                                error.lineNumber = info.parsed.lineNumber;
+                                error.message    = "Cannot evaluate expression: " + arg + " (" + er.error + ")";
+                                result.errors.push_back (error);
+                                ok = false;
+                            }
+                            else
+                            {
+                                emitByte ((Byte) (er.value & 0xFF));
+                            }
+                        }
+                    }
+                    else if (arg.size () >= 2 && arg[0] == '\\')
+                    {
+                        // Handle bare escape sequences: \n, \r, \t, \0
+                        std::string processed = ProcessEscapeSequences (arg);
+
+                        for (char c : processed)
+                        {
+                            emitByte ((Byte) (unsigned char) c);
                         }
                     }
                     else
@@ -1953,7 +2124,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                         }
                         else
                         {
-                            output.push_back ((Byte) (er.value & 0xFF));
+                            emitByte ((Byte) (er.value & 0xFF));
                         }
                     }
                 }
@@ -1972,8 +2143,8 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 {
                     for (int32_t v : values)
                     {
-                        output.push_back ((Byte) (v & 0xFF));
-                        output.push_back ((Byte) ((v >> 8) & 0xFF));
+                        emitByte ((Byte) (v & 0xFF));
+                        emitByte ((Byte) ((v >> 8) & 0xFF));
                     }
                 }
                 else
@@ -1987,7 +2158,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                 for (char c : text)
                 {
-                    output.push_back (charMap.table[(unsigned char) c]);
+                    emitByte (charMap.table[(unsigned char) c]);
                 }
             }
             else if (info.parsed.directive == ".DD")
@@ -1999,10 +2170,10 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 {
                     for (int32_t v : values)
                     {
-                        output.push_back ((Byte) (v & 0xFF));
-                        output.push_back ((Byte) ((v >> 8) & 0xFF));
-                        output.push_back ((Byte) ((v >> 16) & 0xFF));
-                        output.push_back ((Byte) ((v >> 24) & 0xFF));
+                        emitByte ((Byte) (v & 0xFF));
+                        emitByte ((Byte) ((v >> 8) & 0xFF));
+                        emitByte ((Byte) ((v >> 16) & 0xFF));
+                        emitByte ((Byte) ((v >> 24) & 0xFF));
                     }
                 }
                 else
@@ -2034,7 +2205,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                         for (int32_t j = 0; j < sizeEr.value; j++)
                         {
-                            output.push_back (fillVal);
+                            emitByte (fillVal);
                         }
                     }
                 }
@@ -2064,7 +2235,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                         for (int j = 0; j < padding; j++)
                         {
-                            output.push_back (fillVal);
+                            emitByte (fillVal);
                         }
                     }
                 }
@@ -2077,7 +2248,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 {
                     for (int32_t j = 0; j < er.value; j++)
                     {
-                        output.push_back (0xEA);  // NOP opcode
+                        emitByte (0xEA);  // NOP opcode
                     }
                 }
             }
@@ -2112,11 +2283,11 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
                     if (m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
                     {
-                        output.push_back (entry.opcode);
+                        emitByte (entry.opcode);
 
                         for (Byte j = 0; j < entry.operandSize; j++)
                         {
-                            output.push_back (0x00);
+                            emitByte (0x00);
                         }
                     }
                 }
@@ -2156,16 +2327,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     value = offset & 0xFF;
                 }
 
-                // Range check for immediate mode
-                if (mode == GlobalAddressingMode::Immediate && (value < -128 || value > 255))
-                {
-                    AssemblyError error = {};
-                    error.lineNumber = info.parsed.lineNumber;
-                    error.message    = "Operand value out of range for immediate mode: " + std::to_string (value);
-                    result.errors.push_back (error);
-                    result.success = false;
-                }
-                else
+                // Immediate mode: truncate to 8 bits (AS65 behavior)
                 {
                     OpcodeEntry entry = {};
 
@@ -2179,16 +2341,16 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     }
                     else
                     {
-                        output.push_back (entry.opcode);
+                        emitByte (entry.opcode);
 
                         if (entry.operandSize == 1)
                         {
-                            output.push_back ((Byte) (value & 0xFF));
+                            emitByte ((Byte) (value & 0xFF));
                         }
                         else if (entry.operandSize == 2)
                         {
-                            output.push_back ((Byte) (value & 0xFF));
-                            output.push_back ((Byte) ((value >> 8) & 0xFF));
+                            emitByte ((Byte) (value & 0xFF));
+                            emitByte ((Byte) ((value >> 8) & 0xFF));
                         }
                     }
                 }
@@ -2219,7 +2381,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 listLine.isConditionalSkip  = info.conditionalSkip;
 
                 // Look up cycle count for instructions
-                if (info.isInstruction && !info.hasError && output.size () > bytesStart)
+                if (info.isInstruction && !info.hasError && emitPC > emitPCStart)
                 {
                     OpcodeEntry cycleEntry = {};
 
@@ -2229,9 +2391,9 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     }
                 }
 
-                for (size_t j = bytesStart; j < output.size (); j++)
+                for (Word j = emitPCStart; j < emitPC; j++)
                 {
-                    listLine.bytes.push_back (output[j]);
+                    listLine.bytes.push_back (image[j]);
                 }
 
                 result.listing.push_back (listLine);
@@ -2239,10 +2401,21 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
     }
 
-    result.bytes       = output;
+    // Extract the used portion of the image
+    if (lowestAddr <= highestAddr)
+    {
+        result.bytes.assign (image.begin () + lowestAddr, image.begin () + highestAddr + 1);
+        result.startAddress = lowestAddr;
+        result.endAddress   = (Word) (highestAddr + 1);
+    }
+    else
+    {
+        result.bytes.clear ();
+        result.endAddress = result.startAddress;
+    }
+
     result.symbols     = symbols;
     result.symbolKinds = symbolKinds;
-    result.endAddress  = result.startAddress + (Word) output.size ();
 
     // ---- Post-assembly: unused label warnings ----
     // Also track references in directive expressions
@@ -2262,6 +2435,14 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
     for (const auto & sym : symbols)
     {
+        // Only warn about user-defined labels, not equ/set/built-in symbols
+        auto kindIt = symbolKinds.find (sym.first);
+
+        if (kindIt == symbolKinds.end () || kindIt->second != SymbolKind::Label)
+        {
+            continue;
+        }
+
         if (referencedLabels.find (sym.first) == referencedLabels.end ())
         {
             int defLine = 0;

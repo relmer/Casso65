@@ -852,9 +852,22 @@ int DoAssemble (const CommandLineOptions & options)
 
     // Set up assembler options
     AssemblerOptions asmOptions = {};
-    asmOptions.fillByte        = options.fillByte;
-    asmOptions.generateListing = options.generateListing;
-    asmOptions.warningMode     = options.warningMode;
+    asmOptions.fillByte          = options.fillByte;
+    asmOptions.generateListing   = options.generateListing;
+    asmOptions.warningMode       = options.warningMode;
+    asmOptions.predefinedSymbols = options.predefinedSymbols;
+
+    // Set up file reader for includes
+    DefaultFileReader fileReader;
+    asmOptions.fileReader = &fileReader;
+
+    // Extract base directory from input file
+    size_t lastSep = options.inputFile.find_last_of ("/\\");
+
+    if (lastSep != std::string::npos)
+    {
+        asmOptions.baseDir = options.inputFile.substr (0, lastSep);
+    }
 
     // Create assembler and assemble
     Cpu cpu;

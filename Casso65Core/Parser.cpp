@@ -17,18 +17,36 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
 {
     std::vector<std::string> lines;
     std::string              line;
-    std::istringstream       stream (source);
 
-    while (std::getline (stream, line))
+    for (size_t i = 0; i < source.size (); i++)
     {
-        // Strip trailing \r if present (handles \r\n line endings)
-        if (!line.empty () && line.back () == '\r')
-        {
-            line.pop_back ();
-        }
+        char c = source[i];
 
-        lines.push_back (line);
+        if (c == '\n')
+        {
+            // LF or the LF of a CRLF — end of line
+            lines.push_back (line);
+            line.clear ();
+        }
+        else if (c == '\r')
+        {
+            // CR — end of line (peek ahead for CRLF)
+            lines.push_back (line);
+            line.clear ();
+
+            if (i + 1 < source.size () && source[i + 1] == '\n')
+            {
+                i++;  // consume the LF of CRLF
+            }
+        }
+        else
+        {
+            line += c;
+        }
     }
+
+    // Push remaining content (last line without trailing newline)
+    lines.push_back (line);
 
     if (lines.empty ())
     {

@@ -48,17 +48,24 @@ struct Token
 class Tokenizer
 {
 public:
-    Tokenizer (const std::string & text) : m_text (text), m_pos (0), m_hasPeeked (false) { }
+    Tokenizer (const std::string & text) : m_text (text), m_pos (0), m_hasPeeked (false), m_lastWasValue (false) { }
 
     Token Next ()
     {
+        Token t;
+
         if (m_hasPeeked)
         {
             m_hasPeeked = false;
-            return m_peeked;
+            t = m_peeked;
+        }
+        else
+        {
+            t = ReadNext ();
         }
 
-        return ReadNext ();
+        m_lastWasValue = (t.type == TokType::Number || t.type == TokType::Ident || t.type == TokType::RParen || t.type == TokType::RBracket);
+        return t;
     }
 
     Token Peek ()
@@ -92,6 +99,7 @@ private:
     size_t              m_pos;
     Token               m_peeked;
     bool                m_hasPeeked;
+    bool                m_lastWasValue;
 };
 
 
@@ -158,6 +166,23 @@ Token Tokenizer::ReadCharConstant ()
         return { TokType::Error, 0, "Unterminated character constant" };
 
     char ch = m_text[m_pos++];
+
+    // Handle escape sequences
+    if (ch == '\\' && m_pos < m_text.size ())
+    {
+        char esc = m_text[m_pos++];
+
+        switch (esc)
+        {
+        case 'n':  ch = '\n'; break;
+        case 'r':  ch = '\r'; break;
+        case 't':  ch = '\t'; break;
+        case '0':  ch = '\0'; break;
+        case '\\': ch = '\\'; break;
+        case '\'': ch = '\''; break;
+        default:   ch = esc;  break;
+        }
+    }
 
     if (m_pos >= m_text.size () || m_text[m_pos] != '\'')
         return { TokType::Error, 0, "Unterminated character constant" };
@@ -297,7 +322,7 @@ Token Tokenizer::ReadNext ()
 
     if (c == '%')
     {
-        if (m_pos + 1 < m_text.size () && (m_text[m_pos + 1] == '0' || m_text[m_pos + 1] == '1'))
+        if (!m_lastWasValue && m_pos + 1 < m_text.size () && (m_text[m_pos + 1] == '0' || m_text[m_pos + 1] == '1'))
         {
             m_pos++;
             return ReadBinaryNumber ();

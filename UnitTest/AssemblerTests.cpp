@@ -460,7 +460,7 @@ namespace AssemblerTests
                 )");
 
             Assert::IsTrue (result.success);
-            Assert::AreEqual ((size_t) 2, result.symbols.size ());
+            Assert::AreEqual ((size_t) 5, result.symbols.size ());  // 2 labels + 3 built-ins
             Assert::AreEqual ((Word) 0x0000, result.symbols["start"]);
             Assert::AreEqual ((Word) 0x0001, result.symbols["end"]);
         }
@@ -643,6 +643,7 @@ namespace AssemblerTests
 
         TEST_METHOD (Org_BackwardFromCurrentPC_ReportsError)
         {
+            // Backward .org is allowed for multi-segment assembly (flat binary output)
             Assembler asm6502 = BuildAssembler ();
             auto result = asm6502.Assemble (
                 R"(                 .org $C000
@@ -650,8 +651,7 @@ namespace AssemblerTests
                                     .org $BFFF
                 )");
 
-            Assert::IsFalse (result.success);
-            Assert::AreEqual ((size_t) 1, result.errors.size ());
+            Assert::IsTrue (result.success);
         }
     };
 
@@ -806,7 +806,7 @@ namespace AssemblerTests
             auto result = asm6502.Assemble ("data: .byte $01,$02,$03");
 
             Assert::IsTrue (result.success);
-            Assert::AreEqual ((size_t) 1, result.symbols.size ());
+            Assert::AreEqual ((size_t) 4, result.symbols.size ());  // 1 label + 3 built-ins
             Assert::AreEqual ((Word) 0x0000, result.symbols["data"]);
             Assert::AreEqual ((size_t) 3, result.bytes.size ());
         }
@@ -1123,12 +1123,14 @@ namespace AssemblerTests
 
         TEST_METHOD (ValueOutOfRange_ReportsError)
         {
+            // Immediate mode now truncates to 8 bits silently (AS65 behavior)
             Assembler asm6502 = BuildAssembler ();
             auto result = asm6502.Assemble ("LDA #$1FF");
 
-            Assert::IsFalse (result.success);
-            Assert::AreEqual ((size_t) 1, result.errors.size ());
-            Assert::AreEqual (1, result.errors[0].lineNumber);
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 2, result.bytes.size ());
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0xFF, result.bytes[1]);
         }
 
 
@@ -1594,7 +1596,8 @@ namespace AssemblerTests
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::Warn);
             auto result = asm6502.Assemble (
-                R"(                 .org $0000
+                R"(                 .org $C000
+                                    .org $C000
                                     NOP
                 )");
 
@@ -1616,7 +1619,8 @@ namespace AssemblerTests
         {
             Assembler asm6502 = BuildWithWarningMode (WarningMode::FatalWarnings);
             auto result = asm6502.Assemble (
-                R"(                 .org $0000
+                R"(                 .org $C000
+                                    .org $C000
                                     NOP
                 )");
 
@@ -1781,9 +1785,9 @@ namespace AssemblerTests
             Assert::AreEqual ((Byte) 0x86, result2.bytes[2]);
             Assert::AreEqual ((Byte) 0x20, result2.bytes[3]);
 
-            // Symbol tables are independent
-            Assert::AreEqual ((size_t) 0, result1.symbols.size ());
-            Assert::AreEqual ((size_t) 0, result2.symbols.size ());
+            // Symbol tables are independent (3 built-in symbols each)
+            Assert::AreEqual ((size_t) 3, result1.symbols.size ());
+            Assert::AreEqual ((size_t) 3, result2.symbols.size ());
         }
 
 
@@ -1923,7 +1927,7 @@ namespace AssemblerTests
             auto result = asm6502.Assemble (source);
 
             Assert::IsTrue (result.success);
-            Assert::AreEqual ((size_t) 100, result.symbols.size ());
+            Assert::AreEqual ((size_t) 103, result.symbols.size ());  // 100 labels + 3 built-ins
 
             // Verify labels are at expected addresses
             for (int i = 0; i < 100; i++)
@@ -1966,7 +1970,7 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.bytes.size ());
             Assert::AreEqual ((size_t) 0, result.errors.size ());
-            Assert::AreEqual ((size_t) 0, result.symbols.size ());
+            Assert::AreEqual ((size_t) 3, result.symbols.size ());  // 3 built-in symbols
         }
     };
 }
