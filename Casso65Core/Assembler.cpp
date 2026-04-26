@@ -355,6 +355,15 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     std::unordered_map<std::string, int32_t>  exprSymbols;
     ExprContext                                pass1Ctx = { &exprSymbols, 0 };
 
+    // Conditional assembly stack
+    std::vector<ConditionalState> condStack;
+
+    // Helper: check if currently assembling (all enclosing conditions true)
+    auto isAssembling = [&condStack] ()
+    {
+        return condStack.empty () || condStack.back ().assembling;
+    };
+
     // ---- Pass 1: Parse, collect labels, compute PC ----
     for (int i = 0; i < (int) lines.size (); i++)
     {
@@ -368,6 +377,116 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         info.valueResolved = false;
         info.resolvedValue = 0;
         info.resolvedMode  = GlobalAddressingMode::SingleByteNoOperand;
+
+        // ---- Conditional assembly directives ----
+        // Detect if/else/endif in both mnemonic and directive forms
+        std::string condDirective;
+        std::string condArg;
+
+        if (info.parsed.isDirective)
+        {
+            std::string dir = info.parsed.directive;
+
+            if (dir == ".IF")       { condDirective = "IF";    condArg = info.parsed.directiveArg; }
+            else if (dir == ".ELSE")  { condDirective = "ELSE"; }
+            else if (dir == ".ENDIF") { condDirective = "ENDIF"; }
+        }
+        else if (!info.parsed.mnemonic.empty ())
+        {
+            if (info.parsed.mnemonic == "IF")        { condDirective = "IF";    condArg = info.parsed.operand; }
+            else if (info.parsed.mnemonic == "ELSE")  { condDirective = "ELSE"; }
+            else if (info.parsed.mnemonic == "ENDIF") { condDirective = "ENDIF"; }
+        }
+
+        if (!condDirective.empty ())
+        {
+            if (condDirective == "IF")
+            {
+                ConditionalState state = {};
+                state.parentAssembling = isAssembling ();
+                state.seenElse = false;
+
+                if (state.parentAssembling)
+                {
+                    pass1Ctx.currentPC = (int32_t) pc;
+                    ExprResult er = ExpressionEvaluator::Evaluate (condArg, pass1Ctx);
+
+                    if (!er.success)
+                    {
+                        AssemblyError error = {};
+                        error.lineNumber = i + 1;
+                        error.message    = "Cannot evaluate if expression: " + er.error;
+                        result.errors.push_back (error);
+                        result.success = false;
+                        state.assembling = false;
+                    }
+                    else
+                    {
+                        state.assembling = (er.value != 0);
+                    }
+                }
+                else
+                {
+                    state.assembling = false;
+                }
+
+                condStack.push_back (state);
+            }
+            else if (condDirective == "ELSE")
+            {
+                if (condStack.empty ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = i + 1;
+                    error.message    = "else without matching if";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else if (condStack.back ().seenElse)
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = i + 1;
+                    error.message    = "Duplicate else";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    condStack.back ().seenElse = true;
+
+                    if (condStack.back ().parentAssembling)
+                    {
+                        condStack.back ().assembling = !condStack.back ().assembling;
+                    }
+                }
+            }
+            else if (condDirective == "ENDIF")
+            {
+                if (condStack.empty ())
+                {
+                    AssemblyError error = {};
+                    error.lineNumber = i + 1;
+                    error.message    = "endif without matching if";
+                    result.errors.push_back (error);
+                    result.success = false;
+                }
+                else
+                {
+                    condStack.pop_back ();
+                }
+            }
+
+            info.isDirective = true;
+            lineInfos.push_back (info);
+            continue;
+        }
+
+        // Skip lines in non-assembling conditional blocks
+        if (!isAssembling ())
+        {
+            lineInfos.push_back (info);
+            continue;
+        }
 
         // Handle .org BEFORE recording label
         if (info.parsed.isDirective && info.parsed.directive == ".ORG")
@@ -683,6 +802,16 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         }
 
         lineInfos.push_back (info);
+    }
+
+    // Check for unclosed if blocks
+    if (!condStack.empty ())
+    {
+        AssemblyError error = {};
+        error.lineNumber = (int) lines.size ();
+        error.message    = "Unclosed if block (" + std::to_string (condStack.size ()) + " level(s) open)";
+        result.errors.push_back (error);
+        result.success = false;
     }
 
     // ---- Pass 2: Emit bytes with full symbol resolution ----
