@@ -1905,7 +1905,23 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             lineHasAddress = true;
             pass2Ctx.currentPC = (int32_t) info.pc;
 
-            if (info.parsed.directive == ".BYTE")
+            // Handle .ORG: emit fill bytes for gap between current output and new address
+            if (info.parsed.directive == ".ORG")
+            {
+                Word targetAddr = info.pc;
+                Word currentOutputAddr = result.startAddress + (Word) output.size ();
+
+                if (targetAddr > currentOutputAddr)
+                {
+                    Word gap = targetAddr - currentOutputAddr;
+
+                    for (Word g = 0; g < gap; g++)
+                    {
+                        output.push_back (m_options.fillByte);
+                    }
+                }
+            }
+            else if (info.parsed.directive == ".BYTE")
             {
                 // Emit bytes, applying character map to quoted strings
                 auto args = Parser::SplitArgList (info.parsed.directiveArg);
