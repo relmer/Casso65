@@ -15,6 +15,23 @@ enum class WarningMode
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class SymbolKind
+{
+    Label,     // Defined by label declaration (immutable)
+    Equ,       // Defined by equ (immutable)
+    Set,       // Defined by = or set (reassignable)
+};
+
+
+
+
+
 struct AssemblyError
 {
     int         lineNumber;
@@ -32,6 +49,9 @@ struct AssemblyLine
     std::vector<Byte> bytes;
     std::string       sourceText;
     bool              hasAddress;
+    bool              isMacroExpansion = false;
+    bool              isConditionalSkip = false;
+    Byte              cycleCounts = 0;
 };
 
 
@@ -40,14 +60,16 @@ struct AssemblyLine
 
 struct AssemblyResult
 {
-    bool                                       success;
-    std::vector<Byte>                          bytes;
-    Word                                       startAddress;
-    Word                                       endAddress;
-    std::unordered_map<std::string, Word>      symbols;
-    std::vector<AssemblyError>                 errors;
-    std::vector<AssemblyError>                 warnings;
-    std::vector<AssemblyLine>                  listing;
+    bool                                        success;
+    std::vector<Byte>                           bytes;
+    Word                                        startAddress;
+    Word                                        endAddress;
+    std::unordered_map<std::string, Word>       symbols;
+    std::unordered_map<std::string, SymbolKind> symbolKinds;
+    std::vector<AssemblyError>                  errors;
+    std::vector<AssemblyError>                  warnings;
+    std::vector<AssemblyLine>                   listing;
+    std::string                                 listingTitle;
 };
 
 
@@ -65,6 +87,18 @@ struct AssemblerOptions
     WarningMode warningMode     = WarningMode::Warn;
     FileReader * fileReader     = nullptr;
     std::string  baseDir;
+    bool        cycleCounts     = false;     // -c flag
+    bool        macroExpansion  = false;     // -m flag (show macro expansion in listing)
+    int         pageHeight      = 0;         // -h flag (0 = no pagination)
+    int         pageWidth       = 80;        // -w flag
+    bool        caseSensitive   = false;     // -i flag (we're case-insensitive by default)
+    bool        pass1Listing    = false;     // -p flag
+    bool        symbolTable     = false;     // -t flag
+    bool        debugInfo       = false;     // -g flag
+    bool        verbose         = false;     // -v flag
+    bool        quiet           = false;     // -q flag
+    bool        disableOpt      = false;     // -n flag
+    std::unordered_map<std::string, int32_t> predefinedSymbols; // -d flag
 };
 
 
@@ -75,24 +109,11 @@ struct OpcodeEntry
 {
     Byte opcode;
     Byte operandSize;
+    Byte cycleCounts;
 };
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SymbolKind
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class SymbolKind
-{
-    Label,     // Defined by label declaration (immutable)
-    Equ,       // Defined by equ (immutable)
-    Set,       // Defined by = or set (reassignable)
-};
 
 
 

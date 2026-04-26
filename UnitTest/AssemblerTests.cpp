@@ -1462,7 +1462,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 1, result.listing.size ());
 
             std::string formatted = Assembler::FormatListingLine (result.listing[0]);
-            Assert::AreEqual (std::string ("$0000  A9 42     LDA #$42"), formatted);
+            Assert::AreEqual (std::string ("$0000  A9 42      LDA #$42"), formatted);
         }
 
 
@@ -1489,7 +1489,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 1, result.listing.size ());
 
             std::string formatted = Assembler::FormatListingLine (result.listing[0]);
-            Assert::AreEqual (std::string ("                 ; comment"), formatted);
+            Assert::AreEqual (std::string ("                  ; comment"), formatted);
         }
     };
 

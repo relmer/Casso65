@@ -388,6 +388,10 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         GlobalAddressingMode::AddressingMode resolvedMode;
         int32_t                              resolvedValue;
         bool                                 valueResolved;
+
+        int              macroDepth;
+        bool             conditionalSkip;
+        bool             listingSuppressed;
     };
 
     std::vector<LineInfo>                              lineInfos;
@@ -400,6 +404,14 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     // Build a Pass 1 expression context (symbols populated as we go)
     std::unordered_map<std::string, int32_t>  exprSymbols;
     ExprContext                                pass1Ctx = { &exprSymbols, 0 };
+
+    // Inject predefined symbols (-d flag)
+    for (const auto & predef : m_options.predefinedSymbols)
+    {
+        symbols[predef.first]     = (Word) predef.second;
+        symbolKinds[predef.first] = SymbolKind::Equ;
+        exprSymbols[predef.first] = predef.second;
+    }
 
     // Conditional assembly stack
     std::vector<ConditionalState> condStack;
@@ -415,6 +427,9 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     int          macroUniqueCounter = 0;
     static const int kMaxMacroDepth   = 15;
     static const int kMaxIncludeDepth = 16;
+
+    // Listing control state
+    int listingLevel = m_options.generateListing ? 1 : 0;
 
     // Struct definitions
     std::unordered_map<std::string, StructDefinition> structs;
@@ -473,6 +488,9 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         info.valueResolved = false;
         info.resolvedValue = 0;
         info.resolvedMode  = GlobalAddressingMode::SingleByteNoOperand;
+        info.macroDepth       = current.macroDepth;
+        info.conditionalSkip  = false;
+        info.listingSuppressed = (listingLevel <= 0);
 
         // ---- Struct definition collection ----
         if (collectingStruct)
@@ -896,6 +914,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         // Skip lines in non-assembling conditional blocks
         if (!isAssembling ())
         {
+            info.conditionalSkip = true;
             lineInfos.push_back (info);
             continue;
         }
@@ -1192,6 +1211,27 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             else if (info.parsed.directive == ".SEGMENT_NOOP")
             {
                 // Recognized but intentionally no-op
+            }
+            else if (info.parsed.directive == ".LIST")
+            {
+                listingLevel++;
+            }
+            else if (info.parsed.directive == ".NOLIST")
+            {
+                listingLevel--;
+            }
+            else if (info.parsed.directive == ".PAGE")
+            {
+                // Page break in listing — handled at listing output time
+            }
+            else if (info.parsed.directive == ".TITLE")
+            {
+                result.listingTitle = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+                if (result.listingTitle.empty () && !info.parsed.directiveArg.empty ())
+                {
+                    result.listingTitle = info.parsed.directiveArg;
+                }
             }
             else if (info.parsed.directive == ".INCLUDE")
             {
@@ -2146,29 +2186,47 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         // Build listing entry
         if (m_options.generateListing)
         {
-            AssemblyLine listLine = {};
-            listLine.lineNumber = info.parsed.lineNumber;
-
-            if (info.parsed.lineNumber >= 1 && info.parsed.lineNumber <= (int) lines.size ())
+            // Skip listing-suppressed lines unless they are conditional skips
+            if (!info.listingSuppressed || info.conditionalSkip)
             {
-                listLine.sourceText = lines[info.parsed.lineNumber - 1];
+                AssemblyLine listLine = {};
+                listLine.lineNumber = info.parsed.lineNumber;
+
+                if (info.parsed.lineNumber >= 1 && info.parsed.lineNumber <= (int) lines.size ())
+                {
+                    listLine.sourceText = lines[info.parsed.lineNumber - 1];
+                }
+
+                listLine.hasAddress         = lineHasAddress;
+                listLine.address            = info.pc;
+                listLine.isMacroExpansion   = (info.macroDepth > 0);
+                listLine.isConditionalSkip  = info.conditionalSkip;
+
+                // Look up cycle count for instructions
+                if (info.isInstruction && !info.hasError && output.size () > bytesStart)
+                {
+                    OpcodeEntry cycleEntry = {};
+
+                    if (m_opcodeTable.Lookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
+                    {
+                        listLine.cycleCounts = cycleEntry.cycleCounts;
+                    }
+                }
+
+                for (size_t j = bytesStart; j < output.size (); j++)
+                {
+                    listLine.bytes.push_back (output[j]);
+                }
+
+                result.listing.push_back (listLine);
             }
-
-            listLine.hasAddress = lineHasAddress;
-            listLine.address    = info.pc;
-
-            for (size_t j = bytesStart; j < output.size (); j++)
-            {
-                listLine.bytes.push_back (output[j]);
-            }
-
-            result.listing.push_back (listLine);
         }
     }
 
-    result.bytes      = output;
-    result.symbols    = symbols;
-    result.endAddress = result.startAddress + (Word) output.size ();
+    result.bytes       = output;
+    result.symbols     = symbols;
+    result.symbolKinds = symbolKinds;
+    result.endAddress  = result.startAddress + (Word) output.size ();
 
     // ---- Post-assembly: unused label warnings ----
     // Also track references in directive expressions
@@ -2218,12 +2276,16 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string Assembler::FormatListingLine (const AssemblyLine & line)
+std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCycleCounts)
 {
     char addrBuf[8] = {};
 
     // Address column (5 chars)
-    if (line.hasAddress)
+    if (line.isConditionalSkip)
+    {
+        snprintf (addrBuf, sizeof (addrBuf), "    -");
+    }
+    else if (line.hasAddress)
     {
         snprintf (addrBuf, sizeof (addrBuf), "$%04X", line.address);
     }
@@ -2253,5 +2315,84 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line)
         bytesStr += " ";
     }
 
-    return std::string (addrBuf) + "  " + bytesStr + line.sourceText;
+    // Cycle counts column (optional)
+    std::string cycleStr;
+
+    if (showCycleCounts && line.cycleCounts > 0)
+    {
+        char cycleBuf[8];
+        snprintf (cycleBuf, sizeof (cycleBuf), "[%d] ", line.cycleCounts);
+        cycleStr = cycleBuf;
+    }
+
+    // Macro expansion prefix
+    std::string prefix = line.isMacroExpansion ? ">" : " ";
+
+    return std::string (addrBuf) + "  " + bytesStr + cycleStr + prefix + line.sourceText;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatSymbolTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
+                                           const std::unordered_map<std::string, SymbolKind> & symbolKinds)
+{
+    // Sort symbols alphabetically
+    std::vector<std::pair<std::string, Word>> sorted (symbols.begin (), symbols.end ());
+
+    std::sort (sorted.begin (), sorted.end (),
+        [] (const auto & a, const auto & b) { return a.first < b.first; });
+
+    std::string output;
+
+    for (const auto & pair : sorted)
+    {
+        char buf[64];
+        auto kindIt = symbolKinds.find (pair.first);
+        bool isRedefinable = (kindIt != symbolKinds.end () && kindIt->second == SymbolKind::Set);
+
+        snprintf (buf, sizeof (buf), "%-24s = $%04X%s\n",
+                  pair.first.c_str (), pair.second,
+                  isRedefinable ? " *" : "");
+        output += buf;
+    }
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatDebugInfo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
+{
+    // Sort symbols by address for deterministic output
+    std::vector<std::pair<std::string, Word>> sorted (symbols.begin (), symbols.end ());
+
+    std::sort (sorted.begin (), sorted.end (),
+        [] (const auto & a, const auto & b) { return a.second < b.second; });
+
+    std::string output;
+
+    for (const auto & pair : sorted)
+    {
+        char buf[64];
+        snprintf (buf, sizeof (buf), "%s=$%04X\n", pair.first.c_str (), pair.second);
+        output += buf;
+    }
+
+    return output;
 }

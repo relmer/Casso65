@@ -37,6 +37,11 @@ int main (int argc, char * argv[])
         return DoRun (options);
     }
 
+    if (options.subcommand == CommandLineOptions::Subcommand::As65)
+    {
+        return DoAs65 (options);
+    }
+
     PrintUsage ();
     return 0;
 }

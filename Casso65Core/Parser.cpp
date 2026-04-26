@@ -272,6 +272,12 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     // Cmap
     else if (firstWordUpper == "CMAP")                                                                   { canonicalDirective = ".CMAP"; }
 
+    // Listing directives
+    else if (firstWordUpper == "LIST")                                                                   { canonicalDirective = ".LIST";   }
+    else if (firstWordUpper == "NOLIST")                                                                 { canonicalDirective = ".NOLIST"; }
+    else if (firstWordUpper == "PAGE")                                                                   { canonicalDirective = ".PAGE";   }
+    else if (firstWordUpper == "TITLE")                                                                  { canonicalDirective = ".TITLE";  }
+
     if (!canonicalDirective.empty ())
     {
         result.isDirective = true;

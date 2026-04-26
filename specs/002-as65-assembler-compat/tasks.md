@@ -220,27 +220,27 @@
 
 **Independent Test**: Assemble with `-c -l -t` and verify listing has cycle counts and symbol table
 
-- [ ] T068 [US16] Implement `list`/`nolist` cumulative enable/disable in Casso65Core/Assembler.cpp
-- [ ] T068a [US16] Implement conditional-skip display in listing output (FR-038) in Casso65Core/Assembler.cpp
-- [ ] T069 [US16] Implement `page`/`page EXPR` listing page breaks in Casso65Core/Assembler.cpp
-- [ ] T070 [US16] Implement `title "string"` listing header in Casso65Core/Assembler.cpp
-- [ ] T071 [US16] Add instruction cycle count data to OpcodeTable and `-c` listing display in Casso65Core/OpcodeTable.cpp and Casso65Core/Assembler.cpp
-- [ ] T072 [US16] Implement macro expansion `>` prefix in listing output in Casso65Core/Assembler.cpp
-- [ ] T072a [US16] Match AS65 listing column layout exactly: address format, byte display width, source text alignment, page header format, symbol table format (FR-037a, SC-011) in Casso65Core/Assembler.cpp
-- [ ] T073 [US17] Extend AssemblerOptions with all new fields (cycleCounts, macroExpansion, pageHeight, pageWidth, predefinedSymbols, caseSensitive) in Casso65Core/AssemblerTypes.h
-- [ ] T074 [US17] Implement AS65-compatible flag parsing with concatenation rules (`-tlfile` = `-t -lfile`, `-h80t` = `-h80 -t`) (FR-065c) in Casso65/CommandLine.cpp
-- [ ] T074a [US17] Implement `-l` / `-l<filename>` dual behavior and `-m` macro expansion flag (FR-065a, FR-065b) in Casso65/CommandLine.cpp
-- [ ] T074b [US17] Implement source file auto-extension (`.a65`, `.asm`, `.s`) and output file auto-extension (`.bin`/`.s19`/`.hex`) (FR-065d, FR-063) in Casso65/CommandLine.cpp
-- [ ] T074c [US17] Implement `nul` output discard and AS65 exit codes (FR-065e, FR-065g) in Casso65/Casso65.cpp
-- [ ] T074d [US17] Implement AS65-mode vs Casso65-mode detection: no subcommand keyword → AS65 mode (FR-065f) in Casso65/CommandLine.cpp
-- [ ] T074e [US17] Implement `-n` disable optimizations, `-i` case-insensitive (accept as no-op), `-h<lines>` page height, `-w<width>` column width, `-z` fill with $00 (FR-060, FR-062, FR-064, FR-065, FR-078) in Casso65/CommandLine.cpp
-- [ ] T074f [US17] Implement `-v` verbose mode (FR-059a) in Casso65/Casso65.cpp
-- [ ] T075 [US17] Wire new CLI flags to AssemblerOptions and output format selection in Casso65/Casso65.cpp
-- [ ] T076 [US17] Implement `-d<name>` symbol pre-definition in Casso65Core/Assembler.cpp
-- [ ] T076a [US17] Implement default running line counter on stderr; `-q` suppresses it (FR-059) in Casso65/Casso65.cpp
-- [ ] T077 [US17] Implement `-t` symbol table generation with asterisk for redefinable labels (FR-057) in Casso65Core/Assembler.cpp
-- [ ] T078 [US17] Implement `-g` debug information file output in Casso65Core/Assembler.cpp
-- [ ] T079 [US17] Implement `-p` pass 1 listing in Casso65Core/Assembler.cpp
+- [X] T068 [US16] Implement `list`/`nolist` cumulative enable/disable in Casso65Core/Assembler.cpp
+- [X] T068a [US16] Implement conditional-skip display in listing output (FR-038) in Casso65Core/Assembler.cpp
+- [X] T069 [US16] Implement `page`/`page EXPR` listing page breaks in Casso65Core/Assembler.cpp
+- [X] T070 [US16] Implement `title "string"` listing header in Casso65Core/Assembler.cpp
+- [X] T071 [US16] Add instruction cycle count data to OpcodeTable and `-c` listing display in Casso65Core/OpcodeTable.cpp and Casso65Core/Assembler.cpp
+- [X] T072 [US16] Implement macro expansion `>` prefix in listing output in Casso65Core/Assembler.cpp
+- [X] T072a [US16] Match AS65 listing column layout exactly: address format, byte display width, source text alignment, page header format, symbol table format (FR-037a, SC-011) in Casso65Core/Assembler.cpp
+- [X] T073 [US17] Extend AssemblerOptions with all new fields (cycleCounts, macroExpansion, pageHeight, pageWidth, predefinedSymbols, caseSensitive) in Casso65Core/AssemblerTypes.h
+- [X] T074 [US17] Implement AS65-compatible flag parsing with concatenation rules (`-tlfile` = `-t -lfile`, `-h80t` = `-h80 -t`) (FR-065c) in Casso65/CommandLine.cpp
+- [X] T074a [US17] Implement `-l` / `-l<filename>` dual behavior and `-m` macro expansion flag (FR-065a, FR-065b) in Casso65/CommandLine.cpp
+- [X] T074b [US17] Implement source file auto-extension (`.a65`, `.asm`, `.s`) and output file auto-extension (`.bin`/`.s19`/`.hex`) (FR-065d, FR-063) in Casso65/CommandLine.cpp
+- [X] T074c [US17] Implement `nul` output discard and AS65 exit codes (FR-065e, FR-065g) in Casso65/Casso65.cpp
+- [X] T074d [US17] Implement AS65-mode vs Casso65-mode detection: no subcommand keyword → AS65 mode (FR-065f) in Casso65/CommandLine.cpp
+- [X] T074e [US17] Implement `-n` disable optimizations, `-i` case-insensitive (accept as no-op), `-h<lines>` page height, `-w<width>` column width, `-z` fill with $00 (FR-060, FR-062, FR-064, FR-065, FR-078) in Casso65/CommandLine.cpp
+- [X] T074f [US17] Implement `-v` verbose mode (FR-059a) in Casso65/Casso65.cpp
+- [X] T075 [US17] Wire new CLI flags to AssemblerOptions and output format selection in Casso65/Casso65.cpp
+- [X] T076 [US17] Implement `-d<name>` symbol pre-definition in Casso65Core/Assembler.cpp
+- [X] T076a [US17] Implement default running line counter on stderr; `-q` suppresses it (FR-059) in Casso65/Casso65.cpp
+- [X] T077 [US17] Implement `-t` symbol table generation with asterisk for redefinable labels (FR-057) in Casso65Core/Assembler.cpp
+- [X] T078 [US17] Implement `-g` debug information file output in Casso65Core/Assembler.cpp
+- [X] T079 [US17] Implement `-p` pass 1 listing in Casso65Core/Assembler.cpp
 
 **Checkpoint**: Full CLI parity with AS65
 
