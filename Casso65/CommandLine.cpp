@@ -458,17 +458,17 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 {
     for (const auto & w : ar.result.warnings)
     {
-        std::cerr << std::format ("{}:{}: warning: {}\n", ar.inputFile, w.lineNumber, w.message);
+        std::println (stderr, "{}:{}: warning: {}", ar.inputFile, w.lineNumber, w.message);
     }
 
     for (const auto & e : ar.result.errors)
     {
-        std::cerr << std::format ("{}:{}: error: {}\n", ar.inputFile, e.lineNumber, e.message);
+        std::println (stderr, "{}:{}: error: {}", ar.inputFile, e.lineNumber, e.message);
     }
 
     if (!ar.ok)
     {
-        std::cerr << std::format ("Assembly failed with {} error(s)\n", ar.result.errors.size ());
+        std::println (stderr, "Assembly failed with {} error(s)", ar.result.errors.size ());
     }
 }
 
@@ -720,7 +720,7 @@ static int RunCpu (Cpu & cpu,
 
         if (!cpu.GetMicrocode (opcode).isLegal)
         {
-            std::cerr << std::format ("Illegal opcode ${:02X} at ${:04X}\n", opcode, cpu.GetPC ());
+            std::println (stderr, "Illegal opcode ${:02X} at ${:04X}", opcode, cpu.GetPC ());
             exitCode = 3;
             break;
         }
@@ -1252,9 +1252,9 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
     // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
     // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
-    std::cout << "\nGeneral:\n"
-              << std::format ("  {}help, {}?{}             Show this help\n", lp, sp, pad)
-              << std::format ("  {}version{}              Show version information\n", lp, pad);
+    std::println ("\nGeneral:");
+    std::println ("  {0}help, {1}?{2}             Show this help", lp, sp, pad);
+    std::println ("  {0}version{1}              Show version information", lp, pad);
 }
 
 
@@ -1267,43 +1267,42 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageAssembler (const char * sp, const char * pad)
+static void PrintUsageAssembler (const char * sp)
 {
-    std::cout << "\nAssembler flags:\n"
-              << "  <source>                Assembly source file (.a65, .asm, .s)\n"
-              << "                          Extension is optional; .a65, .asm, .s are tried automatically\n"
-              << "\n";
+    std::println ("");
+    std::println ("Assembler flags:");
+    std::println ("  <source>               Assembly source file");
+    std::println ("                         (will try .a65, .asm, .s if no extension is present)");
+    std::println ("");
 
-    // Short flags: no extra padding needed (- and / are both 1 char)
     const char * lines[] =
     {
-        "  {}c                     Show cycle counts in listing",
-        "  {}d <name>[=<value>]    Pre-define symbol",
-        "  {}g                     Generate debug information file",
-        "  {}h <lines>             Page height for listing (0 = no pagination)",
-        "  {}i                     Case-insensitive (default, no-op)",
-        "  {}l [<file>]            Generate listing ({}l = stdout, {}l file = to file)",
-        "  {}m                     Show macro expansions in listing",
-        "  {}n                     Disable optimizations (no-op)",
-        "  {}o <file>              Output file (default: input with .bin extension)",
-        "  {}p                     Generate pass 1 listing",
-        "  {}q                     Quiet mode (suppress progress)",
-        "  {}s                     Output S-record format (.s19)",
-        "  {}s2                    Output Intel HEX format (.hex)",
-        "  {}t                     Generate symbol table",
-        "  {}v                     Verbose mode",
-        "  {}w [<width>]           Column width (default: 79, {}w alone = 133)",
-        "  {}z                     Fill unused space with $00 (default: $FF)",
+        "  {0}c                     Show cycle counts in listing",
+        "  {0}d <name>[=<value>]    Pre-define symbol",
+        "  {0}g                     Generate debug information file",
+        "  {0}h <lines>             Page height for listing (0 = no pagination)",
+        "  {0}i                     Case-insensitive (default, no-op)",
+        "  {0}l [<file>]            Generate listing ({0}l = stdout, {0}l file = to file)",
+        "  {0}m                     Show macro expansions in listing",
+        "  {0}n                     Disable optimizations (no-op)",
+        "  {0}o <file>              Output file (default: input with .bin extension)",
+        "  {0}p                     Generate pass 1 listing",
+        "  {0}q                     Quiet mode (suppress progress)",
+        "  {0}s                     Output S-record format (.s19)",
+        "  {0}s2                    Output Intel HEX format (.hex)",
+        "  {0}t                     Generate symbol table",
+        "  {0}v                     Verbose mode",
+        "  {0}w [<width>]           Column width (default: 79, {0}w alone = 133)",
+        "  {0}z                     Fill unused space with $00 (default: $FF)",
     };
 
     for (const char * fmt : lines)
     {
-        std::cout << std::vformat (fmt, std::make_format_args (sp, sp, sp)) << "\n";
+        std::println ("{}", std::vformat (fmt, std::make_format_args (sp)));
     }
 
-    std::cout << "\n"
-              << "  Flags can be concatenated: " << sp << "tlfile = "
-              << sp << "t " << sp << "lfile\n";
+    std::println ("");
+    std::println ("  Flags can be concatenated: {0}tlfile = {0}t {0}lfile", sp);
 }
 
 
@@ -1318,28 +1317,28 @@ static void PrintUsageAssembler (const char * sp, const char * pad)
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
-    std::cout << "\nRun options:\n"
-              << "  <binary>                A binary file to load and execute\n"
-              << "  <source>                An assembly source file (.a65, .asm, .s) to assemble and run\n"
-              << "\n";
+    std::println ("");
+    std::println ("Run options:");
+    std::println ("  <binary>               A binary file to load and execute");
+    std::println ("  <source>               An assembly source file to assemble and run");
+    std::println ("                         (will try .a65, .asm, .s if no extension is present)");
+    std::println ("");
 
-    // Long-prefix flags need padding to align (-- is 2 chars, / is 1)
     const char * lines[] =
     {
-        "  {}load <addr>{}          Load address (default: $8000)",
-        "  {}entry <addr>{}         Entry point address",
-        "  {}reset-vector{}         Use reset vector at $FFFC/$FFFD",
-        "  {}stop <addr>{}          Stop when PC reaches address",
-        "  {}max-cycles <n>{}       Maximum cycles before stopping",
+        "  {0}load <addr>{1}          Load address (default: $8000)",
+        "  {0}entry <addr>{1}         Entry point address",
+        "  {0}reset-vector{1}         Use reset vector at $FFFC/$FFFD",
+        "  {0}stop <addr>{1}          Stop when PC reaches address",
+        "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
     };
 
     for (const char * fmt : lines)
     {
-        std::cout << std::vformat (fmt, std::make_format_args (lp, pad)) << "\n";
+        std::println ("{}", std::vformat (fmt, std::make_format_args (lp, pad)));
     }
 
-    // -v is short prefix, no padding needed
-    std::cout << "  " << sp << "v                     Verbose output\n";
+    std::println ("  {0}v                     Verbose output", sp);
 }
 
 
@@ -1362,7 +1361,7 @@ void PrintUsage (char prefix)
 
     PrintUsageHeader    (sp, lp);
     PrintUsageGeneral   (lp, sp, pad);
-    PrintUsageAssembler (sp, pad);
+    PrintUsageAssembler (sp);
     PrintUsageRun       (lp, sp, pad);
 }
 
@@ -1511,7 +1510,7 @@ int DoAs65 (const CommandLineOptions & options)
     {
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime);
         std::cerr << "Pass 2...\n";
-        std::cerr << std::format ("Assembly time: {} us\n", elapsed.count ());
+        std::println (stderr, "Assembly time: {} us", elapsed.count ());
     }
 
     bool hasWarnings = !ar.result.warnings.empty ();
@@ -1562,11 +1561,11 @@ int DoAs65 (const CommandLineOptions & options)
     if (options.verbose)
     {
         std::cerr << "Assembly successful\n";
-        std::cerr << std::format ("  Output:  {}\n", options.outputFile);
-        std::cerr << std::format ("  Bytes:   {}\n", ar.result.bytes.size ());
-        std::cerr << std::format ("  Start:   ${:04X}\n", ar.result.startAddress);
-        std::cerr << std::format ("  End:     ${:04X}\n", ar.result.endAddress);
-        std::cerr << std::format ("  Symbols: {}\n", ar.result.symbols.size ());
+        std::println (stderr, "  Output:  {}", options.outputFile);
+        std::println (stderr, "  Bytes:   {}", ar.result.bytes.size ());
+        std::println (stderr, "  Start:   ${:04X}", ar.result.startAddress);
+        std::println (stderr, "  End:     ${:04X}", ar.result.endAddress);
+        std::println (stderr, "  Symbols: {}", ar.result.symbols.size ());
     }
 
     return hasWarnings ? 1 : 0;
