@@ -1090,15 +1090,19 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
         {
             std::string dir = info.parsed.directive;
 
-            if (dir == ".IF")       { condDirective = "IF";    condArg = info.parsed.directiveArg; }
-            else if (dir == ".ELSE")  { condDirective = "ELSE"; }
-            else if (dir == ".ENDIF") { condDirective = "ENDIF"; }
+            if (dir == ".IF")         { condDirective = "IF";     condArg = info.parsed.directiveArg; }
+            else if (dir == ".IFDEF")  { condDirective = "IFDEF";  condArg = info.parsed.directiveArg; }
+            else if (dir == ".IFNDEF") { condDirective = "IFNDEF"; condArg = info.parsed.directiveArg; }
+            else if (dir == ".ELSE")   { condDirective = "ELSE"; }
+            else if (dir == ".ENDIF")  { condDirective = "ENDIF"; }
         }
         else if (!info.parsed.mnemonic.empty ())
         {
-            if (info.parsed.mnemonic == "IF")        { condDirective = "IF";    condArg = info.parsed.operand; }
-            else if (info.parsed.mnemonic == "ELSE")  { condDirective = "ELSE"; }
-            else if (info.parsed.mnemonic == "ENDIF") { condDirective = "ENDIF"; }
+            if (info.parsed.mnemonic == "IF")         { condDirective = "IF";     condArg = info.parsed.operand; }
+            else if (info.parsed.mnemonic == "IFDEF")  { condDirective = "IFDEF";  condArg = info.parsed.operand; }
+            else if (info.parsed.mnemonic == "IFNDEF") { condDirective = "IFNDEF"; condArg = info.parsed.operand; }
+            else if (info.parsed.mnemonic == "ELSE")   { condDirective = "ELSE"; }
+            else if (info.parsed.mnemonic == "ENDIF")  { condDirective = "ENDIF"; }
         }
 
         if (!condDirective.empty ())
@@ -1127,6 +1131,35 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     {
                         state.assembling = (er.value != 0);
                     }
+                }
+                else
+                {
+                    state.assembling = false;
+                }
+
+                condStack.push_back (state);
+            }
+            else if (condDirective == "IFDEF" || condDirective == "IFNDEF")
+            {
+                ConditionalState state = {};
+                state.parentAssembling = isAssembling ();
+                state.seenElse = false;
+
+                if (state.parentAssembling)
+                {
+                    std::string symName = condArg;
+
+                    // Trim whitespace
+                    size_t s = symName.find_first_not_of (" \t");
+                    size_t e = symName.find_last_not_of (" \t");
+
+                    if (s != std::string::npos)
+                    {
+                        symName = symName.substr (s, e - s + 1);
+                    }
+
+                    bool defined = (exprSymbols.find (symName) != exprSymbols.end ());
+                    state.assembling = (condDirective == "IFDEF") ? defined : !defined;
                 }
                 else
                 {
@@ -1878,7 +1911,9 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                         size_t sp2 = elUpper2.find_first_of (" \t");
                         std::string firstWord = (sp2 == std::string::npos) ? elUpper2 : elUpper2.substr (0, sp2);
 
-                        if (firstWord == "IF" || firstWord == ".IF")
+                        if (firstWord == "IF" || firstWord == ".IF" ||
+                            firstWord == "IFDEF" || firstWord == ".IFDEF" ||
+                            firstWord == "IFNDEF" || firstWord == ".IFNDEF")
                         {
                             ifDepth++;
                         }
@@ -2266,7 +2301,58 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
     ExprContext pass2Ctx = { &fullSymbols, 0 };
 
-    // Resolve deferred equ constants (can forward-reference labels)
+    // Resolve deferred equ constants with fixpoint iteration (handles forward-reference chains)
+    bool madeProgress = true;
+    int  iterations   = 0;
+
+    while (madeProgress && iterations < 100)
+    {
+        madeProgress = false;
+        iterations++;
+
+        for (const auto & info : lineInfos)
+        {
+            if (!info.isConstant || !info.parsed.isConstant)
+            {
+                continue;
+            }
+
+            if (info.parsed.constantKind != SymbolKind::Equ)
+            {
+                continue;
+            }
+
+            if (fullSymbols.find (info.parsed.constantName) != fullSymbols.end ())
+            {
+                continue;  // already resolved
+            }
+
+            const std::string & expr = info.parsed.constantExpr;
+
+            // Check for string literal — value is the string length
+            if (expr.size () >= 2 && expr.front () == '"' && expr.back () == '"')
+            {
+                int32_t len = (int32_t) (expr.size () - 2);
+                symbols[info.parsed.constantName]     = (Word) len;
+                fullSymbols[info.parsed.constantName] = len;
+                madeProgress = true;
+            }
+            else
+            {
+                pass2Ctx.currentPC = (int32_t) info.pc;
+                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass2Ctx);
+
+                if (er.success)
+                {
+                    symbols[info.parsed.constantName]     = (Word) er.value;
+                    fullSymbols[info.parsed.constantName] = er.value;
+                    madeProgress = true;
+                }
+            }
+        }
+    }
+
+    // Report errors for any still-unresolved equs
     for (const auto & info : lineInfos)
     {
         if (!info.isConstant || !info.parsed.isConstant)
@@ -2276,34 +2362,11 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
         if (info.parsed.constantKind == SymbolKind::Equ && fullSymbols.find (info.parsed.constantName) == fullSymbols.end ())
         {
-            const std::string & expr = info.parsed.constantExpr;
-
-            // Check for string literal — value is the string length
-            if (expr.size () >= 2 && expr.front () == '"' && expr.back () == '"')
-            {
-                int32_t len = (int32_t) (expr.size () - 2);
-                symbols[info.parsed.constantName]     = (Word) len;
-                fullSymbols[info.parsed.constantName] = len;
-            }
-            else
-            {
-                pass2Ctx.currentPC = (int32_t) info.pc;
-                ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, pass2Ctx);
-
-                if (!er.success)
-                {
-                    AssemblyError error = {};
-                    error.lineNumber = info.parsed.lineNumber;
-                    error.message    = "Cannot resolve equ expression: " + info.parsed.constantExpr;
-                    result.errors.push_back (error);
-                    result.success = false;
-                }
-                else
-                {
-                    symbols[info.parsed.constantName]     = (Word) er.value;
-                    fullSymbols[info.parsed.constantName] = er.value;
-                }
-            }
+            AssemblyError error = {};
+            error.lineNumber = info.parsed.lineNumber;
+            error.message    = "Cannot resolve equ expression: " + info.parsed.constantExpr;
+            result.errors.push_back (error);
+            result.success = false;
         }
     }
 

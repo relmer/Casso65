@@ -290,6 +290,10 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     // Cmap
     else if (firstWordUpper == "CMAP")                                                                   { canonicalDirective = ".CMAP"; }
 
+    // Conditional directives
+    else if (firstWordUpper == "IFDEF")                                                                  { canonicalDirective = ".IFDEF";  }
+    else if (firstWordUpper == "IFNDEF")                                                                 { canonicalDirective = ".IFNDEF"; }
+
     // Listing directives
     else if (firstWordUpper == "LIST")                                                                   { canonicalDirective = ".LIST";   }
     else if (firstWordUpper == "NOLIST")                                                                 { canonicalDirective = ".NOLIST"; }

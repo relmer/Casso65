@@ -157,5 +157,25 @@ namespace OutputFormatTests
             // Record should contain address 2000
             Assert::IsTrue (output.find ("200000") != std::string::npos, L"Should contain address");
         }
+
+
+
+
+
+        TEST_METHOD (IntelHex_StartAddressRecord)
+        {
+            std::vector<Byte> data = { 0xA9, 0x42, 0xEA };
+            std::ostringstream oss;
+
+
+
+            OutputFormats::WriteIntelHex (data, 0x1000, 0x1003, 0x1000, oss);
+            std::string output = oss.str ();
+
+            // Should have data record starting with colon and EOF record
+            Assert::IsTrue (output[0] == ':', L"First record should start with colon");
+            Assert::IsTrue (output.find (":00000001FF") != std::string::npos, L"Should have EOF record");
+            Assert::IsTrue (output.find ("A942EA") != std::string::npos, L"Should contain all data bytes");
+        }
     };
 }

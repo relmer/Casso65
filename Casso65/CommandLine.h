@@ -11,9 +11,11 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand { None, Assemble, Run, Help, Version, As65 };
+    enum class Subcommand    { None, Assemble, Run, Help, Version, As65 };
+    enum class OutputFormat  { Binary, SRecord, IntelHex };
 
     Subcommand  subcommand      = Subcommand::None;
+    OutputFormat outputFormat    = OutputFormat::Binary;
     std::string inputFile;
     std::string outputFile;
     std::string listingFile;     // -l<file> listing output file

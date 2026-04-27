@@ -562,10 +562,24 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
             }
 
             case 's':
-                // S-record output: auto-set output extension
-                if (!rest.empty ())
+                // -s = S-record output (.s19), -s2 = Intel HEX output (.hex)
+                if (!rest.empty () && rest[0] == '2')
                 {
-                    options.outputFile = rest;
+                    options.outputFormat = CommandLineOptions::OutputFormat::IntelHex;
+
+                    if (rest.size () > 1)
+                    {
+                        options.outputFile = rest.substr (1);
+                    }
+                }
+                else
+                {
+                    options.outputFormat = CommandLineOptions::OutputFormat::SRecord;
+
+                    if (!rest.empty ())
+                    {
+                        options.outputFile = rest;
+                    }
                 }
 
                 pos = arg.size ();
@@ -646,7 +660,18 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
         // Auto-generate output file if not specified
         if (options.outputFile.empty () && !options.inputFile.empty ())
         {
-            options.outputFile = StripExtension (options.inputFile) + ".bin";
+            std::string ext = ".bin";
+
+            if (options.outputFormat == CommandLineOptions::OutputFormat::SRecord)
+            {
+                ext = ".s19";
+            }
+            else if (options.outputFormat == CommandLineOptions::OutputFormat::IntelHex)
+            {
+                ext = ".hex";
+            }
+
+            options.outputFile = StripExtension (options.inputFile) + ext;
         }
 
         // Auto-generate debug file if -g but no file specified
