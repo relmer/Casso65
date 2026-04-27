@@ -41,6 +41,267 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetLowerExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::string GetLowerExtension (const std::string & filename)
+{
+    size_t dot = filename.rfind ('.');
+
+    if (dot == std::string::npos)
+    {
+        return "";
+    }
+
+    std::string ext = filename.substr (dot);
+
+    for (auto & c : ext)
+    {
+        c = (char) std::tolower ((unsigned char) c);
+    }
+
+    return ext;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HexCharToNibble
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int HexCharToNibble (char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HexByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int HexByte (const std::string & s, size_t offset)
+{
+    if (offset + 1 >= s.size ())
+    {
+        return -1;
+    }
+
+    int hi = HexCharToNibble (s[offset]);
+    int lo = HexCharToNibble (s[offset + 1]);
+
+    if (hi < 0 || lo < 0)
+    {
+        return -1;
+    }
+
+    return (hi << 4) | lo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseSRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::vector<Byte> ParseSRecord (const std::string & content)
+{
+    std::vector<Byte> data;
+    std::istringstream stream (content);
+    std::string line;
+
+
+
+    while (std::getline (stream, line))
+    {
+        // Trim trailing CR
+        if (!line.empty () && line.back () == '\r')
+        {
+            line.pop_back ();
+        }
+
+        if (line.size () < 2 || line[0] != 'S')
+        {
+            continue;
+        }
+
+        char recType = line[1];
+
+        // S1: 2-byte address, S2: 3-byte address, S3: 4-byte address
+        int addrBytes = 0;
+
+        if (recType == '1')      addrBytes = 2;
+        else if (recType == '2') addrBytes = 3;
+        else if (recType == '3') addrBytes = 4;
+        else                     continue;
+
+        if (line.size () < 4)
+        {
+            continue;
+        }
+
+        int byteCount = HexByte (line, 2);
+
+        if (byteCount < 0)
+        {
+            continue;
+        }
+
+        // Data bytes = byteCount - address bytes - 1 checksum byte
+        int dataBytes = byteCount - addrBytes - 1;
+
+        if (dataBytes <= 0)
+        {
+            continue;
+        }
+
+        // Data starts after "Sn" + 2-char count + address hex chars
+        size_t dataOffset = 4 + (size_t) addrBytes * 2;
+
+        for (int i = 0; i < dataBytes; i++)
+        {
+            int b = HexByte (line, dataOffset + (size_t) i * 2);
+
+            if (b >= 0)
+            {
+                data.push_back ((Byte) b);
+            }
+        }
+    }
+
+    return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseIntelHex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::vector<Byte> ParseIntelHex (const std::string & content)
+{
+    std::vector<Byte> data;
+    std::istringstream stream (content);
+    std::string line;
+
+
+
+    while (std::getline (stream, line))
+    {
+        // Trim trailing CR
+        if (!line.empty () && line.back () == '\r')
+        {
+            line.pop_back ();
+        }
+
+        if (line.empty () || line[0] != ':')
+        {
+            continue;
+        }
+
+        if (line.size () < 11)
+        {
+            continue;
+        }
+
+        int byteCount  = HexByte (line, 1);
+        int recordType = HexByte (line, 7);
+
+        if (byteCount < 0 || recordType < 0)
+        {
+            continue;
+        }
+
+        // Only process data records (type 00)
+        if (recordType != 0x00)
+        {
+            continue;
+        }
+
+        size_t dataOffset = 9;
+
+        for (int i = 0; i < byteCount; i++)
+        {
+            int b = HexByte (line, dataOffset + (size_t) i * 2);
+
+            if (b >= 0)
+            {
+                data.push_back ((Byte) b);
+            }
+        }
+    }
+
+    return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GenerateByteDirectives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::vector<std::string> GenerateByteDirectives (const std::vector<Byte> & data)
+{
+    std::vector<std::string> lines;
+
+    static const int kBytesPerLine = 16;
+
+
+
+    for (size_t i = 0; i < data.size (); i += kBytesPerLine)
+    {
+        std::string line = "    .byte ";
+
+        size_t end = std::min (i + kBytesPerLine, data.size ());
+
+        for (size_t j = i; j < end; j++)
+        {
+            if (j > i)
+            {
+                line += ",";
+            }
+
+            char buf[8];
+            snprintf (buf, sizeof (buf), "$%02X", data[j]);
+            line += buf;
+        }
+
+        lines.push_back (line);
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Assembler
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1296,19 +1557,55 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                     }
                     else
                     {
-                        auto includeLines = Parser::SplitLines (fr.contents);
+                        std::string ext = GetLowerExtension (filename);
+                        std::vector<std::string> synthLines;
 
-                        // Insert at front of queue (reverse order)
-                        for (int il = (int) includeLines.size () - 1; il >= 0; il--)
+                        if (ext == ".bin")
                         {
-                            PendingLine pl = {};
-                            pl.text             = includeLines[il];
-                            pl.sourceLineNumber = il + 1;
-                            pl.macroDepth       = current.macroDepth;
-                            pl.includeDepth     = current.includeDepth + 1;
-                            pl.sourceFile       = filename;
-                            pendingLines.push_front (pl);
+                            std::vector<Byte> raw (fr.contents.begin (), fr.contents.end ());
+                            synthLines = GenerateByteDirectives (raw);
                         }
+                        else if (ext == ".s19" || ext == ".s28" || ext == ".s37")
+                        {
+                            synthLines = GenerateByteDirectives (ParseSRecord (fr.contents));
+                        }
+                        else if (ext == ".hex")
+                        {
+                            synthLines = GenerateByteDirectives (ParseIntelHex (fr.contents));
+                        }
+
+                        if (!synthLines.empty ())
+                        {
+                            // Binary include — push synthetic .byte directives
+                            for (int il = (int) synthLines.size () - 1; il >= 0; il--)
+                            {
+                                PendingLine pl = {};
+                                pl.text             = synthLines[il];
+                                pl.sourceLineNumber = current.sourceLineNumber;
+                                pl.macroDepth       = current.macroDepth;
+                                pl.includeDepth     = current.includeDepth + 1;
+                                pl.sourceFile       = filename;
+                                pendingLines.push_front (pl);
+                            }
+                        }
+                        else if (ext != ".bin" && ext != ".s19" && ext != ".s28"
+                              && ext != ".s37" && ext != ".hex")
+                        {
+                            // Assembly source include
+                            auto includeLines = Parser::SplitLines (fr.contents);
+
+                            for (int il = (int) includeLines.size () - 1; il >= 0; il--)
+                            {
+                                PendingLine pl = {};
+                                pl.text             = includeLines[il];
+                                pl.sourceLineNumber = il + 1;
+                                pl.macroDepth       = current.macroDepth;
+                                pl.includeDepth     = current.includeDepth + 1;
+                                pl.sourceFile       = filename;
+                                pendingLines.push_front (pl);
+                            }
+                        }
+                        // else: binary format with no data — nothing to emit
                     }
                 }
             }
