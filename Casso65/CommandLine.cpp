@@ -371,10 +371,16 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
         std::string arg (argv[argIndex]);
 
         // Check for help requests
-        if (arg == "--help" || arg == "-?" || arg == "/?")
+        if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help")
         {
             options.showHelp = true;
             return;
+        }
+
+        // Normalize / prefix to - for flag parsing
+        if (arg[0] == '/')
+        {
+            arg[0] = '-';
         }
 
         // Non-flag argument is the input file
@@ -631,17 +637,22 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
     int argIndex = 1;
 
-    // Check for --help / --version first
+    // Check for --help / --version first (accept / prefix on Windows)
     std::string first (argv[1]);
 
-    if (first == "--help" || first == "-h" || first == "-?" || first == "/?")
+    if (first[0] == '/')
+    {
+        first[0] = '-';
+    }
+
+    if (first == "--help" || first == "-help" || first == "-h" || first == "-?")
     {
         options.subcommand = CommandLineOptions::Subcommand::Help;
         options.showHelp   = true;
         return options;
     }
 
-    if (first == "--version")
+    if (first == "--version" || first == "-version")
     {
         options.subcommand  = CommandLineOptions::Subcommand::Version;
         options.showVersion = true;
@@ -695,6 +706,12 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
     while (argIndex < argc)
     {
         std::string arg (argv[argIndex]);
+
+        // Normalize / prefix to - on Windows
+        if (arg.size () > 1 && arg[0] == '/')
+        {
+            arg[0] = '-';
+        }
 
         if (arg == "-o" && argIndex + 1 < argc)
         {
@@ -806,8 +823,8 @@ void PrintUsage ()
               << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
               << "\n"
               << "Usage:\n"
-              << "  Casso65 <input> [flags]               (assemble)\n"
-              << "  Casso65 run <input> [options]          (run binary)\n"
+              << "  Casso65 <source.a65> [flags]           (assemble)\n"
+              << "  Casso65 run <binary.bin> [options]      (run in emulator)\n"
               << "  Casso65 --help | -? | /?\n"
               << "  Casso65 --version\n"
               << "\n"
