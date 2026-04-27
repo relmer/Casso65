@@ -231,9 +231,7 @@ static bool WriteSymbolFile (const std::string & path, const std::unordered_map<
 
     for (const auto & pair : sorted)
     {
-        char buf[32];
-        snprintf (buf, sizeof (buf), "$%04X  %s\n", pair.second, pair.first.c_str ());
-        file << buf;
+        file << std::format ("${:04X}  {}\n", pair.second, pair.first);
     }
 
     return file.good ();
@@ -426,6 +424,11 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
                 if (!rest.empty ())
                 {
                     options.listingFile = rest;
+                    pos = arg.size ();
+                }
+                else if (argIndex + 1 < argc && argv[argIndex + 1][0] != '-' && argv[argIndex + 1][0] != '/')
+                {
+                    options.listingFile = argv[++argIndex];
                     pos = arg.size ();
                 }
                 else
@@ -845,23 +848,12 @@ static void PrintUsageHeader (const char * sp, const char * lp)
 
 static void PrintUsageGeneral (const char * lp, const char * sp, const char * pad)
 {
-    char line1[128];
-    char line2[128];
-
     // "--help, -?" = 10 chars, "--version" = 9 chars => +1 space for version
     // "/help, /?"  =  9 chars, "/version"  = 8 chars => +1 space for version
     // pad compensates: -- (2 chars) vs / (1 char) in long prefix
-    snprintf (line1, sizeof (line1),
-              "  %shelp, %s?%s             Show this help",
-              lp, sp, pad);
-
-    snprintf (line2, sizeof (line2),
-              "  %sversion%s              Show version information",
-              lp, pad);
-
     std::cout << "\nGeneral:\n"
-              << line1 << "\n"
-              << line2 << "\n";
+              << std::format ("  {}help, {}?{}             Show this help\n", lp, sp, pad)
+              << std::format ("  {}version{}              Show version information\n", lp, pad);
 }
 
 
@@ -870,42 +862,39 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintUsageAssemble
+//  PrintUsageAssembler
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PrintUsageAssemble (const char * sp, const char * pad)
+static void PrintUsageAssembler (const char * sp, const char * pad)
 {
-    std::cout << "\nAssemble flags:\n";
+    std::cout << "\nAssembler flags:\n";
 
     // Short flags: no extra padding needed (- and / are both 1 char)
     const char * lines[] =
     {
-        "  %sc                     Show cycle counts in listing",
-        "  %sd <name>[=<value>]    Pre-define symbol",
-        "  %sg                     Generate debug information file",
-        "  %sh <lines>             Page height for listing (0 = no pagination)",
-        "  %si                     Case-insensitive (default, no-op)",
-        "  %sl [<file>]            Generate listing (%sl = stdout, %slfile = to file)",
-        "  %sm                     Show macro expansions in listing",
-        "  %sn                     Disable optimizations (no-op)",
-        "  %so <file>              Output file (default: input with .bin extension)",
-        "  %sp                     Generate pass 1 listing",
-        "  %sq                     Quiet mode (suppress progress)",
-        "  %ss                     Output S-record format (.s19)",
-        "  %ss2                    Output Intel HEX format (.hex)",
-        "  %st                     Generate symbol table",
-        "  %sv                     Verbose mode",
-        "  %sw [<width>]           Column width (default: 79, %sw alone = 133)",
-        "  %sz                     Fill unused space with $00 (default: $FF)",
+        "  {}c                     Show cycle counts in listing",
+        "  {}d <name>[=<value>]    Pre-define symbol",
+        "  {}g                     Generate debug information file",
+        "  {}h <lines>             Page height for listing (0 = no pagination)",
+        "  {}i                     Case-insensitive (default, no-op)",
+        "  {}l [<file>]            Generate listing ({}l = stdout, {}lfile = to file)",
+        "  {}m                     Show macro expansions in listing",
+        "  {}n                     Disable optimizations (no-op)",
+        "  {}o <file>              Output file (default: input with .bin extension)",
+        "  {}p                     Generate pass 1 listing",
+        "  {}q                     Quiet mode (suppress progress)",
+        "  {}s                     Output S-record format (.s19)",
+        "  {}s2                    Output Intel HEX format (.hex)",
+        "  {}t                     Generate symbol table",
+        "  {}v                     Verbose mode",
+        "  {}w [<width>]           Column width (default: 79, {}w alone = 133)",
+        "  {}z                     Fill unused space with $00 (default: $FF)",
     };
-
-    char buf[128];
 
     for (const char * fmt : lines)
     {
-        snprintf (buf, sizeof (buf), fmt, sp, sp, sp);
-        std::cout << buf << "\n";
+        std::cout << std::vformat (fmt, std::make_format_args (sp, sp, sp)) << "\n";
     }
 
     std::cout << "\n"
@@ -926,24 +915,21 @@ static void PrintUsageAssemble (const char * sp, const char * pad)
 
 static void PrintUsageRun (const char * lp, const char * sp, const char * pad)
 {
-    char buf[128];
-
     // Long-prefix flags need padding to align (-- is 2 chars, / is 1)
     const char * lines[] =
     {
-        "  %sload <addr>%s          Load address (default: $8000)",
-        "  %sentry <addr>%s         Entry point address",
-        "  %sreset-vector%s         Use reset vector at $FFFC/$FFFD",
-        "  %sstop <addr>%s          Stop when PC reaches address",
-        "  %smax-cycles <n>%s       Maximum cycles before stopping",
+        "  {}load <addr>{}          Load address (default: $8000)",
+        "  {}entry <addr>{}         Entry point address",
+        "  {}reset-vector{}         Use reset vector at $FFFC/$FFFD",
+        "  {}stop <addr>{}          Stop when PC reaches address",
+        "  {}max-cycles <n>{}       Maximum cycles before stopping",
     };
 
     std::cout << "\nRun options:\n";
 
     for (const char * fmt : lines)
     {
-        snprintf (buf, sizeof (buf), fmt, lp, pad);
-        std::cout << buf << "\n";
+        std::cout << std::vformat (fmt, std::make_format_args (lp, pad)) << "\n";
     }
 
     // -v is short prefix, no padding needed
@@ -968,10 +954,10 @@ void PrintUsage (char prefix)
 
 
 
-    PrintUsageHeader   (sp, lp);
-    PrintUsageGeneral  (lp, sp, pad);
-    PrintUsageAssemble (sp, pad);
-    PrintUsageRun      (lp, sp, pad);
+    PrintUsageHeader    (sp, lp);
+    PrintUsageGeneral   (lp, sp, pad);
+    PrintUsageAssembler (sp, pad);
+    PrintUsageRun       (lp, sp, pad);
 }
 
 
@@ -1066,9 +1052,7 @@ int DoRun (const CommandLineOptions & options)
         {
             std::cerr << "Assembled " << result.bytes.size () << " bytes\n";
 
-            char buf[16];
-            snprintf (buf, sizeof (buf), "$%04X", result.startAddress);
-            std::cerr << "  Start: " << buf << "\n";
+            std::cerr << "  Start: " << std::format ("${:04X}", result.startAddress) << "\n";
         }
     }
     else
@@ -1113,9 +1097,7 @@ int DoRun (const CommandLineOptions & options)
 
     if (options.verbose)
     {
-        char buf[16];
-        snprintf (buf, sizeof (buf), "$%04X", entryPoint);
-        std::cerr << "Executing from " << buf << "\n";
+        std::cerr << "Executing from " << std::format ("${:04X}", entryPoint) << "\n";
     }
 
     uint32_t cycles    = 0;
@@ -1139,9 +1121,8 @@ int DoRun (const CommandLineOptions & options)
 
         if (!cpu.GetMicrocode (opcode).isLegal)
         {
-            char buf[16];
-            snprintf (buf, sizeof (buf), "$%04X", cpu.GetPC ());
-            std::cerr << "Illegal opcode $" << std::hex << (int) opcode << " at " << buf << "\n";
+            std::cerr << "Illegal opcode $" << std::hex << (int) opcode << " at "
+                      << std::format ("${:04X}", cpu.GetPC ()) << "\n";
             exitCode = 3;
             stopped  = true;
             break;
@@ -1151,9 +1132,7 @@ int DoRun (const CommandLineOptions & options)
         {
             if (options.verbose)
             {
-                char buf[16];
-                snprintf (buf, sizeof (buf), "$%04X", options.stopAddress);
-                std::cerr << "Stopped at address " << buf << "\n";
+                std::cerr << "Stopped at address " << std::format ("${:04X}", options.stopAddress) << "\n";
             }
 
             stopped = true;
@@ -1165,9 +1144,7 @@ int DoRun (const CommandLineOptions & options)
         {
             if (options.verbose)
             {
-                char buf[16];
-                snprintf (buf, sizeof (buf), "$%04X", cpu.GetPC ());
-                std::cerr << "BRK encountered at " << buf << "\n";
+                std::cerr << "BRK encountered at " << std::format ("${:04X}", cpu.GetPC ()) << "\n";
             }
 
             stopped = true;
@@ -1424,12 +1401,9 @@ int DoAs65 (const CommandLineOptions & options)
         std::cerr << "  Output:  " << options.outputFile << "\n";
         std::cerr << "  Bytes:   " << result.bytes.size () << "\n";
 
-        char addrBuf[16];
-        snprintf (addrBuf, sizeof (addrBuf), "$%04X", result.startAddress);
-        std::cerr << "  Start:   " << addrBuf << "\n";
+        std::cerr << "  Start:   " << std::format ("${:04X}", result.startAddress) << "\n";
 
-        snprintf (addrBuf, sizeof (addrBuf), "$%04X", result.endAddress);
-        std::cerr << "  End:     " << addrBuf << "\n";
+        std::cerr << "  End:     " << std::format ("${:04X}", result.endAddress) << "\n";
 
         std::cerr << "  Symbols: " << result.symbols.size () << "\n";
     }

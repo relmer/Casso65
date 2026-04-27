@@ -285,9 +285,7 @@ static std::vector<std::string> GenerateByteDirectives (const std::vector<Byte> 
                 line += ",";
             }
 
-            char buf[8];
-            snprintf (buf, sizeof (buf), "$%02X", data[j]);
-            line += buf;
+            line += std::format ("${:02X}", data[j]);
         }
 
         lines.push_back (line);
@@ -1854,9 +1852,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
             // Generate unique suffix for \?
             macroUniqueCounter++;
-            char uniqueBuf[8];
-            snprintf (uniqueBuf, sizeof (uniqueBuf), "%04d", macroUniqueCounter);
-            std::string uniqueSuffix (uniqueBuf);
+            std::string uniqueSuffix = std::format ("{:04d}", macroUniqueCounter);
 
             // Expand macro body with argument substitution
             const auto & macroDef = macroIt->second;
@@ -2866,24 +2862,23 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
 std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCycleCounts)
 {
-    char lineNumBuf[8] = {};
-    char addrBuf[8]    = {};
-
     // Line number column (cols 1-5, right-justified)
-    snprintf (lineNumBuf, sizeof (lineNumBuf), "%5d", line.lineNumber);
+    std::string lineNumStr = std::format ("{:5d}", line.lineNumber);
 
     // Address column (cols 7-10, 4 hex digits, no $ prefix)
+    std::string addrStr;
+
     if (line.isConditionalSkip)
     {
-        snprintf (addrBuf, sizeof (addrBuf), "   -");
+        addrStr = "   -";
     }
     else if (line.hasAddress)
     {
-        snprintf (addrBuf, sizeof (addrBuf), "%04X", line.address);
+        addrStr = std::format ("{:04X}", line.address);
     }
     else
     {
-        snprintf (addrBuf, sizeof (addrBuf), "    ");
+        addrStr = "    ";
     }
 
     // Bytes column (cols 14-22, up to 3 hex bytes, padded to 9 chars)
@@ -2891,15 +2886,12 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 
     for (size_t i = 0; i < line.bytes.size () && i < 3; i++)
     {
-        char hexBuf[4];
-
         if (i > 0)
         {
             bytesStr += " ";
         }
 
-        snprintf (hexBuf, sizeof (hexBuf), "%02X", line.bytes[i]);
-        bytesStr += hexBuf;
+        bytesStr += std::format ("{:02X}", line.bytes[i]);
     }
 
     while (bytesStr.size () < 9)
@@ -2912,16 +2904,14 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 
     if (showCycleCounts && line.cycleCounts > 0)
     {
-        char cycleBuf[8];
-        snprintf (cycleBuf, sizeof (cycleBuf), "[%d] ", line.cycleCounts);
-        cycleStr = cycleBuf;
+        cycleStr = std::format ("[{}] ", line.cycleCounts);
     }
 
     // Macro expansion prefix (col 23)
     std::string prefix = line.isMacroExpansion ? ">" : " ";
 
     // AS65 layout: linenum(5) space(1) addr(4) spaces(3) bytes(9) prefix(1) source
-    return std::string (lineNumBuf) + " " + std::string (addrBuf) + "   " +
+    return lineNumStr + " " + addrStr + "   " +
            bytesStr + cycleStr + prefix + line.sourceText;
 }
 
@@ -2948,13 +2938,11 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
     for (const auto & pair : sorted)
     {
-        char buf[64];
         auto kindIt = symbolKinds.find (pair.first);
         bool isRedefinable = (kindIt != symbolKinds.end () && kindIt->second == SymbolKind::Set);
 
         std::string fullName = (isRedefinable ? "*" : "") + pair.first;
-        snprintf (buf, sizeof (buf), "%-16s$%04X\n", fullName.c_str (), pair.second);
-        output += buf;
+        output += std::format ("{:<16s}${:04X}\n", fullName, pair.second);
     }
 
     return output;
@@ -2982,9 +2970,7 @@ std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Wo
 
     for (const auto & pair : sorted)
     {
-        char buf[64];
-        snprintf (buf, sizeof (buf), "%s=$%04X\n", pair.first.c_str (), pair.second);
-        output += buf;
+        output += std::format ("{}=${:04X}\n", pair.first, pair.second);
     }
 
     return output;
