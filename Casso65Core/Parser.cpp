@@ -53,7 +53,42 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
         lines.push_back ("");
     }
 
-    return lines;
+    // Join continuation lines (trailing backslash before EOL)
+    std::vector<std::string> joined;
+    std::string              current;
+
+    for (const auto & raw : lines)
+    {
+        size_t last = raw.find_last_not_of (" \t\r");
+
+        if (last != std::string::npos && raw[last] == '\\')
+        {
+            // Check for escaped backslash (\\) — not a continuation
+            if (last > 0 && raw[last - 1] == '\\')
+            {
+                current += raw;
+                joined.push_back (current);
+                current.clear ();
+            }
+            else
+            {
+                current += raw.substr (0, last);
+            }
+        }
+        else
+        {
+            current += raw;
+            joined.push_back (current);
+            current.clear ();
+        }
+    }
+
+    if (!current.empty ())
+    {
+        joined.push_back (current);
+    }
+
+    return joined;
 }
 
 

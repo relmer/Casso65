@@ -190,4 +190,38 @@ namespace MacroTests
             Assert::AreEqual ((Byte) 0x55, result.bytes[0]);
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  LineContinuationTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (LineContinuationTests)
+    {
+    public:
+
+        TEST_METHOD (LineContinuation_InMacro)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "test macro\n"
+                "    lda #\\\n"
+                "    $42\n"
+                "    endm\n"
+                "    test\n"
+            );
+
+            Assert::IsTrue (result.success, L"Assembly should succeed");
+            Assert::AreEqual ((size_t) 2, result.bytes.size (), L"LDA imm = 2 bytes");
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[0], L"LDA opcode");
+            Assert::AreEqual ((Byte) 0x42, result.bytes[1], L"Operand $42");
+        }
+    };
 }

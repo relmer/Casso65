@@ -79,6 +79,61 @@ namespace ParserTests
             Assert::AreEqual (std::string ("LDA #$42"), lines[0]);
             Assert::AreEqual (std::string ("STA $10"),  lines[1]);
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  SplitLines_LineContinuation_JoinsLines
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SplitLines_LineContinuation_JoinsLines)
+        {
+            auto lines = Parser::SplitLines ("        lda #\\\n        $42");
+
+            Assert::AreEqual ((size_t) 1, lines.size ());
+            Assert::AreEqual (std::string ("        lda #        $42"), lines[0]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  SplitLines_LineContinuation_EscapedBackslash
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SplitLines_LineContinuation_EscapedBackslash)
+        {
+            auto lines = Parser::SplitLines ("line with \\\\\nnext line");
+
+            Assert::AreEqual ((size_t) 2, lines.size ());
+            Assert::AreEqual (std::string ("line with \\\\"), lines[0]);
+            Assert::AreEqual (std::string ("next line"),      lines[1]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  SplitLines_LineContinuation_MultipleLines
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SplitLines_LineContinuation_MultipleLines)
+        {
+            auto lines = Parser::SplitLines ("part1 \\\npart2 \\\npart3");
+
+            Assert::AreEqual ((size_t) 1, lines.size ());
+            Assert::AreEqual (std::string ("part1 part2 part3"), lines[0]);
+        }
     };
 
 
