@@ -289,7 +289,7 @@ static bool FileExists (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryAutoExtend — if file has no extension, try common source extensions
+//  TryAutoExtend - if file has no extension, try common source extensions
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -349,7 +349,7 @@ static std::string StripExtension (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseAs65Flags — AS65-compatible flag parsing with concatenation
+//  ParseAs65Flags - AS65-compatible flag parsing with concatenation
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -650,7 +650,7 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
     }
     else
     {
-        // No recognized subcommand — treat as AS65 mode
+        // No recognized subcommand - treat as AS65 mode
         ParseAs65Flags (argc, argv, options);
 
         // Auto-extend input file
@@ -796,7 +796,7 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 void PrintUsage ()
 {
-    std::cout << "Casso65 — 6502 Assembler and Emulator\n"
+    std::cout << "Casso65 - 6502 Assembler and Emulator\n"
               << "\n"
               << "Usage:\n"
               << "  Casso65 <input> [flags]               (assemble)\n"
@@ -1059,7 +1059,7 @@ int DoRun (const CommandLineOptions & options)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DoAs65 — AS65-compatible assembly mode
+//  DoAs65 - AS65-compatible assembly mode
 //
 ////////////////////////////////////////////////////////////////////////////////
 
