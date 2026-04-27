@@ -18,7 +18,7 @@ int main (int argc, char * argv[])
                         || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
         PrintUsage ();
-        return 0;
+        return (options.showHelp) ? 0 : 1;
     }
 
     if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)

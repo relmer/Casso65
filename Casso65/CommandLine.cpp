@@ -364,8 +364,15 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
     {
         std::string arg (argv[argIndex]);
 
+        // Check for help requests
+        if (arg == "--help" || arg == "-?" || arg == "/?")
+        {
+            options.showHelp = true;
+            return;
+        }
+
         // Non-flag argument is the input file
-        if (arg[0] != '-')
+        if (arg[0] != '-' && arg[0] != '/')
         {
             if (options.inputFile.empty ())
             {
@@ -621,7 +628,7 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
     // Check for --help / --version first
     std::string first (argv[1]);
 
-    if (first == "--help" || first == "-h")
+    if (first == "--help" || first == "-h" || first == "-?" || first == "/?")
     {
         options.subcommand = CommandLineOptions::Subcommand::Help;
         options.showHelp   = true;
@@ -799,7 +806,8 @@ void PrintUsage ()
               << "Usage:\n"
               << "  Casso65 assemble <input.asm> -o <output.bin> [options]\n"
               << "  Casso65 run <input> [options]\n"
-              << "  Casso65 --help\n"
+              << "  Casso65 <input.a65> [flags]          (AS65-compatible mode)\n"
+              << "  Casso65 --help | -? | /?\n"
               << "  Casso65 --version\n"
               << "\n"
               << "Assemble options:\n"
@@ -818,7 +826,29 @@ void PrintUsage ()
               << "  --reset-vector      Use reset vector at $FFFC/$FFFD\n"
               << "  --stop <addr>       Stop when PC reaches address\n"
               << "  --max-cycles <n>    Maximum cycles before stopping\n"
-              << "  -v                  Verbose output\n";
+              << "  -v                  Verbose output\n"
+              << "\n"
+              << "AS65-compatible mode (no subcommand):\n"
+              << "  -c                  Show cycle counts in listing\n"
+              << "  -d <name>[=<value>] Pre-define symbol\n"
+              << "  -g                  Generate debug information file\n"
+              << "  -h <lines>          Page height for listing (0 = no pagination)\n"
+              << "  -i                  Case-insensitive (default, accepted as no-op)\n"
+              << "  -l [<file>]         Generate listing (-l alone = stdout, -lfile = to file)\n"
+              << "  -m                  Show macro expansions in listing\n"
+              << "  -n                  Disable optimizations (accepted as no-op)\n"
+              << "  -o <file>           Output file (default: input with .bin extension)\n"
+              << "  -p                  Generate pass 1 listing\n"
+              << "  -q                  Quiet mode (suppress progress)\n"
+              << "  -s                  Output S-record format (.s19)\n"
+              << "  -s2                 Output Intel HEX format (.hex)\n"
+              << "  -t                  Generate symbol table\n"
+              << "  -v                  Verbose mode\n"
+              << "  -w [<width>]        Column width (default: 79, -w alone = 133)\n"
+              << "  -z                  Fill unused space with $00 (default: $FF)\n"
+              << "\n"
+              << "  Flags can be concatenated: -tlfile = -t -lfile\n"
+              << "  Input file auto-extends: .a65, .asm, .s\n";
 }
 
 
