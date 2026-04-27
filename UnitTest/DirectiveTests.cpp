@@ -900,22 +900,22 @@ namespace DirectiveTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  SegmentNoopTests — code/data/bss as no-ops
+    //  SegmentTests — code/data/bss three-segment model
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    TEST_CLASS (SegmentNoopTests)
+    TEST_CLASS (SegmentTests)
     {
     public:
 
 
         ////////////////////////////////////////////////////////////////////////////////
         //
-        //  Code_IsNoop
+        //  Code_Assembles
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        TEST_METHOD (Code_IsNoop)
+        TEST_METHOD (Code_Assembles)
         {
             Assembler a = BuildAssembler ();
             auto r = a.Assemble ("code\nNOP");
@@ -931,11 +931,11 @@ namespace DirectiveTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
-        //  Data_IsNoop
+        //  Data_Assembles
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        TEST_METHOD (Data_IsNoop)
+        TEST_METHOD (Data_Assembles)
         {
             Assembler a = BuildAssembler ();
             auto r = a.Assemble ("data\ndb $42");
@@ -951,17 +951,146 @@ namespace DirectiveTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
-        //  Bss_IsNoop
+        //  Bss_Assembles
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        TEST_METHOD (Bss_IsNoop)
+        TEST_METHOD (Bss_Assembles)
         {
             Assembler a = BuildAssembler ();
             auto r = a.Assemble ("bss\nds 2");
 
             Assert::IsTrue (r.success);
             Assert::AreEqual ((size_t) 2, r.bytes.size ());
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Segment_DefaultIsCode
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Segment_DefaultIsCode)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble (".org $0400\nNOP\ncode\nNOP");
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((Word) 0x0400, r.startAddress);
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[1]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Segment_CodeDataSwitch_IndependentPCs
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Segment_CodeDataSwitch_IndependentPCs)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble (
+                "    code\n"
+                "    org $0400\n"
+                "    NOP\n"          // code at $0400
+                "    data\n"
+                "    org $0200\n"
+                "    db $AA, $BB\n"  // data at $0200-$0201
+                "    code\n"         // resume code at $0401
+                "    NOP\n"          // code at $0401
+            );
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((Word) 0x0200, r.startAddress);
+
+            // bytes span $0200..$0401, offset = addr - $0200
+            Assert::AreEqual ((Byte) 0xAA, r.bytes[0x0200 - 0x0200]);  // data $0200
+            Assert::AreEqual ((Byte) 0xBB, r.bytes[0x0201 - 0x0200]);  // data $0201
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x0400 - 0x0200]);  // NOP  $0400
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x0401 - 0x0200]);  // NOP  $0401
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Segment_BssReservesZeroFilled
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Segment_BssReservesZeroFilled)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble (
+                "    code\n"
+                "    org $0400\n"
+                "    NOP\n"
+                "    bss\n"
+                "    org $0010\n"
+                "    ds 4\n"         // bss at $0010-$0013 (zero-filled)
+                "    code\n"
+                "    NOP\n"
+            );
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((Word) 0x0010, r.startAddress);
+
+            // bytes span $0010..$0401, offset = addr - $0010
+            Assert::AreEqual ((Byte) 0x00, r.bytes[0x0010 - 0x0010]);
+            Assert::AreEqual ((Byte) 0x00, r.bytes[0x0013 - 0x0010]);
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x0400 - 0x0010]);
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x0401 - 0x0010]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Segment_ResumeAfterSwitch
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Segment_ResumeAfterSwitch)
+        {
+            Assembler a = BuildAssembler ();
+            auto r = a.Assemble (
+                "    code\n"
+                "    org $1000\n"
+                "    NOP\n"          // $1000
+                "    NOP\n"          // $1001
+                "    data\n"
+                "    org $2000\n"
+                "    db $11\n"       // $2000
+                "    db $22\n"       // $2001
+                "    code\n"         // resume at $1002
+                "    NOP\n"          // $1002
+                "    data\n"         // resume at $2002
+                "    db $33\n"       // $2002
+            );
+
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((Word) 0x1000, r.startAddress);
+
+            // bytes span $1000..$2002, offset = addr - $1000
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x1000 - 0x1000]);
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x1001 - 0x1000]);
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0x1002 - 0x1000]);
+            Assert::AreEqual ((Byte) 0x11, r.bytes[0x2000 - 0x1000]);
+            Assert::AreEqual ((Byte) 0x22, r.bytes[0x2001 - 0x1000]);
+            Assert::AreEqual ((Byte) 0x33, r.bytes[0x2002 - 0x1000]);
         }
     };
 

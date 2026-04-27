@@ -662,6 +662,11 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
     bool                                               originSet = false;
     bool                                               endAssembly = false;
 
+    // Three-segment model: code/data/bss each have independent PCs
+    enum class Segment { Code, Data, Bss };
+    Segment                                            currentSegment = Segment::Code;
+    Word                                               segmentPC[3]   = { 0, 0, 0 };
+
     // Build a Pass 1 expression context (symbols populated as we go)
     std::unordered_map<std::string, int32_t>  exprSymbols;
     ExprContext                                pass1Ctx = { &exprSymbols, 0 };
@@ -1265,6 +1270,32 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
             continue;
         }
 
+        // Handle segment switches BEFORE recording label
+        if (info.parsed.isDirective)
+        {
+            const std::string & dir = info.parsed.directive;
+
+            if (dir == ".SEGMENT_CODE" || dir == ".SEGMENT_DATA" || dir == ".SEGMENT_BSS" ||
+                dir == ".CODE"         || dir == ".DATA"         || dir == ".BSS")
+            {
+                // Save current PC to current segment
+                segmentPC[(int) currentSegment] = pc;
+
+                // Switch segment
+                if (dir == ".SEGMENT_CODE" || dir == ".CODE") currentSegment = Segment::Code;
+                else if (dir == ".SEGMENT_DATA" || dir == ".DATA") currentSegment = Segment::Data;
+                else currentSegment = Segment::Bss;
+
+                // Restore target segment's PC
+                pc      = segmentPC[(int) currentSegment];
+                info.pc = pc;
+
+                info.isDirective = true;
+                lineInfos.push_back (info);
+                continue;
+            }
+        }
+
         // Record label
         if (!info.parsed.label.empty ())
         {
@@ -1517,7 +1548,7 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
                 result.errors.push_back (error);
                 result.success = false;
             }
-            else if (info.parsed.directive == ".SEGMENT_NOOP")
+            else if (info.parsed.directive == ".OPT_NOOP")
             {
                 // Recognized but intentionally no-op
             }

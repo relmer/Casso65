@@ -312,9 +312,11 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     else if (firstWordUpper == "ALIGN")                                                                  { canonicalDirective = ".ALIGN"; }
     else if (firstWordUpper == "ERROR")                                                                  { canonicalDirective = ".ERROR"; }
 
-    // Segment keywords recognized as no-ops
-    else if (firstWordUpper == "CODE" || firstWordUpper == "DATA" || firstWordUpper == "BSS")            { canonicalDirective = ".SEGMENT_NOOP"; }
-    else if (firstWordUpper == "NOOPT" || firstWordUpper == "OPT")                                      { canonicalDirective = ".SEGMENT_NOOP"; }
+    // Segment keywords
+    else if (firstWordUpper == "CODE")                                                                   { canonicalDirective = ".SEGMENT_CODE"; }
+    else if (firstWordUpper == "DATA")                                                                   { canonicalDirective = ".SEGMENT_DATA"; }
+    else if (firstWordUpper == "BSS")                                                                    { canonicalDirective = ".SEGMENT_BSS";  }
+    else if (firstWordUpper == "NOOPT" || firstWordUpper == "OPT")                                      { canonicalDirective = ".OPT_NOOP"; }
 
     // Include
     else if (firstWordUpper == "INCLUDE")                                                                { canonicalDirective = ".INCLUDE"; }
