@@ -1464,7 +1464,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 1, result.listing.size ());
 
             std::string formatted = Assembler::FormatListingLine (result.listing[0]);
-            Assert::AreEqual (std::string ("$0000  A9 42      LDA #$42"), formatted);
+            Assert::AreEqual (std::string ("    1 0000   A9 42     LDA #$42"), formatted);
         }
 
 
@@ -1491,7 +1491,138 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 1, result.listing.size ());
 
             std::string formatted = Assembler::FormatListingLine (result.listing[0]);
-            Assert::AreEqual (std::string ("                  ; comment"), formatted);
+            Assert::AreEqual (std::string ("    1                  ; comment"), formatted);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Listing_ColumnLayout_MatchesAS65
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Listing_ColumnLayout_MatchesAS65)
+        {
+            AssemblerOptions options = {};
+            options.generateListing = true;
+
+            TestCpu cpu;
+            cpu.InitForTest ();
+            Assembler asm6502 (cpu.GetInstructionSet (), options);
+
+            auto result = asm6502.Assemble (
+                ".org $1000\n"
+                "LDA #$05\n"
+                "CLC\n"
+                "ADC #$03\n"
+                "STA $2000");
+
+            Assert::IsTrue (result.success);
+
+            // Verify key listing lines match AS65 column layout
+            // Line 1: .org $1000 — address 1000, no bytes
+            std::string line1 = Assembler::FormatListingLine (result.listing[0]);
+            Assert::AreEqual (std::string ("    1 1000             .org $1000"), line1);
+
+            // Line 2: LDA #$05 — address 1000, bytes A9 05
+            std::string line2 = Assembler::FormatListingLine (result.listing[1]);
+            Assert::AreEqual (std::string ("    2 1000   A9 05     LDA #$05"), line2);
+
+            // Line 3: CLC — address 1002, byte 18
+            std::string line3 = Assembler::FormatListingLine (result.listing[2]);
+            Assert::AreEqual (std::string ("    3 1002   18        CLC"), line3);
+
+            // Line 4: ADC #$03 — address 1003, bytes 69 03
+            std::string line4 = Assembler::FormatListingLine (result.listing[3]);
+            Assert::AreEqual (std::string ("    4 1003   69 03     ADC #$03"), line4);
+
+            // Line 5: STA $2000 — address 1005, bytes 8D 00 20
+            std::string line5 = Assembler::FormatListingLine (result.listing[4]);
+            Assert::AreEqual (std::string ("    5 1005   8D 00 20  STA $2000"), line5);
+
+            // Verify source text starts at column 24 (index 23)
+            Assert::AreEqual ('.', line1[23]);
+            Assert::AreEqual ('L', line2[23]);
+            Assert::AreEqual ('S', line5[23]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Listing_MacroExpansion_HasPrefix
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Listing_MacroExpansion_HasPrefix)
+        {
+            // Build a line manually with isMacroExpansion = true
+            AssemblyLine macroLine = {};
+            macroLine.lineNumber       = 7;
+            macroLine.hasAddress       = true;
+            macroLine.address          = 0x2000;
+            macroLine.bytes            = { 0xA9, 0xFF };
+            macroLine.sourceText       = "LDA #$FF";
+            macroLine.isMacroExpansion = true;
+
+            std::string formatted = Assembler::FormatListingLine (macroLine);
+
+            // Column 23 (index 22) should be '>' for macro expansion
+            Assert::AreEqual ('>', formatted[22]);
+
+            // Full expected format: linenum(5) space addr(4) spaces(3) bytes(9) > source
+            Assert::AreEqual (std::string ("    7 2000   A9 FF    >LDA #$FF"), formatted);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Listing_SymbolTable_Format
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Listing_SymbolTable_Format)
+        {
+            std::unordered_map<std::string, Word> symbols;
+            symbols["START"]   = 0x1000;
+            symbols["COUNTER"] = 0x0005;
+            symbols["LABEL"]   = 0x1000;
+
+            std::unordered_map<std::string, SymbolKind> symbolKinds;
+            symbolKinds["START"]   = SymbolKind::Label;
+            symbolKinds["COUNTER"] = SymbolKind::Set;
+            symbolKinds["LABEL"]   = SymbolKind::Equ;
+
+            std::string table = Assembler::FormatSymbolTable (symbols, symbolKinds);
+
+            // Should be alphabetically sorted
+            size_t posCounter = table.find ("*COUNTER");
+            size_t posLabel   = table.find ("LABEL");
+            size_t posStart   = table.find ("START");
+
+            Assert::IsTrue (posCounter != std::string::npos, L"COUNTER not found");
+            Assert::IsTrue (posLabel != std::string::npos, L"LABEL not found");
+            Assert::IsTrue (posStart != std::string::npos, L"START not found");
+            Assert::IsTrue (posCounter < posLabel, L"COUNTER should sort before LABEL");
+            Assert::IsTrue (posLabel < posStart, L"LABEL should sort before START");
+
+            // Verify * prefix on Set symbol
+            Assert::IsTrue (table.find ("*COUNTER") != std::string::npos, L"Set symbol should have * prefix");
+
+            // Verify $ prefix on values
+            Assert::IsTrue (table.find ("$1000") != std::string::npos, L"Values should have $ prefix");
+            Assert::IsTrue (table.find ("$0005") != std::string::npos, L"Values should have $ prefix");
+
+            // Verify no = separator (AS65 format uses spacing, not =)
+            Assert::IsTrue (table.find ("=") == std::string::npos, L"AS65 format has no = separator");
         }
     };
 

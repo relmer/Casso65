@@ -2835,23 +2835,27 @@ AssemblyResult Assembler::Assemble (const std::string & sourceText)
 
 std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCycleCounts)
 {
-    char addrBuf[8] = {};
+    char lineNumBuf[8] = {};
+    char addrBuf[8]    = {};
 
-    // Address column (5 chars)
+    // Line number column (cols 1-5, right-justified)
+    snprintf (lineNumBuf, sizeof (lineNumBuf), "%5d", line.lineNumber);
+
+    // Address column (cols 7-10, 4 hex digits, no $ prefix)
     if (line.isConditionalSkip)
     {
-        snprintf (addrBuf, sizeof (addrBuf), "    -");
+        snprintf (addrBuf, sizeof (addrBuf), "   -");
     }
     else if (line.hasAddress)
     {
-        snprintf (addrBuf, sizeof (addrBuf), "$%04X", line.address);
+        snprintf (addrBuf, sizeof (addrBuf), "%04X", line.address);
     }
     else
     {
-        snprintf (addrBuf, sizeof (addrBuf), "     ");
+        snprintf (addrBuf, sizeof (addrBuf), "    ");
     }
 
-    // Bytes column (up to 3 hex bytes, padded to 10 chars)
+    // Bytes column (cols 14-22, up to 3 hex bytes, padded to 9 chars)
     std::string bytesStr;
 
     for (size_t i = 0; i < line.bytes.size () && i < 3; i++)
@@ -2867,12 +2871,12 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
         bytesStr += hexBuf;
     }
 
-    while (bytesStr.size () < 10)
+    while (bytesStr.size () < 9)
     {
         bytesStr += " ";
     }
 
-    // Cycle counts column (optional)
+    // Cycle counts column (optional, between bytes and prefix)
     std::string cycleStr;
 
     if (showCycleCounts && line.cycleCounts > 0)
@@ -2882,10 +2886,12 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
         cycleStr = cycleBuf;
     }
 
-    // Macro expansion prefix
+    // Macro expansion prefix (col 23)
     std::string prefix = line.isMacroExpansion ? ">" : " ";
 
-    return std::string (addrBuf) + "  " + bytesStr + cycleStr + prefix + line.sourceText;
+    // AS65 layout: linenum(5) space(1) addr(4) spaces(3) bytes(9) prefix(1) source
+    return std::string (lineNumBuf) + " " + std::string (addrBuf) + "   " +
+           bytesStr + cycleStr + prefix + line.sourceText;
 }
 
 
@@ -2915,9 +2921,8 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
         auto kindIt = symbolKinds.find (pair.first);
         bool isRedefinable = (kindIt != symbolKinds.end () && kindIt->second == SymbolKind::Set);
 
-        snprintf (buf, sizeof (buf), "%-24s = $%04X%s\n",
-                  pair.first.c_str (), pair.second,
-                  isRedefinable ? " *" : "");
+        std::string fullName = (isRedefinable ? "*" : "") + pair.first;
+        snprintf (buf, sizeof (buf), "%-16s$%04X\n", fullName.c_str (), pair.second);
         output += buf;
     }
 
