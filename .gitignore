@@ -368,3 +368,7 @@ specs/002-as65-assembler-compat/testdata/conformance/expected/
 6502_functional_test.a65
 6502_functional_test.bin
 dormann_temp/
+
+# Harte SingleStepTests — generated binary test data (regenerated on demand)
+UnitTest/nes6502/
+UnitTest/6502/

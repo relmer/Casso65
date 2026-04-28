@@ -228,12 +228,14 @@
     <ClCompile Include="ConformanceTests.cpp" />
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
+    <ClCompile Include="HarteTestRunner.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
     <ClInclude Include="EhmTestHelper.h" />
+    <ClInclude Include="HarteTestRunner.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Casso65Core\Casso65Core.vcxproj">
