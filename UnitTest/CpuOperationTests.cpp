@@ -331,7 +331,8 @@ namespace CpuOperationTests
 
             Assert::AreEqual ((Byte) 0x00, cpu.RegA ());
             Assert::IsTrue  ((bool) cpu.Status ().flags.carry);
-            Assert::IsTrue  ((bool) cpu.Status ().flags.zero);
+            // Z flag is from the binary result on NMOS 6502: 0x99+0x01 = 0x9A != 0
+            Assert::IsFalse ((bool) cpu.Status ().flags.zero);
         }
 
 

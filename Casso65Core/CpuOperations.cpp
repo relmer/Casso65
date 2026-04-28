@@ -15,24 +15,28 @@
 
 void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
 {
-    Byte carryIn = cpu.status.flags.carry;
-    Word sum     = cpu.A + operand + carryIn;
-
-    // Overflow is computed from the binary sum (matches NMOS behaviour).
-    cpu.status.flags.overflow =    !((cpu.A & 0x80) ^ (operand & 0x80))    // Both have the same sign
-                                && ((operand & 0x80) != (sum & 0x80));  // But that sign is not the same as the sum
+    Byte carryIn   = cpu.status.flags.carry;
+    Byte originalA = cpu.A;
+    Word sum       = cpu.A + operand + carryIn;
 
     if (cpu.status.flags.decimal)
     {
         // BCD add: adjust low nibble then high nibble (NMOS 6502 algorithm).
-        Word lo = (cpu.A & 0x0F) + (operand & 0x0F) + carryIn;
+        // Z flag is always from the binary result on NMOS 6502.
+        cpu.status.flags.zero = (Byte) sum == 0;
+
+        Word lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
 
         if (lo > 0x09)
         {
             lo += 0x06;
         }
 
-        Word hi = (cpu.A & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+        Word hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+
+        // N and V flags are from the high nibble intermediate, before BCD correction.
+        cpu.status.flags.negative = (bool) (hi & 0x80);
+        cpu.status.flags.overflow = ((~(originalA ^ operand)) & (originalA ^ hi) & 0x80) != 0;
 
         if (hi > 0x90)
         {
@@ -44,12 +48,12 @@ void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
     }
     else
     {
-        cpu.A                  = (Byte) sum;
-        cpu.status.flags.carry = sum > 0xFF;
+        cpu.A                     = (Byte) sum;
+        cpu.status.flags.carry    = sum > 0xFF;
+        cpu.status.flags.zero     = cpu.A == 0;
+        cpu.status.flags.negative = (bool) (cpu.A & 0x80);
+        cpu.status.flags.overflow = ((~(originalA ^ operand)) & (originalA ^ cpu.A) & 0x80) != 0;
     }
-
-    cpu.status.flags.zero     = cpu.A == 0;
-    cpu.status.flags.negative = (bool) (cpu.A & 0x80);
 }
 
 
@@ -226,10 +230,17 @@ void CpuOperations::Jump (Cpu & cpu, Instruction instruction, Word operand)
 
 void CpuOperations::JumpSubroutine (Cpu & cpu, Word operand)
 {
-    // JSR pushes the address of the last byte of the JSR instruction (PC - 1)
-    // onto the stack. RTS will pop this and add 1 to get the next instruction.
+    // On the real 6502, JSR reads the low operand byte, pushes the return
+    // address, then reads the high operand byte. If the stack overlaps the
+    // operand, the push can overwrite the high byte before it's read.
+    // We simulate this by re-reading the high byte after pushing.
+    Word hiByteAddr = cpu.PC - 1;
+    Byte lo         = (Byte) operand;
+
     cpu.PushWord (cpu.PC - 1);
-    cpu.PC = operand;
+
+    Byte hi = cpu.ReadByte (hiByteAddr);
+    cpu.PC  = lo | ((Word) hi << 8);
 }
 
 
@@ -526,10 +537,15 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
     Byte borrowIn   = !cpu.status.flags.carry;
     Word difference = cpu.A - operand - borrowIn;
 
-    // Overflow is computed from the binary difference (matches NMOS behaviour).
+    // On NMOS 6502, V, N, Z, C are all from the binary subtraction,
+    // even in decimal mode. Only the result (A) is BCD-adjusted.
     cpu.status.flags.overflow =
-        !((cpu.A & 0x80) ^ (operand & 0x80))           // Both have the same sign
-        && ((operand & 0x80) != (difference & 0x80));  // But that sign is not the same as the difference
+        ((cpu.A ^ difference) & 0x80) &&           // Result sign differs from A
+        ((cpu.A ^ operand) & 0x80);                 // A and operand have different signs
+
+    cpu.status.flags.carry    = !(difference & 0x8000);
+    cpu.status.flags.zero     = (Byte) difference == 0;
+    cpu.status.flags.negative = (bool) (difference & 0x80);
 
     if (cpu.status.flags.decimal)
     {
@@ -554,12 +570,6 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
     {
         cpu.A = (Byte) difference;
     }
-
-    // Carry reflects "no borrow" from the binary subtraction (same on BCD and binary).
-    cpu.status.flags.carry    = !(difference & 0x8000);
-    cpu.status.flags.zero     = cpu.A == 0;
-    cpu.status.flags.negative = (bool) (cpu.A & 0x80);
-
 }
 
 

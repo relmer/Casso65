@@ -542,8 +542,14 @@ void Cpu::FetchOperandJumpAbsolute (Cpu::OperandInfo & operandInfo)
 
 void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = ReadWord (PC++);
-    operandInfo.effectiveAddress = ReadWord (operandInfo.location);
+    operandInfo.location = ReadWord (PC++);
+
+    // NMOS 6502 bug: JMP indirect wraps within the page.
+    // If the pointer is at $xxFF, the high byte is read from $xx00.
+    Word lo = ReadByte (operandInfo.location);
+    Word hi = ReadByte ((operandInfo.location & 0xFF00) | ((operandInfo.location + 1) & 0x00FF));
+
+    operandInfo.effectiveAddress = lo | (hi << 8);
     operandInfo.operand          = operandInfo.effectiveAddress;
 }
 
