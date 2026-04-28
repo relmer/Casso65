@@ -30,6 +30,7 @@ public:
         Decrement,
         Increment,
         Jump,
+        JumpSubroutine,
         Load,
         NoOperation,
         Or,

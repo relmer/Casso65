@@ -471,8 +471,12 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
 
 void Cpu::FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location         = ReadByte (PC);
-    operandInfo.effectiveAddress = ReadWord (operandInfo.location + X);
+    Byte zpBase = ReadByte (PC);
+    Byte zpAddr = (zpBase + X) & 0xFF;
+
+    // Zero page word read wraps within zero page
+    operandInfo.location         = zpBase;
+    operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
     operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
@@ -589,8 +593,11 @@ void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & micr
 
 void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
 {
-    operandInfo.location          = ReadByte (PC);
-    operandInfo.effectiveAddress  = ReadWord (operandInfo.location);
+    Byte zpAddr = ReadByte (PC);
+
+    // Zero page word read wraps within zero page
+    operandInfo.location          = zpAddr;
+    operandInfo.effectiveAddress  = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
     operandInfo.effectiveAddress += Y;
     operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
@@ -608,7 +615,7 @@ void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
 void Cpu::FetchOperandZeroPageX (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = ReadByte (PC);
-    operandInfo.effectiveAddress = operandInfo.location + X;
+    operandInfo.effectiveAddress = (operandInfo.location + X) & 0xFF;
     operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
@@ -625,7 +632,7 @@ void Cpu::FetchOperandZeroPageX (Cpu::OperandInfo & operandInfo)
 void Cpu::FetchOperandZeroPageY (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = ReadByte (PC);
-    operandInfo.effectiveAddress = operandInfo.location + Y;
+    operandInfo.effectiveAddress = (operandInfo.location + Y) & 0xFF;
     operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
@@ -695,6 +702,7 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Decrement:            CpuOperations::Decrement            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
     case Microcode::Increment:            CpuOperations::Increment            (*this, microcode.pSourceRegister, operandInfo.effectiveAddress);      break;
     case Microcode::Jump:                 CpuOperations::Jump                 (*this, microcode.instruction, operandInfo.operand);                   break;
+    case Microcode::JumpSubroutine:       CpuOperations::JumpSubroutine       (*this, operandInfo.operand);                                          break;
     case Microcode::Load:                 CpuOperations::Load                 (*this, *microcode.pDestinationRegister, (Byte) operandInfo.operand);  break;
     case Microcode::NoOperation:          CpuOperations::NoOperation          (*this);                                                               break;
     case Microcode::Or:                   CpuOperations::Or                   (*this, (Byte) operandInfo.operand);                                   break;
@@ -809,8 +817,8 @@ void Cpu::WriteByte (Word address, Byte value)
 
 void Cpu::WriteWord (Word address, Word value)
 {
-    memory[address]     = value & 0xFF;
-    memory[address + 1] = value >> 8;
+    memory[address]              = value & 0xFF;
+    memory[(Word)(address + 1)]  = value >> 8;
 }
 
 
@@ -841,7 +849,7 @@ Byte Cpu::ReadByte (Word address)
 Word Cpu::ReadWord (Word address)
 {
     return memory[address] | 
-           memory[address + 1] << 8;
+           memory[(Word)(address + 1)] << 8;
 }
 
 
@@ -1017,7 +1025,7 @@ void Cpu::InitializeMisc ()
         { GroupMisc::BEQ, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
         
         { GroupMisc::BRK, GlobalAddressingMode::SingleByteNoOperand, Microcode::Break,                nullptr,        nullptr        },
-        { GroupMisc::JSR, GlobalAddressingMode::JumpAbsolute,        Microcode::Jump,                 nullptr,        nullptr        },
+        { GroupMisc::JSR, GlobalAddressingMode::JumpAbsolute,        Microcode::JumpSubroutine,       nullptr,        nullptr        },
         { GroupMisc::RTI, GlobalAddressingMode::SingleByteNoOperand, Microcode::ReturnFromInterrupt,  nullptr,        nullptr        },
         { GroupMisc::RTS, GlobalAddressingMode::SingleByteNoOperand, Microcode::ReturnFromSubroutine, nullptr,        nullptr        },
          

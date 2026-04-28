@@ -27,6 +27,7 @@ public:
     static void Increment            (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress);
     static void Load                 (Cpu & cpu, Byte & registerAffected, Byte operand);
     static void Jump                 (Cpu & cpu, Instruction instruction, Word operand);
+    static void JumpSubroutine       (Cpu & cpu, Word operand);
     static void NoOperation          (Cpu & cpu);
     static void Or                   (Cpu & cpu, Byte operand);
     static void Pull                 (Cpu & cpu, Byte * pDestinationRegister);
