@@ -152,6 +152,8 @@ void Function2()
 - **ALL** tests MUST pass before committing
 - Build MUST succeed with no errors before committing
 - Each commit must leave the codebase in a compilable, tests-passing state
+- **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
+- **ALWAYS** update `README.md` when features, test counts, or roadmap items change
 
 ## Commit Messages
 

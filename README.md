@@ -12,7 +12,7 @@ The project includes:
 - **A real, full-featured AS65-compatible assembler** — Casso65's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
 - **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, and all 14 addressing modes
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
-- **400+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, and assembler features
+- **580+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, and assembler features
 
 ## Project Structure
 
@@ -20,7 +20,7 @@ The project includes:
 Casso65.sln
 ├── Casso65Core/     Static library — CPU emulator, assembler, parser, opcode table
 ├── Casso65/         Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (400+ tests)
+└── UnitTest/       Test DLL — Microsoft Native CppUnitTest (580+ tests)
 ```
 
 ## Requirements
@@ -132,9 +132,30 @@ All 56 standard 6502 mnemonics are implemented.
 
 ## Roadmap
 
-- [ ] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (tracked in [#7](https://github.com/relmer/Casso65/issues/7) / [#28](https://github.com/relmer/Casso65/issues/28))
-- [ ] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso65/issues/29), [#38](https://github.com/relmer/Casso65/issues/38))
+### Done
+
+- [x] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) ([#7](https://github.com/relmer/Casso65/issues/7))
+- [x] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso65/issues/29), [#38](https://github.com/relmer/Casso65/issues/38))
+
+### High Priority
+
+- [ ] Interactive debugger / monitor — step, breakpoints, register watch, memory dump ([#51](https://github.com/relmer/Casso65/issues/51))
+- [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso65/issues/52))
+- [ ] WebAssembly (WASM) build — run in the browser, publish to GitHub Pages ([#53](https://github.com/relmer/Casso65/issues/53))
+
+### Medium Priority
+
 - [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso65/issues/9))
+- [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso65/issues/54))
+- [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso65/issues/55))
+- [ ] Memory-mapped I/O hooks — prerequisite for platform emulation ([#56](https://github.com/relmer/Casso65/issues/56))
+- [ ] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso65/issues/57))
+- [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso65/issues/47))
+- [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso65/issues/49), [#50](https://github.com/relmer/Casso65/issues/50))
+
+### Low Priority
+
+- [ ] Relocatable object output — o65 format for cc65 toolchain integration ([#58](https://github.com/relmer/Casso65/issues/58))
 
 ## Why "Casso65"?
 
@@ -147,6 +168,15 @@ I present to you our regal namesake—revel in his splendor!
 </p>
 
 *Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
+
+## Acknowledgments
+
+Casso65's correctness is validated against two exceptional open-source test suites:
+
+- **[Klaus Dormann's 6502 Functional Test Suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)** — [@Klaus2m5](https://github.com/Klaus2m5)'s exhaustive functional test exercises every documented 6502 behavior: all instructions, addressing modes, flag interactions, BCD arithmetic, and edge cases. Casso65 passes the full suite.
+- **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)** — [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors validate every legal 6502 opcode against cycle-accurate reference traces. Casso65 passes all 151 legal-opcode test sets (10,000 vectors each).
+
+Thank you to both authors for making these invaluable resources freely available. They are the gold standard for 6502 emulator validation.
 
 ## Contributing
 

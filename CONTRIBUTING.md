@@ -59,9 +59,18 @@ Or use the VS Code tasks (Ctrl+Shift+B).
 - Every `.cpp` file must include `"Pch.h"` as its first `#include`
 - Use quoted includes (`"header.h"`) for project headers; system headers go in `Pch.h`
 
+## Changelog and README
+
+- **ALWAYS** update [CHANGELOG.md](CHANGELOG.md) when making user-visible changes (`feat`, `fix`, `perf`)
+- Add entries under an `[Unreleased]` section at the top; they get moved to a versioned heading at release time
+- Follow [Keep a Changelog](https://keepachangelog.com/) categories: Added, Changed, Fixed, Removed
+- Update [README.md](README.md) when a change affects documented features, test counts, or the roadmap
+- Update the test count in README when adding or removing test methods
+
 ## Pull Requests
 
 1. Create a feature branch from `master`
 2. Make your changes with conventional commit messages
 3. Ensure all tests pass (`.\scripts\RunTests.ps1`)
 4. Build must succeed with no errors or warnings
+5. Update CHANGELOG.md and README.md if the change is user-visible
