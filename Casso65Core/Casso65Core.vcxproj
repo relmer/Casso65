@@ -171,6 +171,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Assembler.cpp" />
+    <ClCompile Include="AssemblySession.cpp" />
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
     <ClCompile Include="Ehm.cpp" />
@@ -191,6 +192,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Assembler.h" />
+    <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="CpuOperations.h" />
