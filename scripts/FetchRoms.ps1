@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $repoRoot  = Split-Path -Parent $scriptDir
-$romsDir   = Join-Path $repoRoot 'Casso65Emu\roms'
+$romsDir   = Join-Path $repoRoot 'roms'
 
 $baseUrl = 'https://raw.githubusercontent.com/AppleWin/AppleWin/master/resource'
 

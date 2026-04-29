@@ -38,6 +38,74 @@ static std::string GetExecutableDirectory ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCurrentDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::string GetWorkingDirectory ()
+{
+    char path[MAX_PATH] = {};
+    GetCurrentDirectoryA (MAX_PATH, path);
+    return std::string (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindFileInSearchPaths — searches exe dir, cwd, and subdirectories of each
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::string FindFileInSearchPaths (const std::string & relativePath)
+{
+    std::string exeDir = GetExecutableDirectory ();
+    std::string cwd    = GetWorkingDirectory ();
+
+    // Search order: exe dir, cwd, then each with common parent patterns
+    std::vector<std::string> searchBases = { exeDir, cwd };
+
+    // Also try parent directories (handles running from x64/Debug/)
+    for (const auto & base : { exeDir, cwd })
+    {
+        size_t pos = base.find_last_of ("\\/");
+
+        if (pos != std::string::npos)
+        {
+            std::string parent = base.substr (0, pos);
+            searchBases.push_back (parent);
+
+            size_t pos2 = parent.find_last_of ("\\/");
+
+            if (pos2 != std::string::npos)
+            {
+                searchBases.push_back (parent.substr (0, pos2));
+            }
+        }
+    }
+
+    for (const auto & base : searchBases)
+    {
+        std::string candidate = base + "/" + relativePath;
+        std::ifstream test (candidate);
+
+        if (test.good ())
+        {
+            return base;
+        }
+    }
+
+    return "";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseCommandLine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,6 +198,12 @@ int WINAPI wWinMain (
 
 
 
+    // Register GUI error notification so EHM errors show a MessageBox
+    SetNotifyFunction ([] (const wchar_t * message)
+    {
+        MessageBoxW (NULL, message, L"Casso65 Emulator", MB_OK | MB_ICONERROR);
+    });
+
     // Initialize COM for WASAPI
     hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
     CHRA (hr);
@@ -145,15 +219,24 @@ int WINAPI wWinMain (
     }
 
     {
-        // Resolve paths
-        std::string basePath   = GetExecutableDirectory ();
-        std::string configPath = basePath + "/machines/" + WideToNarrow (machineName) + ".json";
+        // Find machine config using search paths
+        std::string narrowMachine = WideToNarrow (machineName);
+        std::string configRelPath = "machines/" + narrowMachine + ".json";
+        std::string basePath      = FindFileInSearchPaths (configRelPath);
+
+        CBRN (!basePath.empty (),
+              std::format (L"Unknown machine '{}'. Config file not found.\n"
+                           L"Searched for '{}' in exe directory, current directory, and parent directories.",
+                           machineName,
+                           std::wstring (configRelPath.begin (), configRelPath.end ())).c_str ());
+
+        std::string configPath = basePath + "/" + configRelPath;
 
         // Load config file
         std::ifstream configFile (configPath);
         bool configGood = configFile.good ();
         CBRN (configGood,
-              std::format (L"Unknown machine '{}'. Config file not found:\n{}", machineName,
+              std::format (L"Cannot open machine config:\n{}",
                            std::wstring (configPath.begin (), configPath.end ())).c_str ());
 
         std::stringstream ss;

@@ -374,4 +374,4 @@ UnitTest/nes6502/
 UnitTest/6502/
 
 # Apple II ROM images — user-supplied, not redistributable
-Casso65Emu/roms/
+roms/
