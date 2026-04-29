@@ -129,6 +129,8 @@ A developer creates a new machine configuration JSON file and registers new devi
 - What happens when the emulator window is resized? → The display scales proportionally, maintaining the correct aspect ratio, or the window has a fixed size
 - What happens when the user closes the emulator window while a disk write is in progress? → The emulator completes or discards the pending operation and exits cleanly without corrupting the disk image
 - What happens when two devices are configured with overlapping address ranges? → The emulator detects the conflict at startup and reports which devices and addresses overlap, then exits
+- What happens when the CPU executes an illegal/undefined opcode (NMOS 6502)? → The emulator treats it as a NOP of the appropriate byte/cycle length (non-crashing behavior), consistent with common emulator practice
+- What happens when a program accesses the $C000–$CFFF I/O space at an address not claimed by any device? → The MemoryBus returns a floating bus value (typically the last value on the data bus) rather than crashing
 
 ## Requirements *(mandatory)*
 
@@ -153,6 +155,13 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-017**: System MUST NOT depend on any third-party libraries; only the Windows SDK and C++ Standard Library are permitted
 - **FR-018**: System MUST validate machine config files at startup and report clear, actionable errors for missing files, unknown device types, overlapping address ranges, and malformed JSON
 - **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 577+ unit tests must continue to pass with no changes to Casso65Core's public API
+- **FR-020**: System MUST integrate with the existing Casso65Core `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
+- **FR-021**: System MUST support the 65C02 instruction set (required for Apple IIe) by extending the opcode table with 65C02-specific opcodes (e.g., `PHX`, `PHY`, `PLX`, `PLY`, `STZ`, `BRA`, `TRB`, `TSB`, new addressing modes). This can be an `EmuCpu` initialization option selected by the `"cpu": "65c02"` config field. The NMOS 6502 instruction set used by existing unit tests is unchanged.
+- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a minimal menu bar (File: Open Disk 1/2, Eject Disk 1/2, Exit; Machine: Reset, Pause/Resume), and a fixed-size client area of 560×384 pixels. No window resizing is supported in the initial implementation.
+- **FR-023**: System MUST run the emulation loop synchronized to real-time speed by executing the correct number of CPU cycles per video frame (1,023,000 Hz ÷ ~60 Hz ≈ 17,050 cycles per frame), rendering the framebuffer, and sleeping for the remainder of the frame period. The loop runs on the main thread integrated with the Win32 message pump.
+- **FR-024**: System MUST generate audio from speaker toggles by accumulating toggle timestamps during each frame's CPU execution, converting them to a PCM waveform, and submitting audio buffers via the Windows `waveOut` API. The audio buffer size should target low-latency output (≤50 ms).
+- **FR-025**: System MUST map slot-based devices to both their I/O range ($C080+slot×16 through $C08F+slot×16 → e.g., slot 6 maps to $C0E0–$C0EF) and their slot ROM range ($Cs00–$CsFF where s is the slot number → e.g., slot 6 maps to $C600–$C6FF). The Disk II controller's slot ROM contains the boot code that the CPU executes when booting from disk.
+- **FR-026**: System MUST support an original Apple II machine configuration that is identical to the Apple II+ except with the Integer BASIC ROM instead of the Applesoft BASIC ROM. The `--machine apple2` argument selects this configuration.
 
 ### Key Entities
 
@@ -162,6 +171,8 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **ComponentRegistry**: Factory registry mapping string device type names to C++ class constructors; used by the machine config loader to instantiate devices
 - **VideoOutput**: Interface for video renderers that read video RAM and produce RGBA pixel framebuffers; each video mode (text, lo-res, hi-res, double hi-res) is a separate implementation
 - **DiskImage**: Represents a mounted .dsk file with sector read/write capability; manages file I/O and protects against corruption on unexpected exit
+- **EmuCpu**: Subclass of the existing Casso65Core `Cpu` that overrides `ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` to route through the MemoryBus. Constructed with a reference to the MemoryBus. Supports both NMOS 6502 and 65C02 instruction sets based on the machine config's `cpu` field.
+- **EmulatorShell**: The main application class that owns the Win32 window, MemoryBus, EmuCpu, video renderers, and input/audio subsystems. Runs the emulation loop and coordinates frame timing.
 
 ## Success Criteria *(mandatory)*
 
@@ -177,6 +188,8 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **SC-008**: A developer can add support for a new machine type by creating a JSON config file and writing device component classes, without modifying the emulator shell, MemoryBus, or any existing machine configs
 - **SC-009**: Apple IIe emulation supports 80-column text mode and double hi-res graphics, running software that requires these features
 - **SC-010**: The emulator exits cleanly when encountering configuration errors, providing error messages that identify the specific problem (missing ROM, unknown device, invalid JSON) and suggest corrective action
+- **SC-011**: The emulator window displays a menu bar that allows inserting and ejecting disk images, resetting the machine, and pausing/resuming emulation without using the command line
+- **SC-012**: Apple II (original) boots to the Integer BASIC `>` prompt using the same emulator binary and architecture, differing only in the machine config JSON and ROM file
 
 ## Assumptions
 
@@ -188,6 +201,133 @@ A developer creates a new machine configuration JSON file and registers new devi
 - Audio output uses the Windows waveOut or similar built-in audio API; low-latency audio is desirable but not a hard requirement for initial delivery
 - The Apple II+ and original Apple II differ only in ROM content (Applesoft vs. Integer BASIC); both use the same machine config structure with different ROM file references
 - The focus is on accurate functional emulation, not cycle-exact hardware reproduction; minor timing differences that don't affect software compatibility are acceptable
+- The emulation loop is single-threaded — CPU execution, video rendering, and audio generation all happen on the main thread, interleaved with Win32 message processing. This is sufficient for the 1 MHz Apple II target on modern hardware.
+- Making `Cpu::ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` virtual is a safe change to the protected (non-public) interface — it does not affect the existing Casso65 CLI or unit tests, which continue to use the base `Cpu` class with its flat memory array.
+- The original Apple II (Integer BASIC) is a lower-priority configuration — most users will use Apple II+ or IIe. It is included for completeness but shares all components with the Apple II+ except the ROM file.
+
+## Apple II Hardware Memory Maps
+
+These maps define the physical address space for each target machine. Every address range must be covered by a `MemoryDevice` on the `MemoryBus`. The JSON config files encode these maps; this section is the authoritative hardware reference.
+
+### Apple II / Apple II+ Memory Map (48KB + Language Card)
+
+| Address Range | Size | Device | Notes |
+|---------------|------|--------|-------|
+| `$0000–$00FF` | 256B | RAM | Zero page — fast addressing |
+| `$0100–$01FF` | 256B | RAM | Stack |
+| `$0200–$02FF` | 256B | RAM | Input buffer |
+| `$0300–$03FF` | 256B | RAM | Free / DOS vectors |
+| `$0400–$07FF` | 1KB | RAM | **Text Page 1 / Lo-Res Page 1** — interleaved row layout |
+| `$0800–$0BFF` | 1KB | RAM | **Text Page 2 / Lo-Res Page 2** |
+| `$0C00–$1FFF` | 5KB | RAM | Free |
+| `$2000–$3FFF` | 8KB | RAM | **Hi-Res Page 1** |
+| `$4000–$5FFF` | 8KB | RAM | **Hi-Res Page 2** |
+| `$6000–$BFFF` | 24KB | RAM | Free (programs, variables) |
+| `$C000–$C00F` | 16B | Keyboard | `$C000` = key data (bit 7 = strobe), `$C010` = strobe clear |
+| `$C010–$C01F` | 16B | Keyboard | Strobe clear (any read), button inputs |
+| `$C020–$C02F` | 16B | I/O | Cassette, utility strobe |
+| `$C030–$C03F` | 16B | Speaker | **Any read toggles speaker** |
+| `$C040–$C04F` | 16B | I/O | Game I/O (paddles, buttons) |
+| `$C050` | 1B | Soft Switch | Graphics mode ON |
+| `$C051` | 1B | Soft Switch | Text mode ON |
+| `$C052` | 1B | Soft Switch | Full-screen (no mixed) |
+| `$C053` | 1B | Soft Switch | Mixed mode (4 lines text at bottom) |
+| `$C054` | 1B | Soft Switch | Display Page 1 |
+| `$C055` | 1B | Soft Switch | Display Page 2 |
+| `$C056` | 1B | Soft Switch | Lo-Res mode |
+| `$C057` | 1B | Soft Switch | Hi-Res mode |
+| `$C058–$C05F` | 8B | Soft Switch | Annunciator outputs |
+| `$C060–$C06F` | 16B | I/O | Paddle/button read |
+| `$C070–$C07F` | 16B | I/O | Paddle timer reset |
+| `$C080–$C08F` | 16B | Language Card | **Bank-switch controls** — selects RAM/ROM in $D000–$FFFF |
+| `$C090–$C0FF` | 112B | Slot I/O | `$C0n0–$C0nF` = slot _n_ device I/O (n=1–7) |
+| `$C100–$C7FF` | 1.75KB | Slot ROM | `$Cn00–$CnFF` = 256B ROM per slot (n=1–7) |
+| `$C800–$CFFF` | 2KB | Slot Expansion | Shared expansion ROM space (active slot selected by `$Cn00` access) |
+| `$D000–$D7FF` | 2KB | ROM or RAM | ROM: Applesoft (II+) / Integer BASIC (II). RAM: Language Card bank 2 |
+| `$D800–$DFFF` | 2KB | ROM or RAM | ROM: Applesoft continued. RAM: Language Card |
+| `$E000–$FFFF` | 8KB | ROM or RAM | ROM: Applesoft + Monitor. RAM: Language Card |
+| `$FFFC–$FFFD` | 2B | ROM | **Reset vector** — CPU reads this on power-on |
+
+### Apple IIe Additions
+
+The IIe extends the II+ map with auxiliary memory and additional soft switches:
+
+| Address Range | Device | Notes |
+|---------------|--------|-------|
+| `$C000` | Keyboard | Same as II+, but supports **lowercase** and modifier keys |
+| `$C003` / `$C004` | Aux RAM Card | Read main RAM / Read aux RAM for `$0200–$BFFF` |
+| `$C005` / `$C006` | Aux RAM Card | Write aux RAM / Write main RAM for `$0200–$BFFF` |
+| `$C00C` / `$C00D` | Soft Switch | 40-column / 80-column mode |
+| `$C00E` / `$C00F` | Soft Switch | Character set: primary / alternate (MouseText) |
+| `$C054` / `$C055` | Soft Switch | Page 1 / Page 2 (also selects main/aux for $0400–$07FF and $2000–$3FFF) |
+| `$C05E` / `$C05F` | Soft Switch | Double hi-res ON / OFF |
+| `$C061` | Input | Open Apple button state |
+| `$C062` | Input | Closed Apple button state |
+| `$C07E` / `$C07F` | Soft Switch | IOU disable / enable |
+
+The IIe has a **separate 64KB auxiliary RAM bank**. When active, reads and/or writes to `$0200–$BFFF` are redirected to auxiliary memory instead of main RAM. The video hardware reads from both banks simultaneously for 80-column text and double hi-res modes.
+
+### Text Mode Interleaved Row Layout
+
+The Apple II text/lo-res display maps 24 rows to non-contiguous memory. This applies to all three machines:
+
+| Screen Row | Memory Address (Page 1) | Memory Address (Page 2) |
+|------------|------------------------|------------------------|
+| 0 | `$0400` | `$0800` |
+| 1 | `$0480` | `$0880` |
+| 2 | `$0500` | `$0900` |
+| 3 | `$0580` | `$0980` |
+| 4 | `$0600` | `$0A00` |
+| 5 | `$0680` | `$0A80` |
+| 6 | `$0700` | `$0B00` |
+| 7 | `$0780` | `$0B80` |
+| 8 | `$0428` | `$0828` |
+| 9 | `$04A8` | `$08A8` |
+| 10 | `$0528` | `$0928` |
+| 11 | `$05A8` | `$09A8` |
+| 12 | `$0628` | `$0A28` |
+| 13 | `$06A8` | `$0AA8` |
+| 14 | `$0728` | `$0B28` |
+| 15 | `$07A8` | `$0BA8` |
+| 16 | `$0450` | `$0850` |
+| 17 | `$04D0` | `$08D0` |
+| 18 | `$0550` | `$0950` |
+| 19 | `$05D0` | `$09D0` |
+| 20 | `$0650` | `$0A50` |
+| 21 | `$06D0` | `$0AD0` |
+| 22 | `$0750` | `$0B50` |
+| 23 | `$07D0` | `$0BD0` |
+
+Formula: `base + 128*(row%8) + 40*(row/8)` where base is `$0400` (page 1) or `$0800` (page 2). Hi-res uses the same pattern with base `$2000`/`$4000` and 8 pixel-rows per text row (192 total).
+
+### Hi-Res Color Encoding
+
+Each byte in hi-res memory encodes 7 pixels plus a palette selector:
+
+```
+Bit 7: Palette select (0 = violet/green group, 1 = blue/orange group)
+Bits 6–0: 7 pixels, LSB = leftmost
+
+Palette 0: even-column ON = violet, odd-column ON = green
+Palette 1: even-column ON = blue,   odd-column ON = orange
+Adjacent ON pixels merge to white.
+Adjacent OFF pixels remain black.
+```
+
+### Lo-Res Color Palette
+
+Each byte encodes two vertically-stacked 4-bit color blocks (top nybble, bottom nybble):
+
+| Value | Color | Value | Color |
+|-------|-------|-------|-------|
+| 0 | Black | 8 | Brown |
+| 1 | Magenta | 9 | Orange |
+| 2 | Dark Blue | 10 | Grey 1 |
+| 3 | Purple | 11 | Pink |
+| 4 | Dark Green | 12 | Green |
+| 5 | Grey 2 | 13 | Yellow |
+| 6 | Medium Blue | 14 | Aqua |
+| 7 | Light Blue | 15 | White |
 
 ## Machine Configuration File Schema
 
@@ -341,3 +481,180 @@ void RegisterBuiltinDevices (ComponentRegistry & registry)
 ### ROM sourcing
 
 ROM images are copyrighted and not distributed with the project. The `roms/` directory is gitignored. A helper script `scripts/FetchRoms.ps1` can download ROMs from the AppleWin project's repository (https://github.com/AppleWin/AppleWin) for convenience, following the same pattern as `scripts/RunDormannTest.ps1`.
+
+## Apple II Model Differences
+
+The three supported Apple II models share the same fundamental architecture but differ in specific capabilities. The data-driven config system handles these differences through different JSON files that wire different components.
+
+### Apple II (original) vs. Apple II+
+
+These two machines are architecturally identical — same 6502 CPU, same 48KB RAM, same peripheral slot layout, same video modes, same keyboard (uppercase only). The **only** difference is the system ROM:
+
+| Aspect | Apple II | Apple II+ |
+|--------|----------|-----------|
+| System ROM | Integer BASIC + Monitor | Applesoft BASIC + Monitor |
+| ROM file | `apple2.rom` | `apple2plus.rom` |
+| BASIC dialect | Integer BASIC (faster, integer-only) | Applesoft BASIC (floating-point, standard) |
+| Config name | `apple2` | `apple2plus` |
+
+Both use the `"cpu": "6502"` setting, the `"apple2-keyboard"` (uppercase-only) device, and the same video modes. The config files are identical except for the `"name"` and the ROM `"file"` path.
+
+### Apple II+ vs. Apple IIe
+
+The Apple IIe is a significant hardware upgrade. These differences require distinct device components (not just config changes):
+
+| Aspect | Apple II / II+ | Apple IIe |
+|--------|----------------|-----------|
+| CPU | NMOS 6502 | CMOS 65C02 (additional opcodes) |
+| Main RAM | 48KB ($0000–$BFFF) | 64KB ($0000–$BFFF + $C100–$FFFF bank area) |
+| Auxiliary RAM | None | 64KB (128KB total) via aux RAM card |
+| Text mode | 40 columns, uppercase only | 40 or 80 columns, full upper/lowercase |
+| Hi-res graphics | 280×192, 6 colors | 280×192 plus double hi-res 560×192, 16 colors |
+| Keyboard | Uppercase ASCII only | Full upper/lowercase, auto-repeat, modifier keys |
+| Special keys | None | Open Apple, Closed Apple (active-low at $C061/$C062) |
+| Soft switches | Basic set ($C050–$C05F) | Extended set (adds 80-col, aux bank select, etc.) |
+| Character ROM | Not separate (built into video circuit) | Separate character generator ROM (`apple2e-char.rom`) for MouseText and lowercase |
+| ROM | Single 12KB ROM ($D000–$FFFF) | Larger ROM with $C100–$CFFF built-in, plus $D000–$FFFF |
+
+### Example: Apple II (original) Config
+
+```json
+{
+    "name": "Apple II",
+    "cpu": "6502",
+    "clockSpeed": 1023000,
+    "memory": [
+        { "type": "ram",  "start": "0x0000", "end": "0xBFFF" },
+        { "type": "rom",  "file": "apple2.rom", "start": "0xD000", "end": "0xFFFF" }
+    ],
+    "devices": [
+        { "type": "apple2-keyboard",      "address": "0xC000" },
+        { "type": "apple2-speaker",       "address": "0xC030" },
+        { "type": "apple2-softswitches",  "start": "0xC050", "end": "0xC05F" },
+        { "type": "language-card",        "start": "0xC080", "end": "0xC08F" },
+        { "type": "disk-ii",             "slot": 6 }
+    ],
+    "video": {
+        "modes": ["apple2-text40", "apple2-lores", "apple2-hires"],
+        "width": 560,
+        "height": 384
+    },
+    "keyboard": {
+        "type": "apple2-uppercase"
+    }
+}
+```
+
+## CPU Integration with Casso65Core
+
+The existing `Cpu` class in Casso65Core uses a flat 64KB `memory[]` vector and non-virtual `ReadByte`/`WriteByte` methods. To support the MemoryBus architecture without breaking existing functionality:
+
+1. **Make memory access methods virtual**: Change `ReadByte`, `WriteByte`, `ReadWord`, `WriteWord` from non-virtual to virtual in `Cpu.h`. These are `protected` methods — this is not a public API change. All existing code (assembler CLI, unit tests) continues to use the base `Cpu` class with its flat memory array, completely unaffected.
+
+2. **Create `EmuCpu` subclass**: A new class in the Casso65Emu project that overrides the four memory access methods to delegate to the `MemoryBus`. The `EmuCpu` constructor takes a `MemoryBus&` reference.
+
+3. **65C02 support**: `EmuCpu` extends the instruction set when the config specifies `"cpu": "65c02"`. The additional opcodes are registered in the existing `instructionSet` table during initialization. This adds approximately 27 new opcodes and several new addressing modes (zero-page indirect, etc.) The base 6502 opcode table is unchanged.
+
+4. **Cycle counting**: The `EmuCpu` tracks cycles executed per `StepOne()` call so the emulation loop can synchronize to real-time speed. The base `Cpu` class does not currently expose cycle counts; `EmuCpu` adds this internally.
+
+## Emulation Loop Architecture
+
+The emulation runs on a single thread, integrated with the Win32 message pump. There is no separate CPU thread — this avoids synchronization complexity and is sufficient for the 1 MHz Apple II's performance requirements on modern hardware.
+
+### Frame-Based Execution
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Main Loop                       │
+│                                                  │
+│  1. Process Win32 messages (PeekMessage)         │
+│  2. Execute ~17,050 CPU cycles (one frame)       │
+│     - CPU steps, MemoryBus routes reads/writes   │
+│     - Speaker toggles accumulate timestamps      │
+│     - Soft switch changes update video mode       │
+│  3. Render video framebuffer from current mode    │
+│  4. Blit framebuffer to window (GDI BitBlt)      │
+│  5. Submit audio buffer (waveOut)                 │
+│  6. Sleep for remaining frame time (~16.6 ms)    │
+│                                                  │
+│  Target: ~60 frames/second (matching Apple II    │
+│  NTSC vertical refresh rate)                     │
+└─────────────────────────────────────────────────┘
+```
+
+### Timing
+
+- Apple II clock: 1,023,000 Hz (14.31818 MHz master ÷ 14)
+- NTSC frame rate: ~60.05 Hz (actually 262 scanlines × 65 cycles = 17,030 cycles/frame)
+- Cycles per frame: ~17,030 (the exact value depends on NTSC timing; 17,050 is a reasonable approximation)
+- Frame period: ~16.6 ms
+- The loop uses `QueryPerformanceCounter` for high-resolution timing and sleeps (`Sleep` or spin-waits) to maintain real-time speed
+
+### Speed Synchronization
+
+When the host PC is faster than the emulated clock speed (which it always will be), the emulation loop inserts idle time after each frame. If the host is too slow (should not happen for a 1 MHz target), frames are dropped (video rendering is skipped but CPU execution continues).
+
+## GUI Application Structure
+
+### Project Layout
+
+Casso65Emu is a new Win32 application project added to the `Casso65.sln` solution. It links against the Casso65Core static library.
+
+```
+Casso65.sln
+├── Casso65Core/       Static library — CPU, assembler (existing, unchanged)
+├── Casso65/           Console application — assembler CLI (existing, unchanged)
+├── UnitTest/          Test DLL (existing, unchanged)
+└── Casso65Emu/        NEW — Win32 GUI application
+    ├── Casso65Emu.vcxproj
+    ├── machines/      JSON machine config files
+    │   ├── apple2.json
+    │   ├── apple2plus.json
+    │   └── apple2e.json
+    ├── roms/          ROM images (gitignored)
+    └── (source files)
+```
+
+### Window Specification
+
+- **Window type**: Win32 `HWND` created with `CreateWindowEx`, `WS_OVERLAPPEDWINDOW` style but with resize disabled (`WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX`)
+- **Client area**: Fixed 560×384 pixels (2× the Apple II 280×192 hi-res resolution)
+- **Title bar**: `"Casso65 — {machine name} [{state}]"` where state is Running, Paused, or Stopped (e.g., `"Casso65 — Apple II+ [Running]"`)
+- **Menu bar**:
+  - **File**: Open Disk 1… | Open Disk 2… | Eject Disk 1 | Eject Disk 2 | — | Exit
+  - **Machine**: Reset | — | Pause / Resume
+  - **Help**: About
+- **Keyboard shortcuts**:
+  - `Ctrl+1` / `Ctrl+2`: Open Disk 1 / Disk 2 dialog
+  - `Ctrl+R`: Reset (simulates Apple II power-on reset)
+  - `Pause` key: Toggle pause/resume
+  - `Scroll Lock`: Toggle full-speed mode (run as fast as possible, no frame sync)
+  - `F12` or `Alt+F4`: Exit
+- **Disk insertion**: Uses standard Win32 `GetOpenFileName` dialog filtered to `.dsk` files
+- **No status bar** in the initial implementation (future enhancement)
+
+### Rendering Pipeline
+
+1. A 560×384 RGBA pixel buffer is allocated in system memory
+2. The active `VideoOutput` renderer reads Apple II video RAM and writes pixels into this buffer
+3. Each frame, the buffer is copied to a Win32 DIB section
+4. `BitBlt` (or `StretchDIBits`) transfers the DIB to the window's device context
+5. No Direct3D, DirectDraw, OpenGL, or any GPU API is used — pure GDI software rendering
+
+## Slot-Based Device Mapping
+
+Apple II expansion slots (1–7) each have two address ranges on the bus:
+
+| Range | Purpose | Example (Slot 6) |
+|-------|---------|-------------------|
+| `$C0s0–$C0sF` (where s = slot + 8) | Device I/O registers | `$C0E0–$C0EF` — Disk II stepper motor phases, read/write data, write mode, drive select |
+| `$Cs00–$CsFF` | Slot ROM (256 bytes) | `$C600–$C6FF` — Disk II boot ROM (executed by `PR#6` or `C600G`) |
+
+When a machine config specifies `"slot": 6` for a device, the MemoryBus automatically maps the device to both ranges. The slot ROM is typically embedded in the device's data or loaded from a separate ROM file.
+
+### Disk II Slot 6 Details
+
+The Disk II controller in slot 6 uses:
+- **I/O range $C0E0–$C0EF**: 16 soft switches controlling stepper motor phases (0–3), motor on/off, drive select (1/2), read/write mode, and data latch
+- **Slot ROM $C600–$C6FF**: 256-byte boot ROM that reads track 0, sector 0 into $0800 and jumps to it
+- **.dsk format**: 140KB (35 tracks × 16 sectors × 256 bytes), DOS-order sector interleaving. The controller translates logical sectors to physical nibble-encoded sectors using the standard 6-and-2 encoding scheme.
