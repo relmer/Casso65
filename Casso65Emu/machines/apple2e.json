@@ -1,0 +1,40 @@
+{
+    "name": "Apple IIe",
+    "cpu": "6502",
+    "clockSpeed": 1023000,
+    "memory": [
+        {
+            "type": "ram",
+            "start": "0x0000",
+            "end": "0xBFFF"
+        },
+        {
+            "type": "ram",
+            "start": "0x0000",
+            "end": "0xBFFF",
+            "bank": "aux"
+        },
+        {
+            "type": "rom",
+            "start": "0xC100",
+            "end": "0xFFFF",
+            "file": "apple2e.rom"
+        }
+    ],
+    "devices": [
+        { "type": "apple2e-keyboard" },
+        { "type": "apple2-speaker" },
+        { "type": "apple2e-softswitches" },
+        { "type": "aux-ram-card" },
+        { "type": "language-card" },
+        { "type": "disk-ii", "slot": 6 }
+    ],
+    "video": {
+        "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"],
+        "width": 560,
+        "height": 384
+    },
+    "keyboard": {
+        "type": "apple2e-full"
+    }
+}

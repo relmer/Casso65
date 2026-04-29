@@ -1,0 +1,101 @@
+#include "Pch.h"
+
+#include "AppleIIeKeyboard.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleIIeKeyboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AppleIIeKeyboard::AppleIIeKeyboard ()
+    : AppleKeyboard (),
+      m_openApple   (false),
+      m_closedApple (false)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Read
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleIIeKeyboard::Read (Word address)
+{
+    // $C061: Open Apple button (bit 7)
+    if (address == 0xC061)
+    {
+        return m_openApple ? 0x80 : 0x00;
+    }
+
+    // $C062: Closed Apple button (bit 7)
+    if (address == 0xC062)
+    {
+        return m_closedApple ? 0x80 : 0x00;
+    }
+
+    // Default keyboard handling
+    return AppleKeyboard::Read (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KeyPressRaw
+//
+//  IIe keyboard supports lowercase — don't force uppercase.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleIIeKeyboard::KeyPressRaw (Byte asciiChar)
+{
+    // Directly set the latched key without uppercase translation
+    KeyPress (asciiChar);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleIIeKeyboard::Reset ()
+{
+    AppleKeyboard::Reset ();
+    m_openApple   = false;
+    m_closedApple = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Create
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<MemoryDevice> AppleIIeKeyboard::Create (const DeviceConfig & config, MemoryBus & bus)
+{
+    UNREFERENCED_PARAMETER (config);
+    UNREFERENCED_PARAMETER (bus);
+
+    return std::make_unique<AppleIIeKeyboard> ();
+}

@@ -9,6 +9,9 @@
 #include "../Devices/AppleSpeaker.h"
 #include "../Devices/LanguageCard.h"
 #include "../Devices/DiskIIController.h"
+#include "../Devices/AppleIIeKeyboard.h"
+#include "../Devices/AuxRamCard.h"
+#include "../Devices/AppleIIeSoftSwitchBank.h"
 
 
 
@@ -113,9 +116,12 @@ std::vector<std::string> ComponentRegistry::GetRegisteredTypes () const
 
 void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
 {
-    registry.Register ("apple2-keyboard",     AppleKeyboard::Create);
-    registry.Register ("apple2-speaker",      AppleSpeaker::Create);
-    registry.Register ("apple2-softswitches", AppleSoftSwitchBank::Create);
-    registry.Register ("language-card",       LanguageCard::Create);
-    registry.Register ("disk-ii",             DiskIIController::Create);
+    registry.Register ("apple2-keyboard",      AppleKeyboard::Create);
+    registry.Register ("apple2e-keyboard",     AppleIIeKeyboard::Create);
+    registry.Register ("apple2-speaker",       AppleSpeaker::Create);
+    registry.Register ("apple2-softswitches",  AppleSoftSwitchBank::Create);
+    registry.Register ("apple2e-softswitches", AppleIIeSoftSwitchBank::Create);
+    registry.Register ("aux-ram-card",         AuxRamCard::Create);
+    registry.Register ("language-card",        LanguageCard::Create);
+    registry.Register ("disk-ii",              DiskIIController::Create);
 }
