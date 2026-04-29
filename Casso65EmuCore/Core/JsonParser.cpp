@@ -192,9 +192,8 @@ HRESULT JsonParser::Parse (const std::string & input, JsonValue & outValue, Json
     if (!parser.AtEnd ())
     {
         parser.SetError ("Unexpected content after JSON value");
-        hr = E_FAIL;
-        goto Error;
     }
+    CBR (parser.AtEnd ());
 
 Error:
     if (FAILED (hr))
@@ -262,8 +261,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
         else
         {
             SetError (std::format ("Unexpected character '{}'", ch));
-            hr = E_FAIL;
-            goto Error;
+            CBR (false);
         }
     }
 
@@ -335,8 +333,7 @@ HRESULT JsonParser::ParseString (std::string & outStr)
                 default:
                 {
                     SetError (std::format ("Invalid escape sequence '\\{}'", esc));
-                    hr = E_FAIL;
-                    goto Error;
+                    CBR (false);
                 }
             }
         }
@@ -347,7 +344,7 @@ HRESULT JsonParser::ParseString (std::string & outStr)
     }
 
     SetError ("Unterminated string");
-    hr = E_FAIL;
+    CBR (false);
 
 Error:
     return hr;
@@ -468,9 +465,8 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             if (Peek () != '"')
             {
                 SetError ("Expected string key in object");
-                hr = E_FAIL;
-                goto Error;
             }
+            CBR (Peek () == '"');
 
             std::string key;
             CHR (ParseString (key));
@@ -496,9 +492,8 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             if (Peek () != ',')
             {
                 SetError ("Expected ',' or '}' in object");
-                hr = E_FAIL;
-                goto Error;
             }
+            CBR (Peek () == ',');
 
             Advance ();
         }
@@ -558,9 +553,8 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
             if (Peek () != ',')
             {
                 SetError ("Expected ',' or ']' in array");
-                hr = E_FAIL;
-                goto Error;
             }
+            CBR (Peek () == ',');
 
             Advance ();
         }
@@ -595,9 +589,8 @@ HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
         if (AtEnd () || Peek () != keyword[i])
         {
             SetError (std::format ("Expected '{}'", keyword));
-            hr = E_FAIL;
-            goto Error;
         }
+        CBR (!AtEnd () && Peek () == keyword[i]);
 
         Advance ();
     }

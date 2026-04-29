@@ -148,9 +148,8 @@ HRESULT MemoryBus::Validate () const
             {
                 DEBUGMSG (L"Address conflict: device at $%04X-$%04X overlaps device at $%04X-$%04X\n",
                     a.start, a.end, b.start, b.end);
-                hr = E_FAIL;
-                goto Error;
             }
+            CBR (!(a.start <= b.end && b.start <= a.end));
         }
     }
 
