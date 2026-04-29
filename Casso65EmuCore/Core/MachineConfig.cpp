@@ -2,6 +2,7 @@
 
 #include "MachineConfig.h"
 #include "JsonParser.h"
+#include "PathResolver.h"
 
 
 
@@ -48,7 +49,7 @@ Error:
 
 HRESULT MachineConfigLoader::Load (
     const std::string & jsonText,
-    const std::string & basePath,
+    const std::vector<std::string> & searchPaths,
     MachineConfig & outConfig,
     std::string & outError)
 {
@@ -162,15 +163,17 @@ HRESULT MachineConfigLoader::Load (
                 CBR_SetError (romHasFile, outError = std::format ("memory[{}]: ROM region requires 'file' field", i));
             }
 
-            // Validate ROM file exists
+            // Validate ROM file exists — search all paths independently
             if (!region.file.empty ())
             {
-                std::string romPath = basePath + "/roms/" + region.file;
-                std::ifstream test (romPath, std::ios::binary);
+                std::string romRelPath = "roms/" + region.file;
+                std::string romBase    = PathResolver::FindFile (searchPaths, romRelPath);
 
-                CBR_SetError (test.good (), outError = std::format (
+                CBR_SetError (!romBase.empty (), outError = std::format (
                     "ROM file not found: roms/{}. Place Apple II ROM images in the roms/ directory.",
                     region.file));
+
+                region.resolvedPath = romBase + "/" + romRelPath;
             }
 
             outConfig.memoryRegions.push_back (region);

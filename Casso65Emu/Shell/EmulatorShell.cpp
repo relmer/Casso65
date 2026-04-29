@@ -90,7 +90,6 @@ EmulatorShell::~EmulatorShell ()
 HRESULT EmulatorShell::Initialize (
     HINSTANCE hInstance,
     const MachineConfig & config,
-    const std::string & basePath,
     const std::string & disk1Path,
     const std::string & disk2Path)
 {
@@ -101,7 +100,6 @@ HRESULT EmulatorShell::Initialize (
 
     m_hInstance = hInstance;
     m_config    = config;
-    m_basePath  = basePath;
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
@@ -176,7 +174,7 @@ HRESULT EmulatorShell::Initialize (
         }
         else if (region.type == "rom" && !region.file.empty ())
         {
-            std::string romPath = basePath + "/roms/" + region.file;
+            std::string romPath = region.resolvedPath;
             std::string error;
 
             auto device = RomDevice::CreateFromFile (region.start, region.end, romPath, error);

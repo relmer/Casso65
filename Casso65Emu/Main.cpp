@@ -1,104 +1,11 @@
 #include "Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "Core/PathResolver.h"
 #include "Ehm.h"
 #include "Shell/EmulatorShell.h"
 
 #pragma comment(lib, "ole32.lib")
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetExecutableDirectory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::string GetExecutableDirectory ()
-{
-    char path[MAX_PATH] = {};
-    GetModuleFileNameA (nullptr, path, MAX_PATH);
-
-    std::string dir (path);
-    size_t pos = dir.find_last_of ("\\/");
-
-    if (pos != std::string::npos)
-    {
-        dir = dir.substr (0, pos);
-    }
-
-    return dir;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetCurrentDirectory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::string GetWorkingDirectory ()
-{
-    char path[MAX_PATH] = {};
-    GetCurrentDirectoryA (MAX_PATH, path);
-    return std::string (path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindFileInSearchPaths — searches exe dir, cwd, and subdirectories of each
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::string FindFileInSearchPaths (const std::string & relativePath)
-{
-    std::string exeDir = GetExecutableDirectory ();
-    std::string cwd    = GetWorkingDirectory ();
-
-    // Search order: exe dir, cwd, then each with common parent patterns
-    std::vector<std::string> searchBases = { exeDir, cwd };
-
-    // Also try parent directories (handles running from x64/Debug/)
-    for (const auto & base : { exeDir, cwd })
-    {
-        size_t pos = base.find_last_of ("\\/");
-
-        if (pos != std::string::npos)
-        {
-            std::string parent = base.substr (0, pos);
-            searchBases.push_back (parent);
-
-            size_t pos2 = parent.find_last_of ("\\/");
-
-            if (pos2 != std::string::npos)
-            {
-                searchBases.push_back (parent.substr (0, pos2));
-            }
-        }
-    }
-
-    for (const auto & base : searchBases)
-    {
-        std::string candidate = base + "/" + relativePath;
-        std::ifstream test (candidate);
-
-        if (test.good ())
-        {
-            return base;
-        }
-    }
-
-    return "";
-}
 
 
 
@@ -219,18 +126,22 @@ int WINAPI wWinMain (
     }
 
     {
-        // Find machine config using search paths
+        // Build search paths and find machine config
+        auto searchPaths = PathResolver::BuildSearchPaths (
+            PathResolver::GetExecutableDirectory (),
+            PathResolver::GetWorkingDirectory ());
+
         std::string narrowMachine = WideToNarrow (machineName);
         std::string configRelPath = "machines/" + narrowMachine + ".json";
-        std::string basePath      = FindFileInSearchPaths (configRelPath);
+        std::string configBase    = PathResolver::FindFile (searchPaths, configRelPath);
 
-        CBRN (!basePath.empty (),
+        CBRN (!configBase.empty (),
               std::format (L"Unknown machine '{}'. Config file not found.\n"
                            L"Searched for '{}' in exe directory, current directory, and parent directories.",
                            machineName,
                            std::wstring (configRelPath.begin (), configRelPath.end ())).c_str ());
 
-        std::string configPath = basePath + "/" + configRelPath;
+        std::string configPath = configBase + "/" + configRelPath;
 
         // Load config file
         std::ifstream configFile (configPath);
@@ -243,9 +154,20 @@ int WINAPI wWinMain (
         ss << configFile.rdbuf ();
         std::string jsonText = ss.str ();
 
-        // Parse config
+        // Parse config — prioritize the config's peer roms/ directory,
+        // then fall back to other search paths
+        std::vector<std::string> romSearchPaths = { configBase };
+
+        for (const auto & p : searchPaths)
+        {
+            if (p != configBase)
+            {
+                romSearchPaths.push_back (p);
+            }
+        }
+
         MachineConfig config;
-        hr = MachineConfigLoader::Load (jsonText, basePath, config, error);
+        hr = MachineConfigLoader::Load (jsonText, romSearchPaths, config, error);
         CHRN (hr, std::format (L"Failed to load machine config:\n{}",
                                std::wstring (error.begin (), error.end ())).c_str ());
 
@@ -266,7 +188,7 @@ int WINAPI wWinMain (
 
         // Initialize emulator
         EmulatorShell shell;
-        hr = shell.Initialize (hInstance, config, basePath,
+        hr = shell.Initialize (hInstance, config,
                                WideToNarrow (disk1Path), WideToNarrow (disk2Path));
         CHRN (hr, L"Failed to initialize emulator");
 

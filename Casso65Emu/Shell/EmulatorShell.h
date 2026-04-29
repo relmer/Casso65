@@ -28,7 +28,6 @@ public:
     ~EmulatorShell ();
 
     HRESULT Initialize (HINSTANCE hInstance, const MachineConfig & config,
-                        const std::string & basePath,
                         const std::string & disk1Path,
                         const std::string & disk2Path);
 
@@ -99,8 +98,6 @@ private:
     bool            m_paused;
     SpeedMode       m_speedMode;
     ColorMode       m_colorMode;
-
-    std::string     m_basePath;
 
     // Frame timing
     LARGE_INTEGER   m_perfFreq;

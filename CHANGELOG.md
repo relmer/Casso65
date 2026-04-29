@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](Casso65Core/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+- ROM search path bug: ROM files are now searched independently across all search paths,
+  fixing failures when `machines/` and `roms/` are at different base directories
+
+### Added
+- `PathResolver` class in Casso65EmuCore — testable search-path logic for locating
+  machine configs and ROM files
+- `MemoryRegion::resolvedPath` — fully resolved ROM path stored after config loading
+- Unit tests for `PathResolver` (BuildSearchPaths, FindFile) and `MachineConfigLoader`
+  (Load, ROM resolution, error cases)
+
 ## [0.9.32] — 2026-04-28
 
 ### Added

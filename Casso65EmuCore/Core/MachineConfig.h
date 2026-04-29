@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "JsonParser.h"
+#include "PathResolver.h"
 
 
 
@@ -15,12 +16,13 @@
 
 struct MemoryRegion
 {
-    std::string type;       // "ram" or "rom"
-    Word        start;
-    Word        end;
-    std::string file;       // Required for ROM
-    std::string bank;       // Optional: "aux"
-    std::string target;     // Optional: "chargen"
+    std::string type;           // "ram" or "rom"
+    Word        start = 0;
+    Word        end   = 0;
+    std::string file;           // Required for ROM (from JSON)
+    std::string resolvedPath;   // Fully resolved ROM path after search
+    std::string bank;           // Optional: "aux"
+    std::string target;         // Optional: "chargen"
 };
 
 
@@ -120,7 +122,7 @@ class MachineConfigLoader
 public:
     static HRESULT Load (
         const std::string & jsonText,
-        const std::string & basePath,
+        const std::vector<std::string> & searchPaths,
         MachineConfig & outConfig,
         std::string & outError);
 
