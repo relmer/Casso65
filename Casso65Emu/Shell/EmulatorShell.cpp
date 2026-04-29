@@ -6,7 +6,10 @@
 #include "Devices/RomDevice.h"
 #include "Devices/AppleKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleSpeaker.h"
 #include "Video/AppleTextMode.h"
+#include "Video/AppleLoResMode.h"
+#include "Video/AppleHiResMode.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -47,6 +50,7 @@ EmulatorShell::EmulatorShell ()
       m_doubleHiRes     (false),
       m_keyboard        (nullptr),
       m_softSwitches    (nullptr),
+      m_speaker         (nullptr),
       m_running         (true),
       m_paused          (false),
       m_speedMode       (SpeedMode::Authentic),
@@ -202,6 +206,10 @@ HRESULT EmulatorShell::Initialize (
             {
                 m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get ());
             }
+            else if (devConfig.type == "apple2-speaker")
+            {
+                m_speaker = static_cast<AppleSpeaker *> (device.get ());
+            }
 
             m_memoryBus.AddDevice (device.get ());
             m_ownedDevices.push_back (std::move (device));
@@ -217,6 +225,12 @@ HRESULT EmulatorShell::Initialize (
         auto textMode = std::make_unique<AppleTextMode> (m_memoryBus);
         m_activeVideoMode = textMode.get ();
         m_videoModes.push_back (std::move (textMode));
+
+        auto loResMode = std::make_unique<AppleLoResMode> (m_memoryBus);
+        m_videoModes.push_back (std::move (loResMode));
+
+        auto hiResMode = std::make_unique<AppleHiResMode> (m_memoryBus);
+        m_videoModes.push_back (std::move (hiResMode));
     }
 
     // Create CPU
@@ -225,6 +239,9 @@ HRESULT EmulatorShell::Initialize (
 
     // Initialize D3D11
     CHR (m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight));
+
+    // Initialize WASAPI audio (non-fatal if it fails)
+    m_wasapiAudio.Initialize ();
 
     // Show window
     ShowWindow (m_hwnd, SW_SHOW);
@@ -352,6 +369,17 @@ void EmulatorShell::RunOneFrame ()
 
     // Upload and present
     m_d3dRenderer.UploadAndPresent (m_framebuffer.data ());
+
+    // Submit audio
+    if (m_speaker && m_wasapiAudio.IsInitialized ())
+    {
+        m_wasapiAudio.SubmitFrame (
+            m_speaker->GetToggleTimestamps (),
+            targetCycles,
+            m_speaker->GetSpeakerState ());
+
+        m_speaker->ClearTimestamps ();
+    }
 
     // Frame timing synchronization
     if (m_speedMode != SpeedMode::Maximum)
@@ -735,7 +763,7 @@ void EmulatorShell::UpdateWindowTitle ()
 
 void EmulatorShell::SelectVideoMode ()
 {
-    if (m_videoModes.empty ())
+    if (m_videoModes.size () < 3)
     {
         return;
     }
@@ -750,10 +778,19 @@ void EmulatorShell::SelectVideoMode ()
     }
 
     // Select video mode based on soft switch state
-    // For now, only text mode is available
-    m_activeVideoMode = m_videoModes[0].get ();
-
-    // Additional modes will be added in subsequent phases
-    // graphicsMode && !hiresMode -> lo-res (Phase 5)
-    // graphicsMode && hiresMode  -> hi-res (Phase 7)
+    if (!m_graphicsMode)
+    {
+        // Text mode
+        m_activeVideoMode = m_videoModes[0].get ();
+    }
+    else if (!m_hiresMode)
+    {
+        // Lo-res graphics
+        m_activeVideoMode = m_videoModes[1].get ();
+    }
+    else
+    {
+        // Hi-res graphics
+        m_activeVideoMode = m_videoModes[2].get ();
+    }
 }

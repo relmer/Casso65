@@ -8,6 +8,7 @@
 #include "Shell/D3DRenderer.h"
 #include "Shell/MenuSystem.h"
 #include "Video/VideoOutput.h"
+#include "Audio/WasapiAudio.h"
 
 
 
@@ -67,6 +68,7 @@ private:
 
     D3DRenderer         m_d3dRenderer;
     MenuSystem          m_menuSystem;
+    WasapiAudio         m_wasapiAudio;
 
     // Owned devices
     std::vector<std::unique_ptr<MemoryDevice>> m_ownedDevices;
@@ -87,6 +89,7 @@ private:
     // Device pointers (non-owning, for quick access)
     class AppleKeyboard *         m_keyboard;
     class AppleSoftSwitchBank *   m_softSwitches;
+    class AppleSpeaker *          m_speaker;
 
     // Emulation state
     MachineConfig   m_config;

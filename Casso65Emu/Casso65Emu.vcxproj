@@ -225,7 +225,11 @@
     <ClCompile Include="Devices\RomDevice.cpp" />
     <ClCompile Include="Devices\AppleKeyboard.cpp" />
     <ClCompile Include="Devices\AppleSoftSwitchBank.cpp" />
+    <ClCompile Include="Devices\AppleSpeaker.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
+    <ClCompile Include="Video\AppleLoResMode.cpp" />
+    <ClCompile Include="Video\AppleHiResMode.cpp" />
+    <ClCompile Include="Audio\WasapiAudio.cpp" />
     <ClCompile Include="Shell\D3DRenderer.cpp" />
     <ClCompile Include="Shell\MenuSystem.cpp" />
     <ClCompile Include="Shell\EmulatorShell.cpp" />
@@ -242,12 +246,17 @@
     <ClInclude Include="Devices\RomDevice.h" />
     <ClInclude Include="Devices\AppleKeyboard.h" />
     <ClInclude Include="Devices\AppleSoftSwitchBank.h" />
+    <ClInclude Include="Devices\AppleSpeaker.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />
+    <ClInclude Include="Video\AppleLoResMode.h" />
+    <ClInclude Include="Video\AppleHiResMode.h" />
+    <ClInclude Include="Video\NtscColorTable.h" />
     <ClInclude Include="Video\CharacterRom.h" />
     <ClInclude Include="Shell\D3DRenderer.h" />
     <ClInclude Include="Shell\MenuSystem.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
+    <ClInclude Include="Audio\WasapiAudio.h" />
     <ClInclude Include="Resources\resource.h" />
   </ItemGroup>
   <ItemGroup>

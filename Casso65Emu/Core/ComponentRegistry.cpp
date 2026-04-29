@@ -6,6 +6,7 @@
 #include "../Devices/RomDevice.h"
 #include "../Devices/AppleKeyboard.h"
 #include "../Devices/AppleSoftSwitchBank.h"
+#include "../Devices/AppleSpeaker.h"
 
 
 
@@ -111,5 +112,6 @@ std::vector<std::string> ComponentRegistry::GetRegisteredTypes () const
 void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
 {
     registry.Register ("apple2-keyboard",     AppleKeyboard::Create);
+    registry.Register ("apple2-speaker",      AppleSpeaker::Create);
     registry.Register ("apple2-softswitches", AppleSoftSwitchBank::Create);
 }
