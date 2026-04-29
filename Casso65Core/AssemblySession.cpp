@@ -716,7 +716,7 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
         m_pendingLines.push_back (pl);
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1067,7 +1067,7 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1172,7 +1172,7 @@ HRESULT AssemblySession::ParseStructMember (const PendingLine & current, LineInf
         m_currentStruct.currentOffset += memberSize;
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1236,7 +1236,7 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
         m_currentMacroBody.push_back (current.text);
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1431,7 +1431,7 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 
     m_condStack.push_back (state);
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1479,7 +1479,7 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
 
     m_condStack.push_back (state);
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1517,7 +1517,7 @@ HRESULT AssemblySession::HandleElseDirective (const PendingLine & current)
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1546,7 +1546,7 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
         m_condStack.pop_back ();
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1593,7 +1593,7 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1782,7 +1782,7 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -1843,7 +1843,7 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2034,7 +2034,7 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
         m_pc += (Word) values.size ();
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2511,7 +2511,7 @@ HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm
 
     isExitm = (trimmed == "EXITM" || trimmed == ".EXITM");
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2579,7 +2579,7 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2687,7 +2687,7 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2737,7 +2737,7 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2852,7 +2852,7 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -2978,7 +2978,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3010,7 +3010,7 @@ HRESULT AssemblySession::ValidateAssemblyCompletion ()
             "Unclosed if block (" + std::to_string (m_condStack.size ()) + " level(s) open)");
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3190,7 +3190,7 @@ HRESULT AssemblySession::ResolveEquConstants ()
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3226,7 +3226,7 @@ HRESULT AssemblySession::ReportUnresolvedEqus ()
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3397,7 +3397,7 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
         m_result.success = false;
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3434,7 +3434,7 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
         m_result.success = false;
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3473,7 +3473,7 @@ HRESULT AssemblySession::EmitDdDirective (const LineInfo & info, Word & emitPC)
         m_result.success = false;
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3520,7 +3520,7 @@ HRESULT AssemblySession::EmitDsDirective (const LineInfo & info, Word & emitPC)
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3568,7 +3568,7 @@ HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitP
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3670,7 +3670,7 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3728,7 +3728,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         }
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3825,7 +3825,7 @@ HRESULT AssemblySession::ExtractImage ()
         m_result.endAddress = m_result.startAddress;
     }
 
-Error:
+// Error:
     return hr;
 }
 
@@ -3887,6 +3887,6 @@ HRESULT AssemblySession::DetectUnusedLabels ()
         }
     }
 
-Error:
+// Error:
     return hr;
 }
