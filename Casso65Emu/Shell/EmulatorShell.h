@@ -7,6 +7,7 @@
 #include "Core/ComponentRegistry.h"
 #include "Shell/D3DRenderer.h"
 #include "Shell/MenuSystem.h"
+#include "Shell/DebugConsole.h"
 #include "Video/VideoOutput.h"
 #include "Audio/WasapiAudio.h"
 
@@ -69,6 +70,7 @@ private:
     D3DRenderer         m_d3dRenderer;
     MenuSystem          m_menuSystem;
     WasapiAudio         m_wasapiAudio;
+    DebugConsole        m_debugConsole;
 
     // Owned devices
     std::vector<std::unique_ptr<MemoryDevice>> m_ownedDevices;

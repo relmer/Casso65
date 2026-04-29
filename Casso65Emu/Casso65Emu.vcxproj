@@ -240,6 +240,7 @@
     <ClCompile Include="Shell\D3DRenderer.cpp" />
     <ClCompile Include="Shell\MenuSystem.cpp" />
     <ClCompile Include="Shell\EmulatorShell.cpp" />
+    <ClCompile Include="Shell\DebugConsole.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -270,6 +271,7 @@
     <ClInclude Include="Shell\D3DRenderer.h" />
     <ClInclude Include="Shell\MenuSystem.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
+    <ClInclude Include="Shell\DebugConsole.h" />
     <ClInclude Include="Audio\WasapiAudio.h" />
     <ClInclude Include="Resources\resource.h" />
   </ItemGroup>

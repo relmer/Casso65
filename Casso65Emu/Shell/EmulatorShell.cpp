@@ -610,6 +610,75 @@ void EmulatorShell::HandleCommand (WORD commandId)
             break;
         }
 
+        case IDM_HELP_DEBUG:
+        {
+            if (m_debugConsole.IsVisible ())
+            {
+                m_debugConsole.Hide ();
+            }
+            else
+            {
+                m_debugConsole.Show ();
+                m_debugConsole.LogConfig (
+                    std::format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
+                        m_config.name, m_config.cpu, m_config.clockSpeed,
+                        m_config.devices.size ()));
+            }
+            break;
+        }
+
+        case IDM_HELP_KEYMAP:
+        {
+            MessageBoxW (m_hwnd,
+                L"PC Key Mapping:\n\n"
+                L"Arrow Keys → Apple II cursor movement\n"
+                L"Enter → Return\n"
+                L"Escape → Escape\n"
+                L"Delete → Delete\n"
+                L"Ctrl+Reset → Warm Reset\n"
+                L"Left Alt → Open Apple (IIe)\n"
+                L"Right Alt → Closed Apple (IIe)\n\n"
+                L"Emulator Controls:\n"
+                L"Ctrl+R → Reset\n"
+                L"Ctrl+Shift+R → Power Cycle\n"
+                L"Pause → Pause/Resume\n"
+                L"F11 → Step (when paused)\n"
+                L"Alt+Enter → Fullscreen\n"
+                L"Ctrl+D → Debug Console",
+                L"Keyboard Map", MB_ICONINFORMATION | MB_OK);
+            break;
+        }
+
+        case IDM_HELP_ABOUT:
+        {
+            MessageBoxW (m_hwnd,
+                L"Casso65 Apple II Emulator\n"
+                L"Version 0.9.0\n\n"
+                L"An Apple II platform emulator built on the\n"
+                L"Casso65 6502 assembler/emulator project.\n\n"
+                L"https://github.com/relmer/Casso65",
+                L"About Casso65", MB_ICONINFORMATION | MB_OK);
+            break;
+        }
+
+        case IDM_MACHINE_INFO:
+        {
+            std::wstring info = std::format (
+                L"Machine: {}\n"
+                L"CPU: {}\n"
+                L"Clock Speed: {} Hz\n"
+                L"Memory Regions: {}\n"
+                L"Devices: {}",
+                std::wstring (m_config.name.begin (), m_config.name.end ()),
+                std::wstring (m_config.cpu.begin (), m_config.cpu.end ()),
+                m_config.clockSpeed,
+                m_config.memoryRegions.size (),
+                m_config.devices.size ());
+
+            MessageBoxW (m_hwnd, info.c_str (), L"Machine Info", MB_ICONINFORMATION | MB_OK);
+            break;
+        }
+
         default:
             break;
     }
