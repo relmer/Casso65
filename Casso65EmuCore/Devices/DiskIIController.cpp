@@ -84,10 +84,16 @@ HRESULT DiskImage::Load (const std::string & filePath)
     HRESULT hr = S_OK;
 
     std::ifstream file (filePath, std::ios::binary);
-    CBREx (file.good (), E_FAIL);
+    {
+        bool fileOk = file.good ();
+        CBREx (fileOk, E_FAIL);
+    }
 
     file.read (reinterpret_cast<char *> (m_data.data ()), 143360);
-    CBREx (file.gcount () == 143360, E_FAIL);
+    {
+        std::streamsize bytesRead = file.gcount ();
+        CBREx (bytesRead == 143360, E_FAIL);
+    }
 
     m_filePath = filePath;
     m_loaded   = true;
@@ -146,7 +152,10 @@ HRESULT DiskImage::Flush ()
     }
 
     std::ofstream file (m_filePath, std::ios::binary);
-    CBREx (file.good (), E_FAIL);
+    {
+        bool fileOk = file.good ();
+        CBREx (fileOk, E_FAIL);
+    }
 
     file.write (reinterpret_cast<const char *> (m_data.data ()), 143360);
     m_dirty = false;

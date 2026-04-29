@@ -338,6 +338,16 @@ void EhmBreakpoint         (void);
     __CBRAExHelper (!(__arg_boolTest), __EHM_NO_ASSERT, __arg_hrReplaceHr)                  \
 }
 
+#define CBR_SetError(__arg_brTest, __arg_onFailure)                                         \
+{                                                                                           \
+    if (!(__arg_brTest))                                                                    \
+    {                                                                                       \
+        __arg_onFailure;                                                                    \
+        hr = E_FAIL;                                                                        \
+        goto ErrorLabel;                                                                    \
+    }                                                                                       \
+}
+
 
 
 //

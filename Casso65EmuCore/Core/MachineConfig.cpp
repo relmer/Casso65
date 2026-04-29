@@ -29,8 +29,7 @@ HRESULT MachineConfigLoader::ParseHexAddress (const std::string & str, Word & ou
     }
     else
     {
-        outError = std::format ("Invalid address format: '{}' (expected 0xNNNN or $NNNN)", str);
-        CBR (false);
+        CBR_SetError (false, outError = std::format ("Invalid address format: '{}' (expected 0xNNNN or $NNNN)", str));
     }
 
 Error:
@@ -59,51 +58,51 @@ HRESULT MachineConfigLoader::Load (
 
     // Parse JSON
     hr = JsonParser::Parse (jsonText, root, parseError);
-    if (FAILED (hr))
-    {
-        outError = std::format ("JSON parse error at line {}, column {}: {}",
-            parseError.line, parseError.column, parseError.message);
-    }
-    CHR (hr);
 
-    CBREx (root.IsObject (), E_FAIL);
+    {
+        bool parseOk = SUCCEEDED (hr);
+
+        if (!parseOk)
+        {
+            outError = std::format ("JSON parse error at line {}, column {}: {}",
+                parseError.line, parseError.column, parseError.message);
+        }
+        CBR (parseOk);
+    }
+
+    CBR (root.IsObject ());
 
     // Required: name
-    if (!root.HasKey ("name") || !root.Get ("name").IsString ())
     {
-        outError = "Missing required field: 'name'";
+        bool hasName = root.HasKey ("name") && root.Get ("name").IsString ();
+        CBR_SetError (hasName, outError = "Missing required field: 'name'");
     }
-    CBR (root.HasKey ("name") && root.Get ("name").IsString ());
     outConfig.name = root.Get ("name").GetString ();
 
     // Required: cpu
-    if (!root.HasKey ("cpu") || !root.Get ("cpu").IsString ())
     {
-        outError = "Missing required field: 'cpu'";
+        bool hasCpu = root.HasKey ("cpu") && root.Get ("cpu").IsString ();
+        CBR_SetError (hasCpu, outError = "Missing required field: 'cpu'");
     }
-    CBR (root.HasKey ("cpu") && root.Get ("cpu").IsString ());
     outConfig.cpu = root.Get ("cpu").GetString ();
 
-    if (outConfig.cpu != "6502")
     {
-        outError = std::format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu);
+        bool validCpu = (outConfig.cpu == "6502");
+        CBR_SetError (validCpu, outError = std::format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
     }
-    CBR (outConfig.cpu == "6502");
 
     // Required: clockSpeed
-    if (!root.HasKey ("clockSpeed") || !root.Get ("clockSpeed").IsNumber ())
     {
-        outError = "Missing required field: 'clockSpeed'";
+        bool hasClockSpeed = root.HasKey ("clockSpeed") && root.Get ("clockSpeed").IsNumber ();
+        CBR_SetError (hasClockSpeed, outError = "Missing required field: 'clockSpeed'");
     }
-    CBR (root.HasKey ("clockSpeed") && root.Get ("clockSpeed").IsNumber ());
     outConfig.clockSpeed = static_cast<uint32_t> (root.Get ("clockSpeed").GetNumber ());
 
     // Required: memory array
-    if (!root.HasKey ("memory") || !root.Get ("memory").IsArray ())
     {
-        outError = "Missing required field: 'memory'";
+        bool hasMemory = root.HasKey ("memory") && root.Get ("memory").IsArray ();
+        CBR_SetError (hasMemory, outError = "Missing required field: 'memory'");
     }
-    CBR (root.HasKey ("memory") && root.Get ("memory").IsArray ());
 
     {
         const JsonValue & memArray = root.Get ("memory");
@@ -113,35 +112,35 @@ HRESULT MachineConfigLoader::Load (
             const JsonValue & entry = memArray.ArrayAt (i);
             MemoryRegion region;
 
-            CBREx (entry.IsObject (), E_FAIL);
+            CBR (entry.IsObject ());
 
-            if (!entry.HasKey ("type") || !entry.Get ("type").IsString ())
             {
-                outError = std::format ("memory[{}]: missing 'type' field", i);
+                bool hasType = entry.HasKey ("type") && entry.Get ("type").IsString ();
+                CBR_SetError (hasType, outError = std::format ("memory[{}]: missing 'type' field", i));
             }
-            CBR (entry.HasKey ("type") && entry.Get ("type").IsString ());
             region.type = entry.Get ("type").GetString ();
 
-            if (!entry.HasKey ("start") || !entry.Get ("start").IsString ())
             {
-                outError = std::format ("memory[{}]: missing 'start' field", i);
+                bool hasStart = entry.HasKey ("start") && entry.Get ("start").IsString ();
+                CBR_SetError (hasStart, outError = std::format ("memory[{}]: missing 'start' field", i));
             }
-            CBR (entry.HasKey ("start") && entry.Get ("start").IsString ());
-            CHR (ParseHexAddress (entry.Get ("start").GetString (), region.start, outError));
+            {
+                const std::string & startStr = entry.Get ("start").GetString ();
+                hr = ParseHexAddress (startStr, region.start, outError);
+                CHR (hr);
+            }
 
-            if (!entry.HasKey ("end") || !entry.Get ("end").IsString ())
             {
-                outError = std::format ("memory[{}]: missing 'end' field", i);
+                bool hasEnd = entry.HasKey ("end") && entry.Get ("end").IsString ();
+                CBR_SetError (hasEnd, outError = std::format ("memory[{}]: missing 'end' field", i));
             }
-            CBR (entry.HasKey ("end") && entry.Get ("end").IsString ());
-            CHR (ParseHexAddress (entry.Get ("end").GetString (), region.end, outError));
+            {
+                const std::string & endStr = entry.Get ("end").GetString ();
+                hr = ParseHexAddress (endStr, region.end, outError);
+                CHR (hr);
+            }
 
-            if (region.end < region.start)
-            {
-                outError = std::format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})",
-                    i, region.end, region.start);
-            }
-            CBR (region.end >= region.start);
+            CBR_SetError (region.end >= region.start, outError = std::format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})", i, region.end, region.start));
 
             if (entry.HasKey ("file") && entry.Get ("file").IsString ())
             {
@@ -158,12 +157,10 @@ HRESULT MachineConfigLoader::Load (
                 region.target = entry.Get ("target").GetString ();
             }
 
-            // ROM entries must have a file
-            if (region.type == "rom" && region.file.empty () && region.target.empty ())
             {
-                outError = std::format ("memory[{}]: ROM region requires 'file' field", i);
+                bool romHasFile = !(region.type == "rom" && region.file.empty () && region.target.empty ());
+                CBR_SetError (romHasFile, outError = std::format ("memory[{}]: ROM region requires 'file' field", i));
             }
-            CBR (!(region.type == "rom" && region.file.empty () && region.target.empty ()));
 
             // Validate ROM file exists
             if (!region.file.empty ())
@@ -171,13 +168,9 @@ HRESULT MachineConfigLoader::Load (
                 std::string romPath = basePath + "/roms/" + region.file;
                 std::ifstream test (romPath, std::ios::binary);
 
-                if (!test.good ())
-                {
-                    outError = std::format (
-                        "ROM file not found: roms/{}. Place Apple II ROM images in the roms/ directory.",
-                        region.file);
-                }
-                CBR (test.good ());
+                CBR_SetError (test.good (), outError = std::format (
+                    "ROM file not found: roms/{}. Place Apple II ROM images in the roms/ directory.",
+                    region.file));
             }
 
             outConfig.memoryRegions.push_back (region);
@@ -185,11 +178,10 @@ HRESULT MachineConfigLoader::Load (
     }
 
     // Required: devices array
-    if (!root.HasKey ("devices") || !root.Get ("devices").IsArray ())
     {
-        outError = "Missing required field: 'devices'";
+        bool hasDevices = root.HasKey ("devices") && root.Get ("devices").IsArray ();
+        CBR_SetError (hasDevices, outError = "Missing required field: 'devices'");
     }
-    CBR (root.HasKey ("devices") && root.Get ("devices").IsArray ());
 
     {
         const JsonValue & devArray = root.Get ("devices");
@@ -199,19 +191,20 @@ HRESULT MachineConfigLoader::Load (
             const JsonValue & entry = devArray.ArrayAt (i);
             DeviceConfig device;
 
-            CBREx (entry.IsObject (), E_FAIL);
+            CBR (entry.IsObject ());
 
-            if (!entry.HasKey ("type") || !entry.Get ("type").IsString ())
             {
-                outError = std::format ("devices[{}]: missing 'type' field", i);
+                bool hasType = entry.HasKey ("type") && entry.Get ("type").IsString ();
+                CBR_SetError (hasType, outError = std::format ("devices[{}]: missing 'type' field", i));
             }
-            CBR (entry.HasKey ("type") && entry.Get ("type").IsString ());
             device.type = entry.Get ("type").GetString ();
 
             // Parse address mapping — exactly one of: address, start+end, slot
             if (entry.HasKey ("address") && entry.Get ("address").IsString ())
             {
-                CHR (ParseHexAddress (entry.Get ("address").GetString (), device.address, outError));
+                const std::string & addrStr = entry.Get ("address").GetString ();
+                hr = ParseHexAddress (addrStr, device.address, outError);
+                CHR (hr);
                 device.start      = device.address;
                 device.end        = device.address;
                 device.hasAddress = true;
@@ -220,8 +213,12 @@ HRESULT MachineConfigLoader::Load (
             if (entry.HasKey ("start") && entry.Get ("start").IsString () &&
                 entry.HasKey ("end") && entry.Get ("end").IsString ())
             {
-                CHR (ParseHexAddress (entry.Get ("start").GetString (), device.start, outError));
-                CHR (ParseHexAddress (entry.Get ("end").GetString (), device.end, outError));
+                const std::string & devStartStr = entry.Get ("start").GetString ();
+                hr = ParseHexAddress (devStartStr, device.start, outError);
+                CHR (hr);
+                const std::string & devEndStr = entry.Get ("end").GetString ();
+                hr = ParseHexAddress (devEndStr, device.end, outError);
+                CHR (hr);
                 device.hasRange = true;
             }
 
@@ -230,11 +227,7 @@ HRESULT MachineConfigLoader::Load (
                 device.slot    = entry.Get ("slot").GetInt ();
                 device.hasSlot = true;
 
-                if (device.slot < 1 || device.slot > 7)
-                {
-                    outError = std::format ("devices[{}]: slot must be 1-7, got {}", i, device.slot);
-                }
-                CBR (device.slot >= 1 && device.slot <= 7);
+                CBR_SetError (device.slot >= 1 && device.slot <= 7, outError = std::format ("devices[{}]: slot must be 1-7, got {}", i, device.slot));
 
                 // Auto-map slot addresses
                 device.start = static_cast<Word> (0xC080 + device.slot * 16);
@@ -246,11 +239,10 @@ HRESULT MachineConfigLoader::Load (
     }
 
     // Required: video object
-    if (!root.HasKey ("video") || !root.Get ("video").IsObject ())
     {
-        outError = "Missing required field: 'video'";
+        bool hasVideo = root.HasKey ("video") && root.Get ("video").IsObject ();
+        CBR_SetError (hasVideo, outError = "Missing required field: 'video'");
     }
-    CBR (root.HasKey ("video") && root.Get ("video").IsObject ());
 
     {
         const JsonValue & video = root.Get ("video");
@@ -280,11 +272,10 @@ HRESULT MachineConfigLoader::Load (
     }
 
     // Required: keyboard object
-    if (!root.HasKey ("keyboard") || !root.Get ("keyboard").IsObject ())
     {
-        outError = "Missing required field: 'keyboard'";
+        bool hasKeyboard = root.HasKey ("keyboard") && root.Get ("keyboard").IsObject ();
+        CBR_SetError (hasKeyboard, outError = "Missing required field: 'keyboard'");
     }
-    CBR (root.HasKey ("keyboard") && root.Get ("keyboard").IsObject ());
 
     {
         const JsonValue & keyboard = root.Get ("keyboard");

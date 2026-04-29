@@ -55,27 +55,31 @@ HRESULT WasapiAudio::Initialize ()
     HRESULT hr = S_OK;
 
     // Create device enumerator
-    CHR (CoCreateInstance (
+    hr = CoCreateInstance (
         __uuidof (MMDeviceEnumerator),
         nullptr,
         CLSCTX_ALL,
         __uuidof (IMMDeviceEnumerator),
-        reinterpret_cast<void **> (&m_enumerator)));
+        reinterpret_cast<void **> (&m_enumerator));
+    CHR (hr);
 
     // Get default audio endpoint
-    CHR (m_enumerator->GetDefaultAudioEndpoint (eRender, eConsole, &m_device));
+    hr = m_enumerator->GetDefaultAudioEndpoint (eRender, eConsole, &m_device);
+    CHR (hr);
 
     // Activate audio client
-    CHR (m_device->Activate (
+    hr = m_device->Activate (
         __uuidof (IAudioClient),
         CLSCTX_ALL,
         nullptr,
-        reinterpret_cast<void **> (&m_audioClient)));
+        reinterpret_cast<void **> (&m_audioClient));
+    CHR (hr);
 
     // Get mix format and try float32 mono
     {
         WAVEFORMATEX * mixFormat = nullptr;
-        CHR (m_audioClient->GetMixFormat (&mixFormat));
+        hr = m_audioClient->GetMixFormat (&mixFormat);
+        CHR (hr);
 
         m_sampleRate = mixFormat->nSamplesPerSec;
 
@@ -115,14 +119,17 @@ HRESULT WasapiAudio::Initialize ()
     }
 
     // Get buffer size and render client
-    CHR (m_audioClient->GetBufferSize (&m_bufferFrames));
+    hr = m_audioClient->GetBufferSize (&m_bufferFrames);
+    CHR (hr);
 
-    CHR (m_audioClient->GetService (
+    hr = m_audioClient->GetService (
         __uuidof (IAudioRenderClient),
-        reinterpret_cast<void **> (&m_renderClient)));
+        reinterpret_cast<void **> (&m_renderClient));
+    CHR (hr);
 
     // Start the audio stream
-    CHR (m_audioClient->Start ());
+    hr = m_audioClient->Start ();
+    CHR (hr);
 
     m_initialized = true;
 
@@ -186,7 +193,8 @@ HRESULT WasapiAudio::SubmitFrame (
     // Get available buffer space
     {
         UINT32 padding = 0;
-        CHR (m_audioClient->GetCurrentPadding (&padding));
+        hr = m_audioClient->GetCurrentPadding (&padding);
+        CHR (hr);
 
         UINT32 available = m_bufferFrames - padding;
 
@@ -197,7 +205,8 @@ HRESULT WasapiAudio::SubmitFrame (
 
         // Get buffer
         BYTE * buffer = nullptr;
-        CHR (m_renderClient->GetBuffer (available, &buffer));
+        hr = m_renderClient->GetBuffer (available, &buffer);
+        CHR (hr);
 
         {
             float * samples = reinterpret_cast<float *> (buffer);
@@ -236,7 +245,8 @@ HRESULT WasapiAudio::SubmitFrame (
             }
         }
 
-        CHR (m_renderClient->ReleaseBuffer (available, 0));
+        hr = m_renderClient->ReleaseBuffer (available, 0);
+        CHR (hr);
     }
 
 Error:

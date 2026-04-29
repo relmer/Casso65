@@ -131,10 +131,12 @@ int WINAPI wWinMain (
 
 
     // Initialize COM for WASAPI
-    CHRA (CoInitializeEx (nullptr, COINIT_MULTITHREADED));
+    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+    CHRA (hr);
 
     // Parse command line
-    CHR (ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path));
+    hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path);
+    CHR (hr);
 
     // Default machine if not specified
     if (machineName.empty ())
@@ -149,7 +151,8 @@ int WINAPI wWinMain (
 
         // Load config file
         std::ifstream configFile (configPath);
-        CBRN (configFile.good (),
+        bool configGood = configFile.good ();
+        CBRN (configGood,
               std::format (L"Unknown machine '{}'. Config file not found:\n{}", machineName,
                            std::wstring (configPath.begin (), configPath.end ())).c_str ());
 
@@ -167,20 +170,22 @@ int WINAPI wWinMain (
         if (!disk1Path.empty ())
         {
             std::ifstream disk (WideToNarrow (disk1Path), std::ios::binary | std::ios::ate);
-            CBRN (disk.good (),
+            bool diskGood = disk.good ();
+            CBRN (diskGood,
                   std::format (L"Disk image not found:\n{}", disk1Path).c_str ());
 
             auto size = disk.tellg ();
-            CBRN (size == 143360,
+            bool validSize = (size == 143360);
+            CBRN (validSize,
                   std::format (L"Disk image '{}' is not a valid .dsk file\n(expected 143360 bytes, got {} bytes)",
                                disk1Path, static_cast<int64_t> (size)).c_str ());
         }
 
         // Initialize emulator
         EmulatorShell shell;
-        CHRN (shell.Initialize (hInstance, config, basePath,
-                                WideToNarrow (disk1Path), WideToNarrow (disk2Path)),
-              L"Failed to initialize emulator");
+        hr = shell.Initialize (hInstance, config, basePath,
+                               WideToNarrow (disk1Path), WideToNarrow (disk2Path));
+        CHRN (hr, L"Failed to initialize emulator");
 
         // Run message loop
         return shell.RunMessageLoop ();

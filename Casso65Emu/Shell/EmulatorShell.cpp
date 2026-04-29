@@ -128,7 +128,8 @@ HRESULT EmulatorShell::Initialize (
         wc.lpszClassName = kWindowClass;
         wc.hIcon         = LoadIcon (nullptr, IDI_APPLICATION);
 
-        CWRA (RegisterClassEx (&wc));
+        ATOM regResult = RegisterClassEx (&wc);
+        CWRA (regResult);
     }
 
     // Calculate window size for desired client area
@@ -151,7 +152,8 @@ HRESULT EmulatorShell::Initialize (
         CPRA (m_hwnd);
 
         // Create menu bar
-        CHR (m_menuSystem.CreateMenuBar (m_hwnd));
+        hr = m_menuSystem.CreateMenuBar (m_hwnd);
+        CHR (hr);
 
         // Recalculate window size after menu added
         AdjustWindowRect (&rc, style, TRUE);
@@ -239,7 +241,8 @@ HRESULT EmulatorShell::Initialize (
     m_cpu->InitForEmulation ();
 
     // Initialize D3D11
-    CHR (m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight));
+    hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
+    CHR (hr);
 
     // Initialize WASAPI audio (non-fatal if it fails)
     m_wasapiAudio.Initialize ();

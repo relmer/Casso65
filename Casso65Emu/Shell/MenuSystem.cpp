@@ -105,7 +105,10 @@ HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
     AppendMenu (m_helpMenu, MF_STRING, IDM_HELP_ABOUT, L"&About Casso65...");
     AppendMenu (m_menuBar, MF_POPUP, reinterpret_cast<UINT_PTR> (m_helpMenu), L"&Help");
 
-    CWRA (SetMenu (hwnd, m_menuBar));
+    {
+        BOOL menuResult = SetMenu (hwnd, m_menuBar);
+        CWRA (menuResult);
+    }
 
 Error:
     return hr;

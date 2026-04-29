@@ -106,7 +106,7 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 
     D3D_FEATURE_LEVEL featureLevel;
 
-    CHR (D3D11CreateDeviceAndSwapChain (
+    hr = D3D11CreateDeviceAndSwapChain (
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
@@ -118,13 +118,16 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         &m_swapChain,
         &m_device,
         &featureLevel,
-        &m_context));
+        &m_context);
+    CHR (hr);
 
     // Create render target view
     {
         ID3D11Texture2D * backBuffer = nullptr;
-        CHR (m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer)));
-        CHR (m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv));
+        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
+        CHR (hr);
+        hr = m_device->CreateRenderTargetView (backBuffer, nullptr, &m_rtv);
+        CHR (hr);
         backBuffer->Release ();
     }
 
@@ -152,8 +155,10 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         td.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
         td.CPUAccessFlags   = D3D11_CPU_ACCESS_WRITE;
 
-        CHR (m_device->CreateTexture2D (&td, nullptr, &m_texture));
-        CHR (m_device->CreateShaderResourceView (m_texture, nullptr, &m_srv));
+        hr = m_device->CreateTexture2D (&td, nullptr, &m_texture);
+        CHR (hr);
+        hr = m_device->CreateShaderResourceView (m_texture, nullptr, &m_srv);
+        CHR (hr);
     }
 
     // Point sampler
@@ -164,7 +169,8 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
         sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 
-        CHR (m_device->CreateSamplerState (&sd, &m_sampler));
+        hr = m_device->CreateSamplerState (&sd, &m_sampler);
+        CHR (hr);
     }
 
     // Compile shaders at runtime (simpler than FXC build step for now)
@@ -199,7 +205,8 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         D3D11_SUBRESOURCE_DATA initData = {};
         initData.pSysMem = vertices;
 
-        CHR (m_device->CreateBuffer (&bd, &initData, &m_vertexBuffer));
+        hr = m_device->CreateBuffer (&bd, &initData, &m_vertexBuffer);
+        CHR (hr);
     }
 
     // Index buffer
@@ -214,7 +221,8 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         D3D11_SUBRESOURCE_DATA initData = {};
         initData.pSysMem = indices;
 
-        CHR (m_device->CreateBuffer (&bd, &initData, &m_indexBuffer));
+        hr = m_device->CreateBuffer (&bd, &initData, &m_indexBuffer);
+        CHR (hr);
     }
 
 Error:
@@ -244,7 +252,8 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
     if (m_texture != nullptr && framebuffer != nullptr)
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
-        CHR (m_context->Map (m_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+        hr = m_context->Map (m_texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        CHR (hr);
 
         const uint32_t * src = framebuffer;
         Byte * dst = static_cast<Byte *> (mapped.pData);
@@ -312,7 +321,8 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         // Go borderless fullscreen
         HMONITOR hMon = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
         MONITORINFO mi = { sizeof (mi) };
-        CWRA (GetMonitorInfo (hMon, &mi));
+        BOOL monResult = GetMonitorInfo (hMon, &mi);
+        CWRA (monResult);
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
         SetWindowPos (hwnd, HWND_TOP,
