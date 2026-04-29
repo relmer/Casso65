@@ -1,10 +1,10 @@
-#include "../Casso65Emu/Pch.h"
+#include "../Casso65EmuCore/Pch.h"
 
 #include <CppUnitTest.h>
 
-#include "../Casso65Emu/Core/ComponentRegistry.h"
-#include "../Casso65Emu/Core/MachineConfig.h"
-#include "../Casso65Emu/Core/MemoryBus.h"
+#include "Core/ComponentRegistry.h"
+#include "Core/MachineConfig.h"
+#include "Core/MemoryBus.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

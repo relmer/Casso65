@@ -1,13 +1,11 @@
-#include "../Casso65Emu/Pch.h"
+#include "../Casso65EmuCore/Pch.h"
 
 #include <CppUnitTest.h>
 
-// Include emulator sources directly for testing
-// These use the Casso65Core Pch.h (no windows.h) so EHM takes portable path
-#include "../Casso65Emu/Core/MemoryBus.h"
-#include "../Casso65Emu/Core/MemoryDevice.h"
-#include "../Casso65Emu/Devices/RamDevice.h"
-#include "../Casso65Emu/Devices/RomDevice.h"
+#include "Core/MemoryBus.h"
+#include "Core/MemoryDevice.h"
+#include "Devices/RamDevice.h"
+#include "Devices/RomDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

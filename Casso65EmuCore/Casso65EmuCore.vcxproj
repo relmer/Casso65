@@ -29,45 +29,45 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{D4E5F6A7-B8C9-4D0E-1F2A-3B4C5D6E7F80}</ProjectGuid>
-    <RootNamespace>Casso65Emu</RootNamespace>
+    <ProjectGuid>{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}</ProjectGuid>
+    <RootNamespace>Casso65EmuCore</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -106,12 +106,8 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65EmuCore;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -124,14 +120,8 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65EmuCore;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -142,12 +132,8 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65EmuCore;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -160,14 +146,8 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65EmuCore;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
@@ -178,12 +158,8 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65EmuCore;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
@@ -196,14 +172,8 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65EmuCore;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
@@ -214,31 +184,57 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Audio\WasapiAudio.cpp" />
-    <ClCompile Include="Shell\D3DRenderer.cpp" />
-    <ClCompile Include="Shell\MenuSystem.cpp" />
-    <ClCompile Include="Shell\EmulatorShell.cpp" />
-    <ClCompile Include="Shell\DebugConsole.cpp" />
+    <ClCompile Include="Core\JsonParser.cpp" />
+    <ClCompile Include="Core\MachineConfig.cpp" />
+    <ClCompile Include="Core\MemoryBus.cpp" />
+    <ClCompile Include="Core\EmuCpu.cpp" />
+    <ClCompile Include="Core\ComponentRegistry.cpp" />
+    <ClCompile Include="Devices\RamDevice.cpp" />
+    <ClCompile Include="Devices\RomDevice.cpp" />
+    <ClCompile Include="Devices\AppleKeyboard.cpp" />
+    <ClCompile Include="Devices\AppleSoftSwitchBank.cpp" />
+    <ClCompile Include="Devices\AppleSpeaker.cpp" />
+    <ClCompile Include="Devices\LanguageCard.cpp" />
+    <ClCompile Include="Devices\DiskIIController.cpp" />
+    <ClCompile Include="Devices\AppleIIeKeyboard.cpp" />
+    <ClCompile Include="Devices\AuxRamCard.cpp" />
+    <ClCompile Include="Devices\AppleIIeSoftSwitchBank.cpp" />
+    <ClCompile Include="Video\AppleTextMode.cpp" />
+    <ClCompile Include="Video\AppleLoResMode.cpp" />
+    <ClCompile Include="Video\AppleHiResMode.cpp" />
+    <ClCompile Include="Video\Apple80ColTextMode.cpp" />
+    <ClCompile Include="Video\AppleDoubleHiResMode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
-    <ClInclude Include="Shell\D3DRenderer.h" />
-    <ClInclude Include="Shell\MenuSystem.h" />
-    <ClInclude Include="Shell\EmulatorShell.h" />
-    <ClInclude Include="Shell\DebugConsole.h" />
-    <ClInclude Include="Audio\WasapiAudio.h" />
-    <ClInclude Include="Resources\resource.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="Resources\Casso65Emu.rc" />
+    <ClInclude Include="Core\MemoryDevice.h" />
+    <ClInclude Include="Core\ComponentRegistry.h" />
+    <ClInclude Include="Core\JsonParser.h" />
+    <ClInclude Include="Core\MemoryBus.h" />
+    <ClInclude Include="Core\EmuCpu.h" />
+    <ClInclude Include="Core\MachineConfig.h" />
+    <ClInclude Include="Devices\RamDevice.h" />
+    <ClInclude Include="Devices\RomDevice.h" />
+    <ClInclude Include="Devices\AppleKeyboard.h" />
+    <ClInclude Include="Devices\AppleSoftSwitchBank.h" />
+    <ClInclude Include="Devices\AppleSpeaker.h" />
+    <ClInclude Include="Devices\LanguageCard.h" />
+    <ClInclude Include="Devices\DiskIIController.h" />
+    <ClInclude Include="Devices\AppleIIeKeyboard.h" />
+    <ClInclude Include="Devices\AuxRamCard.h" />
+    <ClInclude Include="Devices\AppleIIeSoftSwitchBank.h" />
+    <ClInclude Include="Video\VideoOutput.h" />
+    <ClInclude Include="Video\AppleTextMode.h" />
+    <ClInclude Include="Video\AppleLoResMode.h" />
+    <ClInclude Include="Video\AppleHiResMode.h" />
+    <ClInclude Include="Video\Apple80ColTextMode.h" />
+    <ClInclude Include="Video\AppleDoubleHiResMode.h" />
+    <ClInclude Include="Video\NtscColorTable.h" />
+    <ClInclude Include="Video\CharacterRom.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Casso65Core\Casso65Core.vcxproj">
       <Project>{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\Casso65EmuCore\Casso65EmuCore.vcxproj">
-      <Project>{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

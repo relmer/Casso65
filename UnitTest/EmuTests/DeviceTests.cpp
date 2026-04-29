@@ -1,9 +1,9 @@
-#include "../Casso65Emu/Pch.h"
+#include "../Casso65EmuCore/Pch.h"
 
 #include <CppUnitTest.h>
 
-#include "../Casso65Emu/Devices/RamDevice.h"
-#include "../Casso65Emu/Devices/RomDevice.h"
+#include "Devices/RamDevice.h"
+#include "Devices/RomDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

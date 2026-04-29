@@ -1,8 +1,8 @@
-#include "../Casso65Emu/Pch.h"
+#include "../Casso65EmuCore/Pch.h"
 
 #include <CppUnitTest.h>
 
-#include "../Casso65Emu/Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleSoftSwitchBank.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

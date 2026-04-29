@@ -111,10 +111,14 @@ if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'Re
                 "-p:Configuration=$config",
                 "-p:Platform=$platformToBuild",
                 "-p:PreferredToolArchitecture=$preferredArch",
-                '-p:EnableCppCoreCheck=true',
-                '-p:RunCodeAnalysis=true',
                 "-t:$msbuildTarget"
             )
+
+            if ($RunCodeAnalysis) {
+                $msbuildArgs += '-p:EnableCppCoreCheck=true'
+                $msbuildArgs += '-p:RunCodeAnalysis=true'
+                $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
+            }
 
             Write-Host "Building: $solutionPath ($config|$platformToBuild) Target=$msbuildTarget" -ForegroundColor Cyan
 
@@ -136,12 +140,12 @@ else {
         $solutionPath,
         "-p:Configuration=$Configuration",
         "-p:Platform=$Platform",
-        "-p:PreferredToolArchitecture=$preferredArch",
-        '-p:EnableCppCoreCheck=true',
-        '-p:RunCodeAnalysis=true'
+        "-p:PreferredToolArchitecture=$preferredArch"
     )
 
     if ($RunCodeAnalysis) {
+        $msbuildArgs += '-p:EnableCppCoreCheck=true'
+        $msbuildArgs += '-p:RunCodeAnalysis=true'
         $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
     }
 

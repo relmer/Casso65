@@ -1,9 +1,9 @@
-#include "../Casso65Emu/Pch.h"
+#include "../Casso65EmuCore/Pch.h"
 
 #include <CppUnitTest.h>
 
-#include "../Casso65Emu/Core/MemoryBus.h"
-#include "../Casso65Emu/Devices/LanguageCard.h"
+#include "Core/MemoryBus.h"
+#include "Devices/LanguageCard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

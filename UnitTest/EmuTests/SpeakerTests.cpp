@@ -1,8 +1,8 @@
-#include "../Casso65Emu/Pch.h"
+#include "../Casso65EmuCore/Pch.h"
 
 #include <CppUnitTest.h>
 
-#include "../Casso65Emu/Devices/AppleSpeaker.h"
+#include "Devices/AppleSpeaker.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
