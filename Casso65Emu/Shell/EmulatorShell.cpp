@@ -9,6 +9,7 @@
 #include "Devices/AppleSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/DiskIIController.h"
+#include "Devices/LanguageCard.h"
 #include "Video/AppleTextMode.h"
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
@@ -224,6 +225,76 @@ HRESULT EmulatorShell::Initialize (
         else
         {
             DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devConfig.type.c_str ());
+        }
+    }
+
+    // Wire Language Card bank switching if a language card is present
+    {
+        LanguageCard * lc = nullptr;
+
+        for (auto & dev : m_ownedDevices)
+        {
+            if (lc == nullptr)
+            {
+                lc = dynamic_cast<LanguageCard *> (dev.get ());
+            }
+        }
+
+        if (lc != nullptr)
+        {
+            // Find a ROM device covering $D000-$FFFF
+            RomDevice * romDevice = nullptr;
+
+            for (const auto & entry : m_memoryBus.GetEntries ())
+            {
+                auto * rom = dynamic_cast<RomDevice *> (entry.device);
+
+                if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
+                {
+                    romDevice = rom;
+                    break;
+                }
+            }
+
+            if (romDevice != nullptr)
+            {
+                Word romStart = romDevice->GetStart ();
+
+                // Copy $D000-$FFFF ROM data to language card
+                std::vector<Byte> lcRomData (0x3000);
+
+                for (size_t i = 0; i < 0x3000; i++)
+                {
+                    lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
+                }
+
+                lc->SetRomData (lcRomData);
+                m_memoryBus.RemoveDevice (romDevice);
+
+                // Re-add lower ROM ($C100-$CFFF) if original extended below $D000
+                if (romStart < 0xD000)
+                {
+                    size_t lowerSize = 0xD000 - romStart;
+                    std::vector<Byte> lowerData (lowerSize);
+
+                    for (size_t i = 0; i < lowerSize; i++)
+                    {
+                        lowerData[i] = romDevice->Read (static_cast<Word> (romStart + i));
+                    }
+
+                    auto lowerRom = RomDevice::CreateFromData (
+                        romStart, static_cast<Word> (0xCFFF),
+                        lowerData.data (), lowerData.size ());
+
+                    m_memoryBus.AddDevice (lowerRom.get ());
+                    m_ownedDevices.push_back (std::move (lowerRom));
+                }
+            }
+
+            // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
+            auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+            m_memoryBus.AddDevice (lcBank.get ());
+            m_ownedDevices.push_back (std::move (lcBank));
         }
     }
 

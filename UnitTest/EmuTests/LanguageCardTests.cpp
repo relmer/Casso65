@@ -112,4 +112,58 @@ public:
         Assert::IsFalse (lc.IsWriteRam ());
         Assert::AreEqual (static_cast<Byte> (0), lc.ReadRam (0xD000));
     }
+
+    TEST_METHOD (LanguageCardBank_InitialState_ReadsRom)
+    {
+        MemoryBus bus;
+        LanguageCard lc (bus);
+
+        std::vector<Byte> rom (0x3000, 0xEA);
+        lc.SetRomData (rom);
+
+        LanguageCardBank bank (lc);
+
+        Assert::AreEqual (static_cast<Byte> (0xEA), bank.Read (0xD000));
+    }
+
+    TEST_METHOD (LanguageCardBank_ReadRamEnabled_ReadsRam)
+    {
+        MemoryBus bus;
+        LanguageCard lc (bus);
+
+        std::vector<Byte> rom (0x3000, 0xEA);
+        lc.SetRomData (rom);
+
+        // Enable read RAM
+        lc.Read (0xC080);
+
+        // Write to LC RAM
+        lc.Read (0xC081);
+        lc.Read (0xC081);
+        lc.WriteRam (0xD000, 0xAB);
+
+        // Now enable read RAM again
+        lc.Read (0xC080);
+
+        LanguageCardBank bank (lc);
+
+        Assert::AreEqual (static_cast<Byte> (0xAB), bank.Read (0xD000));
+    }
+
+    TEST_METHOD (LanguageCardBank_WriteEnabled_WritesToRam)
+    {
+        MemoryBus bus;
+        LanguageCard lc (bus);
+
+        // Enable write via double-read of odd switch
+        lc.Read (0xC081);
+        lc.Read (0xC081);
+
+        LanguageCardBank bank (lc);
+        bank.Write (0xE000, 0x42);
+
+        Byte val = lc.ReadRam (0xE000);
+
+        Assert::AreEqual (static_cast<Byte> (0x42), val);
+    }
 };

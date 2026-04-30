@@ -48,7 +48,7 @@ HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
     // File menu
     m_fileMenu = CreatePopupMenu ();
     CPRA (m_fileMenu);
-    AppendMenu (m_fileMenu, MF_STRING, IDM_FILE_OPEN, L"&Open Machine Config...\tCtrl+O");
+    AppendMenu (m_fileMenu, MF_STRING | MF_GRAYED, IDM_FILE_OPEN, L"&Open Machine Config...\tCtrl+O");
     AppendMenu (m_fileMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenu (m_fileMenu, MF_STRING, IDM_FILE_EXIT, L"E&xit");
     AppendMenu (m_menuBar, MF_POPUP, reinterpret_cast<UINT_PTR> (m_fileMenu), L"&File");
