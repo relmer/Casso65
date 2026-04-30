@@ -37,6 +37,19 @@ void DebugConsole::Show ()
 
     if (AllocConsole ())
     {
+        // Prevent the console's X button from killing the emulator.
+        // Windows sends CTRL_CLOSE_EVENT when the user closes the console
+        // window; without a handler the entire process terminates.
+        SetConsoleCtrlHandler ([](DWORD ctrlType) -> BOOL
+        {
+            if (ctrlType == CTRL_CLOSE_EVENT)
+            {
+                FreeConsole ();
+                return TRUE;
+            }
+            return FALSE;
+        }, TRUE);
+
         FILE * fp = nullptr;
         freopen_s (&fp, "CONOUT$", "w", stdout);
         freopen_s (&fp, "CONOUT$", "w", stderr);

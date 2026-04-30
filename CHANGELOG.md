@@ -9,6 +9,9 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **Debug console close kills emulator** — closing the debug console window (Ctrl+D)
+  sent CTRL_CLOSE_EVENT which terminated the entire process; added a console control
+  handler that intercepts the event and calls FreeConsole instead
 - ROM search path bug: ROM files are now searched independently across all search paths,
   fixing failures when `machines/` and `roms/` are at different base directories
 - **Black screen in Casso65Emu** — D3D11 shaders were never compiled, so the textured
