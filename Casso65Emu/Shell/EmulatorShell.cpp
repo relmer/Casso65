@@ -648,22 +648,10 @@ void EmulatorShell::HandleCommand (WORD commandId)
     {
         case IDM_FILE_OPEN:
         {
-            // Open Machine Config dialog
-            WCHAR filePath[MAX_PATH] = {};
-            OPENFILENAMEW ofn = {};
-            ofn.lStructSize = sizeof (ofn);
-            ofn.hwndOwner   = m_hwnd;
-            ofn.lpstrFilter = L"JSON Config Files (*.json)\0*.json\0All Files (*.*)\0*.*\0";
-            ofn.lpstrFile   = filePath;
-            ofn.nMaxFile    = MAX_PATH;
-            ofn.lpstrTitle  = L"Open Machine Config";
-            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-
-            if (GetOpenFileNameW (&ofn))
-            {
-                // TODO: Tear down current machine and load new config
-                MessageBoxW (m_hwnd, filePath, L"Selected Config", MB_OK);
-            }
+            // TODO: Implement hot-swap machine config loading.
+            // Requires: tear down current CPU/bus/devices, parse new JSON,
+            // rebuild everything, re-initialize. Menu item is grayed out
+            // until this is implemented.
             break;
         }
 
