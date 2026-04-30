@@ -28,6 +28,11 @@ Entries before versioning was introduced use dates only.
 - `MemoryRegion::resolvedPath` — fully resolved ROM path stored after config loading
 - Unit tests for `PathResolver` (BuildSearchPaths, FindFile) and `MachineConfigLoader`
   (Load, ROM resolution, error cases)
+- **VideoRenderTests** — 7 new tests verifying all video renderers (text, lo-res, hi-res)
+  work correctly with real memory pointers, not just nullptr; catches the green-screen bug
+- **EmuCpu memory validation tests** — 6 new tests verifying GetMemory() non-null,
+  PokeByte/WriteByte dual-sync to internal memory and bus, STA instruction end-to-end
+  visibility to video renderers
 
 ## [0.9.32] — 2026-04-28
 
