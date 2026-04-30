@@ -13,8 +13,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleSpeaker::AppleSpeaker ()
-    : m_speakerState (0.0f),
-      m_pTotalCycles (nullptr)
+    : m_speakerState    (-1.0f),
+      m_frameInitialState (-1.0f),
+      m_pTotalCycles    (nullptr),
+      m_frameCycleStart (0)
 {
 }
 
@@ -32,13 +34,14 @@ Byte AppleSpeaker::Read (Word address)
 {
     UNREFERENCED_PARAMETER (address);
 
-    // Toggle speaker state
-    m_speakerState = (m_speakerState > 0.0f) ? -0.3f : 0.3f;
+    // Toggle speaker state (use +/-1.0 to match audio pipeline expectations)
+    m_speakerState = (m_speakerState > 0.0f) ? -1.0f : 1.0f;
 
-    // Record timestamp
+    // Record frame-relative timestamp
     if (m_pTotalCycles != nullptr)
     {
-        m_toggleTimestamps.push_back (static_cast<uint32_t> (*m_pTotalCycles));
+        uint32_t relCycle = static_cast<uint32_t> (*m_pTotalCycles - m_frameCycleStart);
+        m_toggleTimestamps.push_back (relCycle);
     }
 
     return 0;
@@ -75,7 +78,7 @@ void AppleSpeaker::Write (Word address, Byte value)
 
 void AppleSpeaker::Reset ()
 {
-    m_speakerState = 0.0f;
+    m_speakerState = -1.0f;
     m_toggleTimestamps.clear ();
 }
 

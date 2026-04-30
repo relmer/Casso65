@@ -455,6 +455,12 @@ int EmulatorShell::RunMessageLoop ()
 
 void EmulatorShell::RunOneFrame ()
 {
+    // Start speaker frame timing so timestamps are frame-relative
+    if (m_speaker != nullptr)
+    {
+        m_speaker->BeginFrame ();
+    }
+
     // Execute CPU cycles for one frame
     uint32_t targetCycles = m_cyclesPerFrame;
 
@@ -544,7 +550,7 @@ void EmulatorShell::RunOneFrame ()
         m_wasapiAudio.SubmitFrame (
             m_speaker->GetToggleTimestamps (),
             targetCycles,
-            m_speaker->GetSpeakerState ());
+            m_speaker->GetFrameInitialState ());
 
         m_speaker->ClearTimestamps ();
     }

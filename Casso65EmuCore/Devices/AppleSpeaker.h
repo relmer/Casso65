@@ -38,10 +38,25 @@ public:
 
     void SetCycleCounter (uint64_t * pCycles) { m_pTotalCycles = pCycles; }
 
+    // Call at the start of each frame so timestamps are frame-relative
+    void BeginFrame ()
+    {
+        m_frameInitialState = m_speakerState;
+
+        if (m_pTotalCycles != nullptr)
+        {
+            m_frameCycleStart = *m_pTotalCycles;
+        }
+    }
+
+    float GetFrameInitialState () const { return m_frameInitialState; }
+
     static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     float                       m_speakerState;
+    float                       m_frameInitialState;
     std::vector<uint32_t>       m_toggleTimestamps;
     uint64_t *                  m_pTotalCycles;
+    uint64_t                    m_frameCycleStart;
 };

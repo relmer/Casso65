@@ -212,22 +212,10 @@ HRESULT WasapiAudio::SubmitFrame (
         {
             float * samples = reinterpret_cast<float *> (buffer);
 
-            // Compute initial state: if there are toggles, the initial state
-            // is the opposite of current (each toggle negates, odd count flips).
-            // With no toggles, initial == current.
-            float initialState = currentSpeakerState;
-
-            if (!toggleTimestamps.empty ())
-            {
-                // An odd number of toggles inverts the state
-                if (toggleTimestamps.size () % 2 != 0)
-                    initialState = -currentSpeakerState;
-            }
-
             AudioGenerator::GeneratePCM (
                 toggleTimestamps,
                 totalCyclesThisFrame,
-                initialState,
+                currentSpeakerState,
                 samples,
                 available);
         }
