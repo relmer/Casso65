@@ -244,6 +244,12 @@ HRESULT EmulatorShell::Initialize (
     m_cpu = std::make_unique<EmuCpu> (m_memoryBus);
     m_cpu->InitForEmulation ();
 
+    // Connect speaker to CPU cycle counter for audio timestamps
+    if (m_speaker != nullptr)
+    {
+        m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
+    }
+
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);

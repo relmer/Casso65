@@ -31,8 +31,8 @@ public:
 
     const char * GetModeName () const override { return "apple2-hires"; }
 
-private:
     static Word ScanlineAddress (int scanline, Word pageBase);
 
+private:
     MemoryBus & m_bus;
 };

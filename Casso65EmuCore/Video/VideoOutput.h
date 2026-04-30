@@ -28,4 +28,11 @@ public:
     virtual Word GetActivePageAddress (bool page2) const = 0;
 
     virtual const char * GetModeName () const = 0;
+
+    // Video mode state set by the shell before Render
+    void SetPage2 (bool page2) { m_page2 = page2; }
+    bool IsPage2  () const     { return m_page2; }
+
+protected:
+    bool m_page2 = false;
 };

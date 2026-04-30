@@ -72,4 +72,40 @@ public:
         Assert::AreEqual (0.0f, spk.GetSpeakerState ());
         Assert::AreEqual (size_t (0), spk.GetToggleTimestamps ().size ());
     }
+
+    TEST_METHOD (CycleCounter_RecordsCorrectTimestamp)
+    {
+        AppleSpeaker spk;
+        uint64_t cycles = 500;
+        spk.SetCycleCounter (&cycles);
+
+        spk.Read (0xC030);
+
+        Assert::AreEqual (size_t (1), spk.GetToggleTimestamps ().size ());
+        Assert::AreEqual (static_cast<uint32_t> (500), spk.GetToggleTimestamps ()[0]);
+    }
+
+    TEST_METHOD (CycleCounter_AdvancingCyclesRecordsDifferentTimestamps)
+    {
+        AppleSpeaker spk;
+        uint64_t cycles = 100;
+        spk.SetCycleCounter (&cycles);
+
+        spk.Read (0xC030);
+        cycles = 200;
+        spk.Read (0xC030);
+
+        Assert::AreEqual (size_t (2), spk.GetToggleTimestamps ().size ());
+        Assert::AreEqual (static_cast<uint32_t> (100), spk.GetToggleTimestamps ()[0]);
+        Assert::AreEqual (static_cast<uint32_t> (200), spk.GetToggleTimestamps ()[1]);
+    }
+
+    TEST_METHOD (NoCycleCounter_NoTimestampsRecorded)
+    {
+        AppleSpeaker spk;
+
+        spk.Read (0xC030);
+
+        Assert::AreEqual (size_t (0), spk.GetToggleTimestamps ().size ());
+    }
 };
