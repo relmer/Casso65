@@ -200,11 +200,13 @@ HRESULT EmulatorShell::Initialize (
         if (device)
         {
             // Track specific device pointers for quick access
-            if (devConfig.type == "apple2-keyboard")
+            if (devConfig.type == "apple2-keyboard" ||
+                devConfig.type == "apple2e-keyboard")
             {
                 m_keyboard = static_cast<AppleKeyboard *> (device.get ());
             }
-            else if (devConfig.type == "apple2-softswitches")
+            else if (devConfig.type == "apple2-softswitches" ||
+                     devConfig.type == "apple2e-softswitches")
             {
                 m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get ());
             }
