@@ -112,3 +112,49 @@ std::string PathResolver::GetWorkingDirectory ()
     GetCurrentDirectoryA (MAX_PATH, path);
     return std::string (path);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WideToNarrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PathResolver::WideToNarrow (const std::wstring & wide)
+{
+    if (wide.empty ())
+    {
+        return "";
+    }
+
+    int len = WideCharToMultiByte (CP_UTF8, 0, wide.c_str (), -1, NULL, 0, NULL, NULL);
+    std::string narrow (len - 1, '\0');
+    WideCharToMultiByte (CP_UTF8, 0, wide.c_str (), -1, narrow.data (), len, NULL, NULL);
+    return narrow;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NarrowToWide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PathResolver::NarrowToWide (const std::string & narrow)
+{
+    if (narrow.empty ())
+    {
+        return L"";
+    }
+
+    int len = MultiByteToWideChar (CP_UTF8, 0, narrow.c_str (), -1, NULL, 0);
+    std::wstring wide (len - 1, L'\0');
+    MultiByteToWideChar (CP_UTF8, 0, narrow.c_str (), -1, wide.data (), len);
+    return wide;
+}

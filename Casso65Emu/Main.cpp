@@ -60,29 +60,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WideToNarrow — convert std::wstring to std::string (UTF-8)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static std::string WideToNarrow (const std::wstring & wide)
-{
-    if (wide.empty ())
-    {
-        return "";
-    }
-
-    int len = WideCharToMultiByte (CP_UTF8, 0, wide.c_str (), -1, NULL, 0, NULL, NULL);
-    std::string narrow (len - 1, '\0');
-    WideCharToMultiByte (CP_UTF8, 0, wide.c_str (), -1, narrow.data (), len, NULL, NULL);
-    return narrow;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  wWinMain
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,7 +108,7 @@ int WINAPI wWinMain (
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        std::string narrowMachine = WideToNarrow (machineName);
+        std::string narrowMachine = PathResolver::WideToNarrow (machineName);
         std::string configRelPath = "machines/" + narrowMachine + ".json";
         std::string configBase    = PathResolver::FindFile (searchPaths, configRelPath);
 
@@ -174,7 +151,7 @@ int WINAPI wWinMain (
         // Validate disk images
         if (!disk1Path.empty ())
         {
-            std::ifstream disk (WideToNarrow (disk1Path), std::ios::binary | std::ios::ate);
+            std::ifstream disk (PathResolver::WideToNarrow (disk1Path), std::ios::binary | std::ios::ate);
             bool diskGood = disk.good ();
             CBRN (diskGood,
                   std::format (L"Disk image not found:\n{}", disk1Path).c_str ());
@@ -189,7 +166,7 @@ int WINAPI wWinMain (
         // Initialize emulator
         EmulatorShell shell;
         hr = shell.Initialize (hInstance, config,
-                               WideToNarrow (disk1Path), WideToNarrow (disk2Path));
+                               PathResolver::WideToNarrow (disk1Path), PathResolver::WideToNarrow (disk2Path));
         CHRN (hr, L"Failed to initialize emulator");
 
         // Run message loop

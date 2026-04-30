@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EmulatorShell.h"
+#include "Core/PathResolver.h"
 #include "Resources/resource.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -650,8 +651,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
             if (GetOpenFileNameW (&ofn))
             {
                 // Convert wide path to narrow for DiskIIController
-                std::wstring widePath (filePath);
-                std::string narrowPath (widePath.begin (), widePath.end ());
+                std::string narrowPath = PathResolver::WideToNarrow (std::wstring (filePath));
                 int drive = (commandId == IDM_DISK_INSERT1) ? 0 : 1;
 
                 // Find disk controller and mount

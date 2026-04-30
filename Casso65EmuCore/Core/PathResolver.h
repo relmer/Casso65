@@ -32,4 +32,10 @@ public:
 
     // Get the current working directory
     static std::string GetWorkingDirectory ();
+
+    // Convert wide string to narrow (UTF-8)
+    static std::string WideToNarrow (const std::wstring & wide);
+
+    // Convert narrow string (UTF-8) to wide
+    static std::wstring NarrowToWide (const std::string & narrow);
 };
