@@ -3,6 +3,7 @@
 #include "D3DRenderer.h"
 
 #pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "dxgi.lib")
 
 
@@ -173,18 +174,73 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
         CHR (hr);
     }
 
-    // Compile shaders at runtime (simpler than FXC build step for now)
-    // Use d3dcompiler for runtime compilation
+    // Compile shaders at runtime using D3DCompile
     {
-        // Simple passthrough vertex shader bytecode (pre-assembled)
-        // We'll use D3DCompile from d3dcompiler.lib, but to avoid that
-        // dependency, we use a minimal pre-compiled shader inline.
-        //
-        // For the initial build, we'll skip shader compilation and just
-        // set up the pipeline. Shaders will be loaded from .cso files
-        // once the FXC build step is configured.
-        //
-        // TEMPORARY: Use minimal embedded shaders
+        static const char kVertexShaderSrc[] =
+            "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
+            "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+            "VSOutput main (VSInput i)\n"
+            "{\n"
+            "    VSOutput o;\n"
+            "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
+            "    o.uv  = i.uv;\n"
+            "    return o;\n"
+            "}\n";
+
+        static const char kPixelShaderSrc[] =
+            "Texture2D    tex : register(t0);\n"
+            "SamplerState sam : register(s0);\n"
+            "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+            "float4 main (PSInput i) : SV_TARGET\n"
+            "{\n"
+            "    return tex.Sample (sam, i.uv);\n"
+            "}\n";
+
+        ID3DBlob * vsBlob = nullptr;
+        ID3DBlob * psBlob = nullptr;
+        ID3DBlob * errors = nullptr;
+
+        hr = D3DCompile (
+            kVertexShaderSrc, sizeof (kVertexShaderSrc) - 1,
+            "VS", nullptr, nullptr,
+            "main", "vs_4_0", 0, 0, &vsBlob, &errors);
+        if (errors) { errors->Release (); errors = nullptr; }
+        CHR (hr);
+
+        hr = D3DCompile (
+            kPixelShaderSrc, sizeof (kPixelShaderSrc) - 1,
+            "PS", nullptr, nullptr,
+            "main", "ps_4_0", 0, 0, &psBlob, &errors);
+        if (errors) { errors->Release (); errors = nullptr; }
+        CHR (hr);
+
+        hr = m_device->CreateVertexShader (
+            vsBlob->GetBufferPointer (), vsBlob->GetBufferSize (),
+            nullptr, &m_vertexShader);
+        CHR (hr);
+
+        hr = m_device->CreatePixelShader (
+            psBlob->GetBufferPointer (), psBlob->GetBufferSize (),
+            nullptr, &m_pixelShader);
+        CHR (hr);
+
+        D3D11_INPUT_ELEMENT_DESC layout[] =
+        {
+            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
+              D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8,
+              D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        };
+
+        hr = m_device->CreateInputLayout (
+            layout, 2,
+            vsBlob->GetBufferPointer (), vsBlob->GetBufferSize (),
+            &m_inputLayout);
+
+        vsBlob->Release ();
+        psBlob->Release ();
+
+        CHR (hr);
     }
 
     // Vertex buffer (full-screen quad)
@@ -268,13 +324,13 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
         m_context->Unmap (m_texture, 0);
     }
 
-    // Draw quad (without shaders for now — just clear + present)
+    // Draw quad
     {
         float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         m_context->ClearRenderTargetView (m_rtv, clearColor);
     }
 
-    // If shaders are loaded, draw the textured quad
+    // Draw the textured quad
     if (m_vertexShader != nullptr && m_pixelShader != nullptr)
     {
         m_context->VSSetShader (m_vertexShader, nullptr, 0);

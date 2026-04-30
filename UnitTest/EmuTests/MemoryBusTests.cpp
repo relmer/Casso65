@@ -23,7 +23,7 @@ class TestMemDevice : public MemoryDevice
 {
 public:
     TestMemDevice (Word start, Word end)
-        : m_start (start), m_end (end), m_lastRead (0), m_lastWrite (0) {}
+        : m_start (start), m_end (end), m_lastRead (0), m_lastWrite (0), m_lastValue (0) {}
 
     Byte Read  (Word address) override { m_lastRead = address; return 0x42; }
     void Write (Word address, Byte value) override { m_lastWrite = address; m_lastValue = value; }

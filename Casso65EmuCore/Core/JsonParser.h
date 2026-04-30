@@ -89,8 +89,8 @@ private:
 
 struct JsonParseError
 {
-    int         line;
-    int         column;
+    int         line   = 0;
+    int         column = 0;
     std::string message;
 };
 

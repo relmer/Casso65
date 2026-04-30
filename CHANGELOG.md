@@ -11,6 +11,9 @@ Entries before versioning was introduced use dates only.
 ### Fixed
 - ROM search path bug: ROM files are now searched independently across all search paths,
   fixing failures when `machines/` and `roms/` are at different base directories
+- **Black screen in Casso65Emu** — D3D11 shaders were never compiled, so the textured
+  quad draw call was skipped and only the black clear color was displayed; implemented
+  runtime shader compilation via D3DCompile
 
 ### Added
 - `PathResolver` class in Casso65EmuCore — testable search-path logic for locating
