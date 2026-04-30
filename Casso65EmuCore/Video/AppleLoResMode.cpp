@@ -95,7 +95,7 @@ void AppleLoResMode::Render (
 {
     UNREFERENCED_PARAMETER (videoRam);
 
-    Word pageBase = 0x0400;
+    Word pageBase = GetActivePageAddress (m_page2);
 
     // Lo-res is 40x48 blocks. Each byte has two 4-bit colors:
     // low nybble = top block, high nybble = bottom block.

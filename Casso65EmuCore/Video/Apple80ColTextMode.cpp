@@ -55,7 +55,7 @@ void Apple80ColTextMode::Render (
 {
     UNREFERENCED_PARAMETER (videoRam);
 
-    Word pageBase = 0x0400;
+    Word pageBase = GetActivePageAddress (m_page2);
 
     static constexpr int kTextCols   = 40;
     static constexpr int kTextRows   = 24;

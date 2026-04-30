@@ -75,7 +75,7 @@ void AppleHiResMode::Render (
 {
     UNREFERENCED_PARAMETER (videoRam);
 
-    Word pageBase = 0x2000;
+    Word pageBase = GetActivePageAddress (m_page2);
 
     for (int scanline = 0; scanline < 192; scanline++)
     {

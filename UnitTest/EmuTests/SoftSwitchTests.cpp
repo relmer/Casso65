@@ -3,6 +3,8 @@
 #include <CppUnitTest.h>
 
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Video/AppleTextMode.h"
+#include "Video/AppleHiResMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -87,5 +89,37 @@ public:
         Assert::IsFalse (sw.IsMixedMode ());
         Assert::IsFalse (sw.IsPage2 ());
         Assert::IsFalse (sw.IsHiresMode ());
+    }
+
+    TEST_METHOD (TextMode_Page1Address)
+    {
+        MemoryBus bus;
+        AppleTextMode textMode (bus);
+
+        Assert::AreEqual (static_cast<Word> (0x0400), textMode.GetActivePageAddress (false));
+    }
+
+    TEST_METHOD (TextMode_Page2Address)
+    {
+        MemoryBus bus;
+        AppleTextMode textMode (bus);
+
+        Assert::AreEqual (static_cast<Word> (0x0800), textMode.GetActivePageAddress (true));
+    }
+
+    TEST_METHOD (HiResMode_Page1Address)
+    {
+        MemoryBus bus;
+        AppleHiResMode hiRes (bus);
+
+        Assert::AreEqual (static_cast<Word> (0x2000), hiRes.GetActivePageAddress (false));
+    }
+
+    TEST_METHOD (HiResMode_Page2Address)
+    {
+        MemoryBus bus;
+        AppleHiResMode hiRes (bus);
+
+        Assert::AreEqual (static_cast<Word> (0x4000), hiRes.GetActivePageAddress (true));
     }
 };

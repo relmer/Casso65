@@ -98,7 +98,7 @@ void AppleTextMode::Render (
     // Flash toggles every ~16 frames (approximately 0.5 second at 60fps)
     m_flashOn = ((m_frameCount / 16) & 1) == 0;
 
-    Word pageBase = 0x0400;  // Default to page 1
+    Word pageBase = GetActivePageAddress (m_page2);
 
     for (int row = 0; row < kTextRows; row++)
     {
