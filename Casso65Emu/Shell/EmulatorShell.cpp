@@ -708,20 +708,20 @@ void EmulatorShell::HandleCommand (WORD commandId)
         {
             MessageBoxW (m_hwnd,
                 L"PC Key Mapping:\n\n"
-                L"Arrow Keys → Apple II cursor movement\n"
-                L"Enter → Return\n"
-                L"Escape → Escape\n"
-                L"Delete → Delete\n"
-                L"Ctrl+Reset → Warm Reset\n"
-                L"Left Alt → Open Apple (IIe)\n"
-                L"Right Alt → Closed Apple (IIe)\n\n"
+                L"Arrow Keys -> Apple II cursor movement\n"
+                L"Enter -> Return\n"
+                L"Escape -> Escape\n"
+                L"Delete -> Delete\n"
+                L"Ctrl+Reset -> Warm Reset\n"
+                L"Left Alt -> Open Apple (IIe)\n"
+                L"Right Alt -> Closed Apple (IIe)\n\n"
                 L"Emulator Controls:\n"
-                L"Ctrl+R → Reset\n"
-                L"Ctrl+Shift+R → Power Cycle\n"
-                L"Pause → Pause/Resume\n"
-                L"F11 → Step (when paused)\n"
-                L"Alt+Enter → Fullscreen\n"
-                L"Ctrl+D → Debug Console",
+                L"Ctrl+R -> Reset\n"
+                L"Ctrl+Shift+R -> Power Cycle\n"
+                L"Pause -> Pause/Resume\n"
+                L"F11 -> Step (when paused)\n"
+                L"Alt+Enter -> Fullscreen\n"
+                L"Ctrl+D -> Debug Console",
                 L"Keyboard Map", MB_ICONINFORMATION | MB_OK);
             break;
         }
