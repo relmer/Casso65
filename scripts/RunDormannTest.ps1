@@ -62,12 +62,13 @@ try {
     $outputFile = Join-Path $tempDir '6502_functional_test.out.bin'
     $stderrFile = Join-Path $tempDir 'stderr.txt'
 
-    # Download source and reference
+    # Download source and reference using curl.exe (avoids Defender ClickFix false positive
+    # triggered by the cmd.exe -> powershell -> Invoke-WebRequest pattern)
     Write-Host "Downloading source..."
-    Invoke-WebRequest -Uri $sourceUrl -OutFile $sourceFile -UseBasicParsing
+    curl.exe -sL -o $sourceFile $sourceUrl
 
     Write-Host "Downloading reference binary..."
-    Invoke-WebRequest -Uri $refBinUrl -OutFile $refBinFile -UseBasicParsing
+    curl.exe -sL -o $refBinFile $refBinUrl
 
     Write-Host "Source size:    $((Get-Item $sourceFile).Length) bytes"
     Write-Host "Reference size: $((Get-Item $refBinFile).Length) bytes"
