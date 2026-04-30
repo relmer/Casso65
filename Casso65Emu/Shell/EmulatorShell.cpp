@@ -411,13 +411,54 @@ int EmulatorShell::RunMessageLoop ()
 {
     MSG msg = {};
 
+    // Create a high-resolution waitable timer for frame pacing (~60fps)
+    HANDLE hTimer = CreateWaitableTimerEx (nullptr, nullptr,
+        CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+
+    if (hTimer == nullptr)
+    {
+        // Fallback to standard timer if high-res not available
+        hTimer = CreateWaitableTimer (nullptr, FALSE, nullptr);
+    }
+
+    if (hTimer != nullptr)
+    {
+        // Set periodic timer: 16.67ms (~60fps) in 100-nanosecond intervals
+        LARGE_INTEGER dueTime = {};
+        dueTime.QuadPart = -166667;  // Negative = relative, 16.6667ms
+        SetWaitableTimer (hTimer, &dueTime, 16, nullptr, nullptr, FALSE);
+    }
+
     while (m_running)
     {
+        // Wait for either the frame timer or a Windows message
+        DWORD waitResult = WAIT_TIMEOUT;
+
+        if (hTimer != nullptr)
+        {
+            waitResult = MsgWaitForMultipleObjects (
+                1, &hTimer, FALSE,
+                m_paused ? INFINITE : 100,
+                QS_ALLINPUT);
+        }
+        else
+        {
+            waitResult = MsgWaitForMultipleObjects (
+                0, nullptr, FALSE, 16, QS_ALLINPUT);
+        }
+
+        // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
             {
                 m_running = false;
+
+                if (hTimer != nullptr)
+                {
+                    CloseHandle (hTimer);
+                }
+
                 return static_cast<int> (msg.wParam);
             }
 
@@ -429,15 +470,16 @@ int EmulatorShell::RunMessageLoop ()
             }
         }
 
-        if (!m_paused)
+        // Run a frame when the timer fires (not when paused)
+        if (!m_paused && waitResult == WAIT_OBJECT_0)
         {
             RunOneFrame ();
         }
-        else
-        {
-            // When paused, sleep to avoid busy-waiting
-            Sleep (16);
-        }
+    }
+
+    if (hTimer != nullptr)
+    {
+        CloseHandle (hTimer);
     }
 
     return 0;
