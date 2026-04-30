@@ -50,6 +50,10 @@ private:
 //
 //  DiskIIController
 //
+//  I/O at $C0s0-$C0sF where s = slot.
+//  TODO: Slot ROM at $Cs00-$CsFF needs a separate device or dual-range
+//  registration for boot firmware (disk2.rom).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DiskIIController : public MemoryDevice

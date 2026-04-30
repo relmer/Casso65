@@ -2,8 +2,10 @@
 
 #include <CppUnitTest.h>
 
+#include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
+#include "Devices/DiskIIController.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -84,5 +86,28 @@ public:
 
         Assert::IsNull (rom.get ());
         Assert::IsFalse (error.empty ());
+    }
+
+    TEST_METHOD (DiskIIController_Slot6_RespondsAtC0E0)
+    {
+        DiskIIController disk (6);
+        MemoryBus bus;
+        bus.AddDevice (&disk);
+
+        Assert::AreEqual (static_cast<Word> (0xC0E0), disk.GetStart ());
+        Assert::AreEqual (static_cast<Word> (0xC0EF), disk.GetEnd ());
+
+        // Reading $C0EC (Q6=false) should not crash
+        Byte val = bus.ReadByte (0xC0EC);
+        UNREFERENCED_PARAMETER (val);
+    }
+
+    TEST_METHOD (DiskIIController_MotorOnOff)
+    {
+        DiskIIController disk (6);
+
+        disk.Read (0xC0E9);   // Motor ON
+
+        disk.Read (0xC0E8);   // Motor OFF
     }
 };
