@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "WasapiAudio.h"
+#include "Audio/AudioGenerator.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -210,39 +211,25 @@ HRESULT WasapiAudio::SubmitFrame (
 
         {
             float * samples = reinterpret_cast<float *> (buffer);
-            float state = currentSpeakerState;
 
-            if (toggleTimestamps.empty () || totalCyclesThisFrame == 0)
+            // Compute initial state: if there are toggles, the initial state
+            // is the opposite of current (each toggle negates, odd count flips).
+            // With no toggles, initial == current.
+            float initialState = currentSpeakerState;
+
+            if (!toggleTimestamps.empty ())
             {
-                // No toggles — fill with current state (silence or DC)
-                for (UINT32 i = 0; i < available; i++)
-                {
-                    samples[i] = state;
-                }
+                // An odd number of toggles inverts the state
+                if (toggleTimestamps.size () % 2 != 0)
+                    initialState = -currentSpeakerState;
             }
-            else
-            {
-                // Convert toggle timestamps to sample positions
-                size_t toggleIdx = 0;
-                float toggleState = -state;  // Start with opposite (first toggle produces current)
 
-                for (UINT32 i = 0; i < available; i++)
-                {
-                    // Map sample position to cycle count
-                    uint32_t sampleCycle = static_cast<uint32_t> (
-                        static_cast<uint64_t> (i) * totalCyclesThisFrame / available);
-
-                    // Process any toggles up to this sample
-                    while (toggleIdx < toggleTimestamps.size () &&
-                           toggleTimestamps[toggleIdx] <= sampleCycle)
-                    {
-                        toggleState = -toggleState;
-                        toggleIdx++;
-                    }
-
-                    samples[i] = toggleState;
-                }
-            }
+            AudioGenerator::GeneratePCM (
+                toggleTimestamps,
+                totalCyclesThisFrame,
+                initialState,
+                samples,
+                available);
         }
 
         hr = m_renderClient->ReleaseBuffer (available, 0);
