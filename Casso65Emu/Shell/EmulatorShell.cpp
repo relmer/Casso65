@@ -514,6 +514,7 @@ void EmulatorShell::RunOneFrame ()
     for (uint32_t i = 0; i < targetCycles; i++)
     {
         m_cpu->StepOne ();
+        m_cpu->IncrementCycles ();
     }
 
     // Select video mode based on soft switch state
