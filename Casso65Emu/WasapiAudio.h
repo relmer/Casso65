@@ -26,10 +26,10 @@ public:
 
     // Submit one audio slice from speaker toggle timestamps
     HRESULT SubmitFrame (
-        const std::vector<uint32_t> & toggleTimestamps,
-        uint32_t totalCyclesThisSlice,
-        float currentSpeakerState,
-        uint32_t numSamplesToGenerate);
+        const std::vector<uint32_t>   & toggleTimestamps,
+        uint32_t                        totalCyclesThisSlice,
+        float                           currentSpeakerState,
+        uint32_t                        numSamplesToGenerate);
 
     bool IsInitialized () const { return m_initialized; }
     UINT32 GetSampleRate () const { return m_sampleRate; }

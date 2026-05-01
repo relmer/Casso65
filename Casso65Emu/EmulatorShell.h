@@ -45,9 +45,11 @@ public:
     EmulatorShell ();
     ~EmulatorShell ();
 
-    HRESULT Initialize (HINSTANCE hInstance, const MachineConfig & config,
-                        const std::string & disk1Path,
-                        const std::string & disk2Path);
+    HRESULT Initialize (
+        HINSTANCE              hInstance,
+        const MachineConfig  & config,
+        const std::string    & disk1Path,
+        const std::string    & disk2Path);
 
     int RunMessageLoop ();
 

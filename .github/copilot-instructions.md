@@ -51,15 +51,15 @@ BYTE           * buffer         = nullptr;
 hr = D3D11CreateDeviceAndSwapChain (nullptr,
                                     D3D_DRIVER_TYPE_HARDWARE,
                                     nullptr,
-                                    createFlags,
-                                    nullptr,
-                                    0,
-                                    D3D11_SDK_VERSION,
-                                    &scd,
-                                    &m_swapChain,
-                                    &m_device,
-                                    &featureLevel,
-                                    &m_context);
+                                    createFlags);
+```
+- When a function **definition** wraps its parameter list, the **first** parameter must wrap to the next line (indented one level), with one parameter per line, column-aligned like variable declarations (type, pointer/ref column, name)
+```cpp
+HRESULT EmulatorShell::Initialize (
+    HINSTANCE              hInstance,
+    const MachineConfig  & config,
+    const std::string    & disk1Path,
+    const std::string    & disk2Path)
 ```
 
 ### Code Formatting — CRITICAL RULES

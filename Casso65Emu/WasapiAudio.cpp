@@ -181,10 +181,10 @@ void WasapiAudio::Shutdown ()
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WasapiAudio::SubmitFrame (
-    const std::vector<uint32_t> & toggleTimestamps,
-    uint32_t totalCyclesThisSlice,
-    float currentSpeakerState,
-    uint32_t numSamplesToGenerate)
+    const std::vector<uint32_t>   & toggleTimestamps,
+    uint32_t                        totalCyclesThisSlice,
+    float                           currentSpeakerState,
+    uint32_t                        numSamplesToGenerate)
 {
     HRESULT    hr        = S_OK;
     size_t     prevSize  = 0;

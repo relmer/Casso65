@@ -18,10 +18,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT ParseCommandLine (
-    LPWSTR lpCmdLine,
-    std::wstring & outMachine,
-    std::wstring & outDisk1,
-    std::wstring & outDisk2)
+    LPWSTR           lpCmdLine,
+    std::wstring   & outMachine,
+    std::wstring   & outDisk1,
+    std::wstring   & outDisk2)
 {
     HRESULT    hr   = S_OK;
     int        argc = 0;
