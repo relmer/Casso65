@@ -65,16 +65,16 @@ D3DRenderer::~D3DRenderer ()
 
 HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 {
-    HRESULT                    hr          = S_OK;
-    DXGI_SWAP_CHAIN_DESC       scd         = {};
-    UINT                       createFlags = 0;
-    D3D_FEATURE_LEVEL          featureLevel;
-    ID3D11Texture2D *          backBuffer  = nullptr;
-    D3D11_VIEWPORT             vp          = {};
-    D3D11_TEXTURE2D_DESC       td          = {};
-    D3D11_SAMPLER_DESC         sd          = {};
-    D3D11_BUFFER_DESC          bd          = {};
-    D3D11_SUBRESOURCE_DATA     initData    = {};
+    HRESULT                      hr          = S_OK;
+    DXGI_SWAP_CHAIN_DESC         scd         = {};
+    UINT                         createFlags = 0;
+    D3D_FEATURE_LEVEL            featureLevel;
+    ID3D11Texture2D            * backBuffer  = nullptr;
+    D3D11_VIEWPORT               vp          = {};
+    D3D11_TEXTURE2D_DESC         td          = {};
+    D3D11_SAMPLER_DESC           sd          = {};
+    D3D11_BUFFER_DESC            bd          = {};
+    D3D11_SUBRESOURCE_DATA       initData    = {};
 
     Vertex vertices[] =
     {
@@ -203,10 +203,10 @@ Error:
 
 HRESULT D3DRenderer::InitializeShaders ()
 {
-    HRESULT    hr     = S_OK;
-    ID3DBlob * vsBlob = nullptr;
-    ID3DBlob * psBlob = nullptr;
-    ID3DBlob * errors = nullptr;
+    HRESULT      hr     = S_OK;
+    ID3DBlob   * vsBlob = nullptr;
+    ID3DBlob   * psBlob = nullptr;
+    ID3DBlob   * errors = nullptr;
 
     static const char kVertexShaderSrc[] =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
@@ -309,12 +309,12 @@ Error:
 
 HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
 {
-    HRESULT                  hr     = S_OK;
-    D3D11_MAPPED_SUBRESOURCE mapped = {};
-    const uint32_t *         src    = nullptr;
-    Byte *                   dst    = nullptr;
-    UINT                     stride = sizeof (Vertex);
-    UINT                     offset = 0;
+    HRESULT                    hr     = S_OK;
+    D3D11_MAPPED_SUBRESOURCE   mapped = {};
+    const uint32_t           * src    = nullptr;
+    Byte                     * dst    = nullptr;
+    UINT                       stride = sizeof (Vertex);
+    UINT                       offset = 0;
 
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
@@ -437,9 +437,9 @@ Error:
 
 HRESULT D3DRenderer::Resize (int width, int height)
 {
-    HRESULT           hr         = S_OK;
-    ID3D11Texture2D * backBuffer = nullptr;
-    D3D11_VIEWPORT    vp         = {};
+    HRESULT             hr         = S_OK;
+    ID3D11Texture2D   * backBuffer = nullptr;
+    D3D11_VIEWPORT      vp         = {};
 
 
 

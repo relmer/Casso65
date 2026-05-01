@@ -23,9 +23,9 @@ static HRESULT ParseCommandLine (
     std::wstring & outDisk1,
     std::wstring & outDisk2)
 {
-    HRESULT  hr   = S_OK;
-    int      argc = 0;
-    LPWSTR * argv = nullptr;
+    HRESULT    hr   = S_OK;
+    int        argc = 0;
+    LPWSTR   * argv = nullptr;
 
 
 

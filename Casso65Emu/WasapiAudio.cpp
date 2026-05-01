@@ -46,11 +46,11 @@ WasapiAudio::~WasapiAudio ()
 
 HRESULT WasapiAudio::Initialize ()
 {
-    HRESULT        hr             = S_OK;
-    WAVEFORMATEX * mixFormat      = nullptr;
-    WAVEFORMATEX   desiredFormat  = {};
-    REFERENCE_TIME bufferDuration = 1000000;  // 100ms
-    BYTE *         buffer         = nullptr;
+    HRESULT          hr             = S_OK;
+    WAVEFORMATEX   * mixFormat      = nullptr;
+    WAVEFORMATEX     desiredFormat  = {};
+    REFERENCE_TIME   bufferDuration = 1000000;  // 100ms
+    BYTE           * buffer         = nullptr;
 
 
 
@@ -186,14 +186,14 @@ HRESULT WasapiAudio::SubmitFrame (
     float currentSpeakerState,
     uint32_t numSamplesToGenerate)
 {
-    HRESULT  hr        = S_OK;
-    size_t   prevSize  = 0;
-    UINT32   padding   = 0;
-    UINT32   available = 0;
-    UINT32   pending   = 0;
-    UINT32   toWrite   = 0;
-    BYTE *   buffer    = nullptr;
-    float *  samples   = nullptr;
+    HRESULT    hr        = S_OK;
+    size_t     prevSize  = 0;
+    UINT32     padding   = 0;
+    UINT32     available = 0;
+    UINT32     pending   = 0;
+    UINT32     toWrite   = 0;
+    BYTE     * buffer    = nullptr;
+    float    * samples   = nullptr;
 
 
 

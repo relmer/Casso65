@@ -32,8 +32,18 @@ The solution has five projects:
 ### Variable Declarations
 - **ALL** local variables declared at the **top** of the function (or top of a necessary local block)
 - Do **NOT** declare variables at point of first use
-- Column-align sequential declarations: type, name, `=`, value
+- Column-align sequential declarations: type, pointer/reference symbol, name, `=`, value
+- If **any** line in a declaration block has a pointer `*` or reference `&`, **all** lines must include a column for that symbol — non-pointer lines use a space placeholder so subsequent columns stay aligned
 - Remove unnecessary scoping braces — hoist the variable to function top instead
+
+Example with pointer column:
+```cpp
+HRESULT          hr             = S_OK;
+WAVEFORMATEX   * mixFormat      = nullptr;
+WAVEFORMATEX     desiredFormat  = {};
+REFERENCE_TIME   bufferDuration = 1000000;
+BYTE           * buffer         = nullptr;
+```
 
 ### Wrapped Function Parameters
 - When a function call is too long for one line, wrap and align parameters to the opening `(`
