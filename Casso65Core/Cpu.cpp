@@ -18,7 +18,8 @@
 
 Cpu::Cpu () :
     memory         (memSize, 0),
-    instructionSet (256)
+    instructionSet (256),
+    m_lastCycles   (0)
 {
     InitializeInstructionSet ();
 }
@@ -240,6 +241,8 @@ void Cpu::Run ()
 
 void Cpu::StepOne ()
 {
+    m_lastCycles = 0;
+
     Byte        opcode      = ReadByte (PC);
     Microcode   microcode   = instructionSet[opcode];
     OperandInfo operandInfo = { 0 };
@@ -808,6 +811,7 @@ Word Cpu::PopWord ()
 
 void Cpu::WriteByte (Word address, Byte value)
 {
+    m_lastCycles++;
     memory[address] = value;
 }
 
@@ -823,8 +827,8 @@ void Cpu::WriteByte (Word address, Byte value)
 
 void Cpu::WriteWord (Word address, Word value)
 {
-    memory[address]              = value & 0xFF;
-    memory[(Word)(address + 1)]  = value >> 8;
+    WriteByte (address, static_cast<Byte> (value & 0xFF));
+    WriteByte (static_cast<Word> (address + 1), static_cast<Byte> (value >> 8));
 }
 
 
@@ -839,6 +843,7 @@ void Cpu::WriteWord (Word address, Word value)
 
 Byte Cpu::ReadByte (Word address)
 {
+    m_lastCycles++;
     return memory[address];
 }
 
@@ -854,8 +859,9 @@ Byte Cpu::ReadByte (Word address)
 
 Word Cpu::ReadWord (Word address)
 {
-    return memory[address] | 
-           memory[(Word)(address + 1)] << 8;
+    Byte lo = ReadByte (address);
+    Byte hi = ReadByte (static_cast<Word> (address + 1));
+    return static_cast<Word> (lo | (hi << 8));
 }
 
 

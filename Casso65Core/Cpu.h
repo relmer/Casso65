@@ -33,6 +33,7 @@ public:
     const Microcode *   GetInstructionSet () const  { return instructionSet.data (); }
 
     void StepOne ();
+    Byte GetLastInstructionCycles () const { return m_lastCycles; }
     Byte PeekByte  (Word address) const { return memory[address]; }
     void PokeByte  (Word address, Byte value) { memory[address] = value; }
     Word PeekWord  (Word address) const { return memory[address] | (memory[(Word)(address + 1)] << 8); }
@@ -130,4 +131,5 @@ protected:
     // Heap-allocated for the same reason as `memory`: keeps the ~10 KB
     // instruction table off the stack of any function holding a Cpu.
     std::vector<Microcode> instructionSet;
+    Byte                  m_lastCycles;
 };
