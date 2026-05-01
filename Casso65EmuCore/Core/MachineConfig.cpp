@@ -170,7 +170,7 @@ HRESULT MachineConfigLoader::Load (
                 std::string romBase    = PathResolver::FindFile (searchPaths, romRelPath);
 
                 CBR_SetError (!romBase.empty (), outError = std::format (
-                    "ROM file not found: roms/{}. Place Apple II ROM images in the roms/ directory.",
+                    "ROM file not found: roms/{}. Run scripts/FetchRoms.ps1 to download ROM images.",
                     region.file));
 
                 region.resolvedPath = romBase + "/" + romRelPath;

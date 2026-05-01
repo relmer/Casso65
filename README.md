@@ -12,6 +12,7 @@ The project includes:
 - **A real, full-featured AS65-compatible assembler** — Casso65's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
 - **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, all 14 addressing modes, and cycle-accurate instruction timing
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
+- **Apple II platform emulator** — GUI-based Apple II, II+, and IIe emulator with D3D11 rendering, WASAPI audio, data-driven machine configs, and keyboard input
 - **787+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
 
 ## Project Structure
@@ -19,6 +20,8 @@ The project includes:
 ```
 Casso65.sln
 ├── Casso65Core/     Static library — CPU emulator, assembler, parser, opcode table
+├── Casso65EmuCore/  Static library — Apple II devices, video modes, audio generator
+├── Casso65Emu/      Win32 application — Apple II platform emulator (D3D11, WASAPI)
 ├── Casso65/         Console application — AS65-compatible assembler CLI with `run` subcommand
 └── UnitTest/       Test DLL — Microsoft Native CppUnitTest (787+ tests)
 ```
@@ -82,6 +85,25 @@ Casso65.sln
 # Load and run a pre-assembled binary at a specific address
 .\x64\Debug\Casso65.exe run output.bin --load $8000
 ```
+
+### Apple II Emulator
+
+The emulator requires Apple II ROM images, which are copyrighted by Apple and not
+distributed with this project. A script is included to download them from the
+[AppleWin](https://github.com/AppleWin/AppleWin) project:
+
+```powershell
+# Download ROM images to the roms/ directory
+.\scripts\FetchRoms.ps1
+
+# Run the emulator (defaults to Apple II+)
+.\ARM64\Debug\Casso65Emu.exe
+
+# Run with a specific machine config
+.\ARM64\Debug\Casso65Emu.exe --machine machines\apple2e.json
+```
+
+The `roms/` directory is gitignored. Available machine configs are in `machines/`.
 
 ## Assembler Features
 
