@@ -45,6 +45,8 @@ LRESULT CALLBACK DebugConsole::WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPAR
 {
     DebugConsole * self = reinterpret_cast<DebugConsole *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
 
+
+
     switch (msg)
     {
         case WM_CREATE:
@@ -183,14 +185,19 @@ void DebugConsole::Hide ()
 
 void DebugConsole::Log (const std::wstring & message)
 {
+    std::wstring text;
+    int          len = 0;
+
+
+
     if (!m_visible || m_editCtrl == nullptr)
     {
         return;
     }
 
     // Append text with CRLF
-    std::wstring text = message + L"\r\n";
-    int len = GetWindowTextLength (m_editCtrl);
+    text = message + L"\r\n";
+    len  = GetWindowTextLength (m_editCtrl);
     SendMessage (m_editCtrl, EM_SETSEL, len, len);
     SendMessage (m_editCtrl, EM_REPLACESEL, FALSE, (LPARAM) text.c_str ());
 }
@@ -207,11 +214,20 @@ void DebugConsole::Log (const std::wstring & message)
 
 void DebugConsole::LogConfig (const std::string & summary)
 {
+    std::wstring wide;
+
+
+
     if (!m_visible || m_editCtrl == nullptr)
     {
         return;
     }
 
-    std::wstring wide (summary.begin (), summary.end ());
+    wide.assign (summary.begin (), summary.end ());
     Log (wide);
 }
+
+
+
+
+

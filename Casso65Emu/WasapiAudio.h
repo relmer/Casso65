@@ -49,3 +49,8 @@ private:
     // Pending mono samples waiting to be drained into WASAPI
     std::vector<float> m_pendingSamples;
 };
+
+
+
+
+

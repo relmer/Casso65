@@ -31,6 +31,8 @@ struct EmulatorCommand
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell
@@ -136,3 +138,8 @@ private:
     uint32_t        m_cyclesPerFrame  = 17050;
     double          m_sampleRemainder = 0.0;
 };
+
+
+
+
+

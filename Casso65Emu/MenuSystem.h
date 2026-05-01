@@ -74,3 +74,8 @@ private:
 
     HWND        m_hwnd = nullptr;
 };
+
+
+
+
+

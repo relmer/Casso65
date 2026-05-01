@@ -23,11 +23,13 @@ static HRESULT ParseCommandLine (
     std::wstring & outDisk1,
     std::wstring & outDisk2)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr   = S_OK;
+    int      argc = 0;
+    LPWSTR * argv = nullptr;
 
-    int argc = 0;
-    LPWSTR * argv = CommandLineToArgvW (lpCmdLine, &argc);
 
+
+    argv = CommandLineToArgvW (lpCmdLine, &argc);
     CPRA (argv);
 
     for (int i = 0; i < argc; i++)
@@ -70,10 +72,7 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT hr = S_OK;
-
-    UNREFERENCED_PARAMETER (hPrevInstance);
-    UNREFERENCED_PARAMETER (nCmdShow);
+    HRESULT      hr = S_OK;
 
     std::wstring machineName;
     std::wstring disk1Path;
@@ -82,7 +81,10 @@ int WINAPI wWinMain (
 
 
 
-    // Register GUI error notification so EHM errors show a MessageBox
+    UNREFERENCED_PARAMETER (hPrevInstance);
+    UNREFERENCED_PARAMETER (nCmdShow);
+
+    // Register GUI error notificationso EHM errors show a MessageBox
     SetNotifyFunction ([] (const wchar_t * message)
     {
         MessageBoxW (NULL, message, L"Casso65 Emulator", MB_OK | MB_ICONERROR);
@@ -177,3 +179,8 @@ Error:
     CoUninitialize ();
     return FAILED (hr) ? 1 : 0;
 }
+
+
+
+
+

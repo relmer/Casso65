@@ -83,9 +83,23 @@ HRESULT EmulatorShell::Initialize (
     const std::string & disk1Path,
     const std::string & disk2Path)
 {
-    HRESULT hr = S_OK;
+    HRESULT        hr        = S_OK;
+    WNDCLASSEX     wc        = {};
+    ATOM           regResult = 0;
+    UINT           dpi       = 0;
+    int            scale     = 0;
+    int            clientW   = 0;
+    int            clientH   = 0;
+    RECT           rc        = {};
+    DWORD          style     = 0;
+    size_t         fbSize    = 0;
+    bool           romOk     = false;
+    std::wstring   wideError;
+    LanguageCard * lc        = nullptr;
 
-    m_hInstance= hInstance;
+
+
+    m_hInstance = hInstance;
     m_config    = config;
 
     // Register built-in device factories
@@ -95,7 +109,7 @@ HRESULT EmulatorShell::Initialize (
     m_cyclesPerFrame = config.clockSpeed / 60;
 
     // Create framebuffers (CPU renders to one, UI reads the other)
-    size_t fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
+    fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
     m_cpuFramebuffer.resize (fbSize, 0);
     m_uiFramebuffer.resize (fbSize, 0);
 
@@ -103,61 +117,53 @@ HRESULT EmulatorShell::Initialize (
     SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     // Register window class
-    {
-        WNDCLASSEX wc = {};
-        wc.cbSize        = sizeof (WNDCLASSEX);
-        wc.style         = CS_HREDRAW | CS_VREDRAW;
-        wc.lpfnWndProc   = StaticWndProc;
-        wc.hInstance     = hInstance;
-        wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
-        wc.hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
-        wc.lpszClassName = kWindowClass;
-        wc.hIcon         = LoadIcon (nullptr, IDI_APPLICATION);
+    wc.cbSize        = sizeof (WNDCLASSEX);
+    wc.style         = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc   = StaticWndProc;
+    wc.hInstance     = hInstance;
+    wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
+    wc.hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
+    wc.lpszClassName = kWindowClass;
+    wc.hIcon         = LoadIcon (nullptr, IDI_APPLICATION);
 
-        ATOM regResult = RegisterClassEx (&wc);
-        CWRA (regResult);
-    }
+    regResult = RegisterClassEx (&wc);
+    CWRA (regResult);
 
     // Calculate window size for desired client area, scaled for DPI
+    dpi   = GetDpiForSystem ();
+    scale = (dpi + 48) / 96;  // 96=1x, 144=1.5x→2, 192=2x→2, 240=2.5x→3
+    if (scale < 1)
     {
-        UINT dpi = GetDpiForSystem ();
-        int scale = (dpi + 48) / 96;  // 96=1x, 144=1.5x→2, 192=2x→2, 240=2.5x→3
-
-        if (scale < 1)
-        {
-            scale = 1;
-        }
-
-        int clientW = kFramebufferWidth * scale;
-        int clientH = kFramebufferHeight * scale;
-
-        RECT rc = { 0, 0, clientW, clientH };
-        DWORD style = WS_OVERLAPPEDWINDOW;
-        AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
-
-        // Create window
-        m_hwnd = CreateWindowEx (
-            0,
-            kWindowClass,
-            L"Casso65",
-            style,
-            CW_USEDEFAULT, CW_USEDEFAULT,
-            rc.right - rc.left, rc.bottom - rc.top,
-            nullptr, nullptr, hInstance,
-            this);
-
-        CPRA (m_hwnd);
-
-        // Create menu bar
-        hr = m_menuSystem.CreateMenuBar (m_hwnd);
-        CHR (hr);
-
-        // Recalculate window size after menu added
-        AdjustWindowRect (&rc, style, TRUE);
-        SetWindowPos (m_hwnd, nullptr, 0, 0,
-            rc.right - rc.left, rc.bottom - rc.top,
-            SWP_NOMOVE | SWP_NOZORDER);
+        scale = 1;
     }
+
+    clientW = kFramebufferWidth * scale;
+    clientH = kFramebufferHeight * scale;
+
+    rc    = { 0, 0, clientW, clientH };
+    style = WS_OVERLAPPEDWINDOW;
+    AdjustWindowRect (&rc, style, TRUE);  // TRUE = has menu
+
+    // Create window
+    m_hwnd = CreateWindowEx (0,
+                             kWindowClass,
+                             L"Casso65",
+                             style,
+                             CW_USEDEFAULT, CW_USEDEFAULT,
+                             rc.right - rc.left, rc.bottom - rc.top,
+                             nullptr, nullptr, hInstance,
+                             this);
+    CPRA (m_hwnd);
+
+    // Create menu bar
+    hr = m_menuSystem.CreateMenuBar (m_hwnd);
+    CHR (hr);
+
+    // Recalculate window size after menu added
+    AdjustWindowRect (&rc, style, TRUE);
+    SetWindowPos (m_hwnd, nullptr, 0, 0,
+                  rc.right - rc.left, rc.bottom - rc.top,
+                  SWP_NOMOVE | SWP_NOZORDER);
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -178,14 +184,12 @@ HRESULT EmulatorShell::Initialize (
 
             auto device = RomDevice::CreateFromFile (region.start, region.end, romPath, error);
 
-            {
-                bool romOk = (device != nullptr);
+            romOk = (device != nullptr);
 
-                if (!romOk)
-                {
-                    std::wstring wideError (error.begin (), error.end ());
-                    CBRN (false, wideError.c_str ());
-                }
+            if (!romOk)
+            {
+                wideError.assign (error.begin (), error.end ());
+                CBRN (false, wideError.c_str ());
             }
 
             m_memoryBus.AddDevice (device.get ());
@@ -226,73 +230,69 @@ HRESULT EmulatorShell::Initialize (
     }
 
     // Wire Language Card bank switching if a language card is present
+    for (auto & dev : m_ownedDevices)
     {
-        LanguageCard * lc = nullptr;
-
-        for (auto & dev : m_ownedDevices)
+        if (lc == nullptr)
         {
-            if (lc == nullptr)
+            lc = dynamic_cast<LanguageCard *> (dev.get ());
+        }
+    }
+
+    if (lc != nullptr)
+    {
+        // Find a ROM device covering $D000-$FFFF
+        RomDevice * romDevice = nullptr;
+
+        for (const auto & entry : m_memoryBus.GetEntries ())
+        {
+            auto * rom = dynamic_cast<RomDevice *> (entry.device);
+
+            if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
             {
-                lc = dynamic_cast<LanguageCard *> (dev.get ());
+                romDevice = rom;
+                break;
             }
         }
 
-        if (lc != nullptr)
+        if (romDevice != nullptr)
         {
-            // Find a ROM device covering $D000-$FFFF
-            RomDevice * romDevice = nullptr;
+            Word romStart = romDevice->GetStart ();
 
-            for (const auto & entry : m_memoryBus.GetEntries ())
+            // Copy $D000-$FFFF ROM data to language card
+            std::vector<Byte> lcRomData (0x3000);
+
+            for (size_t i = 0; i < 0x3000; i++)
             {
-                auto * rom = dynamic_cast<RomDevice *> (entry.device);
-
-                if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
-                {
-                    romDevice = rom;
-                    break;
-                }
+                lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
             }
 
-            if (romDevice != nullptr)
+            lc->SetRomData (lcRomData);
+            m_memoryBus.RemoveDevice (romDevice);
+
+            // Re-add lower ROM ($C100-$CFFF) if original extended below $D000
+            if (romStart < 0xD000)
             {
-                Word romStart = romDevice->GetStart ();
+                size_t lowerSize = 0xD000 - romStart;
+                std::vector<Byte> lowerData (lowerSize);
 
-                // Copy $D000-$FFFF ROM data to language card
-                std::vector<Byte> lcRomData (0x3000);
-
-                for (size_t i = 0; i < 0x3000; i++)
+                for (size_t i = 0; i < lowerSize; i++)
                 {
-                    lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
+                    lowerData[i] = romDevice->Read (static_cast<Word> (romStart + i));
                 }
 
-                lc->SetRomData (lcRomData);
-                m_memoryBus.RemoveDevice (romDevice);
+                auto lowerRom = RomDevice::CreateFromData (
+                    romStart, static_cast<Word> (0xCFFF),
+                    lowerData.data (), lowerData.size ());
 
-                // Re-add lower ROM ($C100-$CFFF) if original extended below $D000
-                if (romStart < 0xD000)
-                {
-                    size_t lowerSize = 0xD000 - romStart;
-                    std::vector<Byte> lowerData (lowerSize);
-
-                    for (size_t i = 0; i < lowerSize; i++)
-                    {
-                        lowerData[i] = romDevice->Read (static_cast<Word> (romStart + i));
-                    }
-
-                    auto lowerRom = RomDevice::CreateFromData (
-                        romStart, static_cast<Word> (0xCFFF),
-                        lowerData.data (), lowerData.size ());
-
-                    m_memoryBus.AddDevice (lowerRom.get ());
-                    m_ownedDevices.push_back (std::move (lowerRom));
-                }
+                m_memoryBus.AddDevice (lowerRom.get ());
+                m_ownedDevices.push_back (std::move (lowerRom));
             }
-
-            // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-            auto lcBank = std::make_unique<LanguageCardBank> (*lc);
-            m_memoryBus.AddDevice (lcBank.get ());
-            m_ownedDevices.push_back (std::move (lcBank));
         }
+
+        // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
+        auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+        m_memoryBus.AddDevice (lcBank.get ());
+        m_ownedDevices.push_back (std::move (lcBank));
     }
 
     // Mount command-line disk images if a Disk II controller was created
@@ -409,6 +409,8 @@ int EmulatorShell::RunMessageLoop ()
 {
     MSG msg = {};
 
+
+
     // Start the CPU thread
     m_cpuThread = std::thread (&EmulatorShell::CpuThreadProc, this);
 
@@ -476,6 +478,12 @@ int EmulatorShell::RunMessageLoop ()
 
 void EmulatorShell::CpuThreadProc ()
 {
+    HANDLE        hTimer  = nullptr;
+    LARGE_INTEGER dueTime = {};
+    SpeedMode     speed   = SpeedMode::Authentic;
+
+
+
     // Initialize COM on this thread for WASAPI
     CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 
@@ -483,8 +491,9 @@ void EmulatorShell::CpuThreadProc ()
     m_wasapiAudio.Initialize ();
 
     // Create a high-resolution waitable timer for 60fps frame pacing
-    HANDLE hTimer = CreateWaitableTimerEx (nullptr, nullptr,
-        CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    hTimer = CreateWaitableTimerEx (nullptr, nullptr,
+                                    CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                                    TIMER_ALL_ACCESS);
 
     if (hTimer == nullptr)
     {
@@ -505,7 +514,6 @@ void EmulatorShell::CpuThreadProc ()
         // Arm the timer for this frame
         if (hTimer != nullptr)
         {
-            LARGE_INTEGER dueTime = {};
             dueTime.QuadPart = -166667;  // 16.6667ms
             SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
         }
@@ -520,7 +528,7 @@ void EmulatorShell::CpuThreadProc ()
         }
 
         // Wait for the remainder of the frame period
-        SpeedMode speed = m_speedMode.load (std::memory_order_acquire);
+        speed = m_speedMode.load (std::memory_order_acquire);
 
         if (speed != SpeedMode::Maximum && hTimer != nullptr)
         {
@@ -663,20 +671,31 @@ void EmulatorShell::PostCommand (WORD id, const std::string & payload)
 
 void EmulatorShell::RunOneFrame ()
 {
-    // Execute CPU in ~1ms slices (~1023 cycles each) with per-slice audio
-    // submission.  This keeps audio flowing steadily.
     static constexpr uint32_t kSliceCycles = 1023;
 
-    uint32_t targetCycles = m_cyclesPerFrame;
-    SpeedMode speed = m_speedMode.load (std::memory_order_acquire);
+    uint32_t  targetCycles   = m_cyclesPerFrame;
+    SpeedMode speed          = m_speedMode.load (std::memory_order_acquire);
+    bool      audioActive    = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
+    double    cyclesPerSample = 0.0;
+    uint32_t  sliceTarget    = 0;
+    uint32_t  sliceActual    = 0;
+    Byte      cycles         = 0;
+    double    exactSamples   = 0.0;
+    uint32_t  numSamples     = 0;
+    ColorMode color          = ColorMode::Color;
+    Byte      r              = 0;
+    Byte      g              = 0;
+    Byte      b              = 0;
+    Byte      lum            = 0;
 
+
+
+    // Execute CPU in ~1ms slices (~1023 cycles each) with per-slice audio
+    // submission.  This keeps audio flowing steadily.
     if (speed == SpeedMode::Double)
     {
         targetCycles *= 2;
     }
-
-    bool audioActive = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
-    double cyclesPerSample = 0.0;
 
     if (audioActive)
     {
@@ -688,7 +707,7 @@ void EmulatorShell::RunOneFrame ()
     for (uint32_t executed = 0; executed < targetCycles; )
     {
         // Determine slice size (last slice may be smaller)
-        uint32_t sliceTarget = targetCycles - executed;
+        sliceTarget = targetCycles - executed;
 
         if (sliceTarget > kSliceCycles)
         {
@@ -696,13 +715,13 @@ void EmulatorShell::RunOneFrame ()
         }
 
         // Execute CPU for this slice
-        uint32_t sliceActual = 0;
+        sliceActual = 0;
 
         while (sliceActual < sliceTarget)
         {
             m_cpu->StepOne ();
 
-            Byte cycles = m_cpu->GetLastInstructionCycles ();
+            cycles = m_cpu->GetLastInstructionCycles ();
 
             m_cpu->AddCycles (cycles);
             sliceActual += cycles;
@@ -715,17 +734,16 @@ void EmulatorShell::RunOneFrame ()
         {
             // Compute samples from actual cycles, accumulating remainder
             // to prevent drift
-            double exactSamples = static_cast<double> (sliceActual) /
-                                  cyclesPerSample + m_sampleRemainder;
-            uint32_t numSamples = static_cast<uint32_t> (exactSamples);
+            exactSamples = static_cast<double> (sliceActual) /
+                           cyclesPerSample + m_sampleRemainder;
+            numSamples   = static_cast<uint32_t> (exactSamples);
 
             m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
 
-            m_wasapiAudio.SubmitFrame (
-                m_speaker->GetToggleTimestamps (),
-                sliceActual,
-                m_speaker->GetFrameInitialState (),
-                numSamples);
+            m_wasapiAudio.SubmitFrame (m_speaker->GetToggleTimestamps (),
+                                       sliceActual,
+                                       m_speaker->GetFrameInitialState (),
+                                       numSamples);
 
             m_speaker->ClearTimestamps ();
             m_speaker->BeginFrame ();
@@ -738,11 +756,10 @@ void EmulatorShell::RunOneFrame ()
     // Render video to the CPU framebuffer
     if (m_activeVideoMode != nullptr)
     {
-        m_activeVideoMode->Render (
-            m_cpu->GetMemory (),
-            m_cpuFramebuffer.data (),
-            kFramebufferWidth,
-            kFramebufferHeight);
+        m_activeVideoMode->Render (m_cpu->GetMemory (),
+                                   m_cpuFramebuffer.data (),
+                                   kFramebufferWidth,
+                                   kFramebufferHeight);
     }
 
     // Mixed mode: overlay text on the bottom 4 rows (rows 20-23)
@@ -754,11 +771,10 @@ void EmulatorShell::RunOneFrame ()
 
         std::vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
 
-        m_videoModes[0]->Render (
-            m_cpu->GetMemory (),
-            textBuf.data (),
-            kFramebufferWidth,
-            kFramebufferHeight);
+        m_videoModes[0]->Render (m_cpu->GetMemory (),
+                                 textBuf.data (),
+                                 kFramebufferWidth,
+                                 kFramebufferHeight);
 
         size_t rowBytes = static_cast<size_t> (kFramebufferWidth) * sizeof (uint32_t);
 
@@ -771,17 +787,17 @@ void EmulatorShell::RunOneFrame ()
     }
 
     // Apply monochrome tint if needed
-    ColorMode color = m_colorMode.load (std::memory_order_acquire);
+    color = m_colorMode.load (std::memory_order_acquire);
 
     if (color != ColorMode::Color)
     {
         for (auto & pixel : m_cpuFramebuffer)
         {
-            Byte r = (pixel >>  0) & 0xFF;
-            Byte g = (pixel >>  8) & 0xFF;
-            Byte b = (pixel >> 16) & 0xFF;
+            r = (pixel >>  0) & 0xFF;
+            g = (pixel >>  8) & 0xFF;
+            b = (pixel >> 16) & 0xFF;
 
-            Byte lum = static_cast<Byte> (0.299f * r + 0.587f * g + 0.114f * b);
+            lum = static_cast<Byte> (0.299f * r + 0.587f * g + 0.114f * b);
 
             switch (color)
             {
@@ -814,6 +830,8 @@ void EmulatorShell::RunOneFrame ()
 LRESULT CALLBACK EmulatorShell::StaticWndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     EmulatorShell * self = nullptr;
+
+
 
     if (msg == WM_CREATE)
     {
@@ -1243,19 +1261,24 @@ void EmulatorShell::OnChar (WPARAM ch)
 
 void EmulatorShell::UpdateWindowTitle ()
 {
+    std::wstring title;
+    std::wstring wideName;
+
+
+
     if (m_hwnd == nullptr)
     {
         return;
     }
 
-    std::wstring title = L"Casso65";
+    title = L"Casso65";
 
     if (!m_config.name.empty ())
     {
-        title += L" \u2014 ";
+        title += L" — ";
 
         // Convert machine name to wide string
-        std::wstring wideName (m_config.name.begin (), m_config.name.end ());
+        wideName.assign (m_config.name.begin (), m_config.name.end ());
         title += wideName;
     }
 
@@ -1327,3 +1350,8 @@ void EmulatorShell::SelectVideoMode ()
     // Keep text mode page2-aware for mixed-mode overlay rendering
     m_videoModes[0]->SetPage2 (m_page2);
 }
+
+
+
+
+

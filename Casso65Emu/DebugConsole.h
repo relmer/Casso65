@@ -34,3 +34,8 @@ private:
     HWND    m_hwnd     = nullptr;
     HWND    m_editCtrl = nullptr;
 };
+
+
+
+
+

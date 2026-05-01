@@ -28,6 +28,8 @@ public:
     void Shutdown ();
 
 private:
+    HRESULT InitializeShaders ();
+
     ID3D11Device *          m_device       = nullptr;
     ID3D11DeviceContext *   m_context      = nullptr;
     IDXGISwapChain *        m_swapChain    = nullptr;
@@ -48,3 +50,8 @@ private:
     RECT    m_windowedRect  = {};
     LONG    m_windowedStyle = 0;
 };
+
+
+
+
+
