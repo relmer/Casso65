@@ -95,7 +95,7 @@ HRESULT WasapiAudio::Initialize ()
         desiredFormat.nBlockAlign     = 4;
         desiredFormat.nAvgBytesPerSec = m_sampleRate * 4;
 
-        REFERENCE_TIME bufferDuration = 330000;  // ~33ms
+        REFERENCE_TIME bufferDuration = 1000000;  // 100ms — absorbs frame jitter
 
         m_channels = 1;
 
@@ -199,8 +199,9 @@ void WasapiAudio::Shutdown ()
 
 HRESULT WasapiAudio::SubmitFrame (
     const std::vector<uint32_t> & toggleTimestamps,
-    uint32_t totalCyclesThisFrame,
-    float currentSpeakerState)
+    uint32_t totalCyclesThisSlice,
+    float currentSpeakerState,
+    uint32_t numSamplesToGenerate)
 {
     HRESULT hr = S_OK;
 
@@ -209,65 +210,68 @@ HRESULT WasapiAudio::SubmitFrame (
         return S_OK;
     }
 
-    // Get available buffer space
+    // Generate this slice's mono samples into the pending buffer.
+    // This decouples generation (fixed per slice) from WASAPI drain
+    // (variable based on available buffer space), preventing stutter.
+    {
+        size_t prevSize = m_pendingSamples.size ();
+
+        // Cap pending buffer to ~3 frames to avoid unbounded growth
+        if (numSamplesToGenerate > 0 && prevSize < m_samplesPerFrame * 3)
+        {
+            m_pendingSamples.resize (prevSize + numSamplesToGenerate);
+
+            AudioGenerator::GeneratePCM (
+                toggleTimestamps,
+                totalCyclesThisSlice,
+                currentSpeakerState,
+                &m_pendingSamples[prevSize],
+                numSamplesToGenerate);
+        }
+    }
+
+    // Drain as many pending samples as WASAPI can accept
     {
         UINT32 padding = 0;
         hr = m_audioClient->GetCurrentPadding (&padding);
         CHRA (hr);
 
         UINT32 available = m_bufferFrames - padding;
+        UINT32 pending   = static_cast<UINT32> (m_pendingSamples.size ());
+        UINT32 toWrite   = (available < pending) ? available : pending;
 
-        if (available == 0)
+        if (toWrite > 0)
         {
-            return S_OK;
-        }
+            BYTE * buffer = nullptr;
+            hr = m_renderClient->GetBuffer (toWrite, &buffer);
+            CHRA (hr);
 
-        // Cap submission to one frame's worth of samples
-        UINT32 toWrite = (available < m_samplesPerFrame) ? available : m_samplesPerFrame;
-
-        // Get buffer — WASAPI frames include all channels
-        BYTE * buffer = nullptr;
-        hr = m_renderClient->GetBuffer (toWrite, &buffer);
-        CHRA (hr);
-
-        {
             float * samples = reinterpret_cast<float *> (buffer);
 
             if (m_channels == 1)
             {
-                // Mono — write directly
-                AudioGenerator::GeneratePCM (
-                    toggleTimestamps,
-                    totalCyclesThisFrame,
-                    currentSpeakerState,
-                    samples,
-                    toWrite);
+                memcpy (samples, m_pendingSamples.data (),
+                        toWrite * sizeof (float));
             }
             else
             {
-                // Stereo (or more) — generate mono into a temp buffer,
-                // then duplicate to all channels
-                std::vector<float> mono (toWrite);
-
-                AudioGenerator::GeneratePCM (
-                    toggleTimestamps,
-                    totalCyclesThisFrame,
-                    currentSpeakerState,
-                    mono.data (),
-                    toWrite);
-
                 for (UINT32 i = 0; i < toWrite; i++)
                 {
                     for (UINT32 ch = 0; ch < m_channels; ch++)
                     {
-                        samples[i * m_channels + ch] = mono[i];
+                        samples[i * m_channels + ch] = m_pendingSamples[i];
                     }
                 }
             }
-        }
 
-        hr = m_renderClient->ReleaseBuffer (toWrite, 0);
-        CHRA (hr);
+            hr = m_renderClient->ReleaseBuffer (toWrite, 0);
+            CHRA (hr);
+
+            // Remove consumed samples from front
+            m_pendingSamples.erase (
+                m_pendingSamples.begin (),
+                m_pendingSamples.begin () + toWrite);
+        }
     }
 
 Error:

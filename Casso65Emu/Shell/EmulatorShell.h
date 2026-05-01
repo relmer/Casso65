@@ -99,8 +99,6 @@ private:
     SpeedMode       m_speedMode;
     ColorMode       m_colorMode;
 
-    // Frame timing
-    LARGE_INTEGER   m_perfFreq;
-    LARGE_INTEGER   m_lastFrameTime;
     uint32_t        m_cyclesPerFrame;
+    double          m_sampleRemainder;
 };

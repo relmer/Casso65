@@ -59,10 +59,9 @@ EmulatorShell::EmulatorShell ()
       m_paused          (false),
       m_speedMode       (SpeedMode::Authentic),
       m_colorMode       (ColorMode::Color),
-      m_cyclesPerFrame  (17050)
+      m_cyclesPerFrame  (17050),
+      m_sampleRemainder (0.0)
 {
-    m_perfFreq.QuadPart      = 0;
-    m_lastFrameTime.QuadPart = 0;
 }
 
 
@@ -106,10 +105,6 @@ HRESULT EmulatorShell::Initialize (
 
     // Calculate cycles per frame
     m_cyclesPerFrame = config.clockSpeed / 60;
-
-    // Initialize performance counter
-    QueryPerformanceFrequency (&m_perfFreq);
-    QueryPerformanceCounter (&m_lastFrameTime);
 
     // Create framebuffer
     m_framebuffer.resize (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
@@ -511,13 +506,11 @@ int EmulatorShell::RunMessageLoop ()
 
 void EmulatorShell::RunOneFrame ()
 {
-    // Start speaker frame timing so timestamps are frame-relative
-    if (m_speaker != nullptr)
-    {
-        m_speaker->BeginFrame ();
-    }
+    // Execute CPU in ~1ms slices (~1023 cycles each) with per-slice audio
+    // submission.  This keeps audio flowing steadily even when message
+    // processing delays the frame loop.
+    static constexpr uint32_t kSliceCycles = 1023;
 
-    // Execute CPU cycles for one frame
     uint32_t targetCycles = m_cyclesPerFrame;
 
     if (m_speedMode == SpeedMode::Double)
@@ -525,14 +518,61 @@ void EmulatorShell::RunOneFrame ()
         targetCycles *= 2;
     }
 
-    for (uint32_t i = 0; i < targetCycles; )
+    bool audioActive = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
+    double cyclesPerSample = 0.0;
+
+    if (audioActive)
     {
-        m_cpu->StepOne ();
+        cyclesPerSample = static_cast<double> (m_config.clockSpeed) /
+                          static_cast<double> (m_wasapiAudio.GetSampleRate ());
+        m_speaker->BeginFrame ();
+    }
 
-        Byte cycles = m_cpu->GetLastInstructionCycles ();
+    for (uint32_t executed = 0; executed < targetCycles; )
+    {
+        // Determine slice size (last slice may be smaller)
+        uint32_t sliceTarget = targetCycles - executed;
 
-        m_cpu->AddCycles (cycles);
-        i += cycles;
+        if (sliceTarget > kSliceCycles)
+        {
+            sliceTarget = kSliceCycles;
+        }
+
+        // Execute CPU for this slice
+        uint32_t sliceActual = 0;
+
+        while (sliceActual < sliceTarget)
+        {
+            m_cpu->StepOne ();
+
+            Byte cycles = m_cpu->GetLastInstructionCycles ();
+
+            m_cpu->AddCycles (cycles);
+            sliceActual += cycles;
+        }
+
+        executed += sliceActual;
+
+        // Submit audio for this slice
+        if (audioActive)
+        {
+            // Compute samples from actual cycles, accumulating remainder
+            // to prevent drift
+            double exactSamples = static_cast<double> (sliceActual) /
+                                  cyclesPerSample + m_sampleRemainder;
+            uint32_t numSamples = static_cast<uint32_t> (exactSamples);
+
+            m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
+
+            m_wasapiAudio.SubmitFrame (
+                m_speaker->GetToggleTimestamps (),
+                sliceActual,
+                m_speaker->GetFrameInitialState (),
+                numSamples);
+
+            m_speaker->ClearTimestamps ();
+            m_speaker->BeginFrame ();
+        }
     }
 
     // Select video mode based on soft switch state
@@ -604,45 +644,6 @@ void EmulatorShell::RunOneFrame ()
 
     // Upload and present
     m_d3dRenderer.UploadAndPresent (m_framebuffer.data ());
-
-    // Submit audio
-    if (m_speaker && m_wasapiAudio.IsInitialized ())
-    {
-        m_wasapiAudio.SubmitFrame (
-            m_speaker->GetToggleTimestamps (),
-            targetCycles,
-            m_speaker->GetFrameInitialState ());
-
-        m_speaker->ClearTimestamps ();
-    }
-
-    // Frame timing synchronization
-    if (m_speedMode != SpeedMode::Maximum)
-    {
-        LARGE_INTEGER now;
-        QueryPerformanceCounter (&now);
-
-        double elapsed   = static_cast<double> (now.QuadPart - m_lastFrameTime.QuadPart) /
-                           static_cast<double> (m_perfFreq.QuadPart);
-        double frameTime = 1.0 / 60.0;
-
-        if (m_speedMode == SpeedMode::Double)
-        {
-            frameTime = 1.0 / 120.0;
-        }
-
-        if (elapsed < frameTime)
-        {
-            DWORD sleepMs = static_cast<DWORD> ((frameTime - elapsed) * 1000.0);
-
-            if (sleepMs > 0)
-            {
-                Sleep (sleepMs);
-            }
-        }
-
-        QueryPerformanceCounter (&m_lastFrameTime);
-    }
 }
 
 
