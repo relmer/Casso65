@@ -14,7 +14,6 @@
 
 AppleKeyboard::AppleKeyboard ()
     : m_latchedKey (0),
-      m_strobe     (false),
       m_anyKeyDown (false)
 {
 }
@@ -33,28 +32,22 @@ Byte AppleKeyboard::Read (Word address)
 {
     if (address >= 0xC000 && address <= 0xC00F)
     {
-        // $C000-$C00F: Read keyboard data
-        // Bit 7 = strobe (1 = key available)
-        if (m_strobe)
-        {
-            return m_latchedKey | 0x80;
-        }
-
-        return m_latchedKey & 0x7F;
+        // $C000-$C00F: Read keyboard data (bit 7 = strobe)
+        return m_latchedKey.load (std::memory_order_acquire);
     }
 
     if (address >= 0xC010 && address <= 0xC01F)
     {
-        // $C010-$C01F: Clear keyboard strobe
-        m_strobe = false;
+        // $C010-$C01F: Clear keyboard strobe (bit 7)
+        Byte key = m_latchedKey.fetch_and (0x7F, std::memory_order_acq_rel);
 
-        // Return the key with strobe reflecting any-key-down state
-        if (m_anyKeyDown)
+        // Return the key with bit 7 reflecting any-key-down state
+        if (m_anyKeyDown.load (std::memory_order_acquire))
         {
-            return m_latchedKey | 0x80;
+            return (key & 0x7F) | 0x80;
         }
 
-        return m_latchedKey & 0x7F;
+        return key & 0x7F;
     }
 
     return 0;
@@ -77,7 +70,7 @@ void AppleKeyboard::Write (Word address, Byte value)
     // Writing to $C010 also clears strobe
     if (address >= 0xC010 && address <= 0xC01F)
     {
-        m_strobe = false;
+        m_latchedKey.fetch_and (0x7F, std::memory_order_release);
     }
 }
 
@@ -93,9 +86,8 @@ void AppleKeyboard::Write (Word address, Byte value)
 
 void AppleKeyboard::Reset ()
 {
-    m_latchedKey = 0;
-    m_strobe     = false;
-    m_anyKeyDown = false;
+    m_latchedKey.store (0, std::memory_order_release);
+    m_anyKeyDown.store (false, std::memory_order_release);
 }
 
 
@@ -110,8 +102,9 @@ void AppleKeyboard::Reset ()
 
 void AppleKeyboard::KeyPress (Byte asciiChar)
 {
-    m_latchedKey = TranslateToUppercase (asciiChar) & 0x7F;
-    m_strobe     = true;
+    // Store key with bit 7 set (strobe) in a single atomic write
+    m_latchedKey.store (
+        TranslateToUppercase (asciiChar) | 0x80, std::memory_order_release);
 }
 
 

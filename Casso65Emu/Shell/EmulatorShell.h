@@ -17,6 +17,22 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorCommand
+//
+//  Commands queued from the UI thread for the CPU thread to execute.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct EmulatorCommand
+{
+    WORD  id;
+    std::string payload;
+};
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,19 +60,23 @@ public:
     void OnKeyUp   (WPARAM vk, LPARAM lParam);
     void OnChar    (WPARAM ch);
 
-    // Frame execution
-    void RunOneFrame ();
-
     // State
-    bool IsRunning () const { return m_running; }
-    bool IsPaused  () const { return m_paused; }
+    bool IsRunning () const { return m_running.load (std::memory_order_acquire); }
+    bool IsPaused  () const { return m_paused.load (std::memory_order_acquire); }
 
     // Access bus for test wiring
     MemoryBus & GetBus () { return m_memoryBus; }
 
 private:
+    // CPU thread entry point and helpers
+    void CpuThreadProc     ();
+    void RunOneFrame       ();
+    void ProcessCommands   ();
     void UpdateWindowTitle ();
     void SelectVideoMode   ();
+
+    // Queue a command for the CPU thread
+    void PostCommand (WORD id, const std::string & payload = "");
 
     HWND                m_hwnd;
     HINSTANCE           m_hInstance;
@@ -77,7 +97,6 @@ private:
     // Video
     std::vector<std::unique_ptr<VideoOutput>> m_videoModes;
     VideoOutput *       m_activeVideoMode;
-    std::vector<uint32_t> m_framebuffer;
 
     // Soft switch state (read by video mode selection)
     bool    m_graphicsMode;
@@ -94,10 +113,25 @@ private:
 
     // Emulation state
     MachineConfig   m_config;
-    bool            m_running;
-    bool            m_paused;
-    SpeedMode       m_speedMode;
-    ColorMode       m_colorMode;
+
+    // -- Threading --
+    std::thread     m_cpuThread;
+
+    // Atomic flags (UI writes, CPU reads)
+    std::atomic<bool>       m_running;
+    std::atomic<bool>       m_paused;
+    std::atomic<SpeedMode>  m_speedMode;
+    std::atomic<ColorMode>  m_colorMode;
+
+    // Command queue (UI → CPU, protected by m_cmdMutex)
+    std::mutex                    m_cmdMutex;
+    std::vector<EmulatorCommand>  m_commandQueue;
+
+    // Double framebuffer (CPU renders, UI presents, protected by m_fbMutex)
+    std::mutex              m_fbMutex;
+    std::vector<uint32_t>   m_cpuFramebuffer;
+    std::vector<uint32_t>   m_uiFramebuffer;
+    bool                    m_fbReady;
 
     uint32_t        m_cyclesPerFrame;
     double          m_sampleRemainder;

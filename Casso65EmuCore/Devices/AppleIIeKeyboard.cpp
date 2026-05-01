@@ -34,13 +34,13 @@ Byte AppleIIeKeyboard::Read (Word address)
     // $C061: Open Apple button (bit 7)
     if (address == 0xC061)
     {
-        return m_openApple ? 0x80 : 0x00;
+        return m_openApple.load (std::memory_order_acquire) ? 0x80 : 0x00;
     }
 
     // $C062: Closed Apple button (bit 7)
     if (address == 0xC062)
     {
-        return m_closedApple ? 0x80 : 0x00;
+        return m_closedApple.load (std::memory_order_acquire) ? 0x80 : 0x00;
     }
 
     // Default keyboard handling
@@ -78,8 +78,8 @@ void AppleIIeKeyboard::KeyPressRaw (Byte asciiChar)
 void AppleIIeKeyboard::Reset ()
 {
     AppleKeyboard::Reset ();
-    m_openApple   = false;
-    m_closedApple = false;
+    m_openApple.store (false, std::memory_order_release);
+    m_closedApple.store (false, std::memory_order_release);
 }
 
 

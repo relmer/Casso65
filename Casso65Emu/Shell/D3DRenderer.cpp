@@ -348,7 +348,7 @@ HRESULT D3DRenderer::UploadAndPresent (const uint32_t * framebuffer)
         m_context->DrawIndexed (6, 0, 0);
     }
 
-    hr = m_swapChain->Present (0, 0);
+    hr = m_swapChain->Present (1, 0);
 
 Error:
     return hr;

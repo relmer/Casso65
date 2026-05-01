@@ -30,18 +30,20 @@ public:
     Word GetEnd   () const override { return 0xC01F; }
     void Reset    () override;
 
-    // Called from EmulatorShell when a key event arrives
+    // Called from EmulatorShell when a key event arrives (UI thread)
     void KeyPress (Byte asciiChar);
 
-    // Called from EmulatorShell for special keys
-    void SetKeyDown (bool down) { m_anyKeyDown = down; }
+    // Called from EmulatorShell for special keys (UI thread)
+    void SetKeyDown (bool down) { m_anyKeyDown.store (down, std::memory_order_release); }
 
     static std::unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     Byte TranslateToUppercase (Byte ch) const;
 
-    Byte    m_latchedKey;   // Last key with bit 7 = strobe
-    bool    m_strobe;       // True when a new key has been pressed
-    bool    m_anyKeyDown;   // True while any key is physically held
+    // m_latchedKey bit 7 = strobe (new key available).  Atomic because
+    // KeyPress is called from the UI thread while Read is called from
+    // the CPU thread.
+    std::atomic<Byte>   m_latchedKey;
+    std::atomic<bool>   m_anyKeyDown;
 };

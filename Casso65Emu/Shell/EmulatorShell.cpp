@@ -59,6 +59,7 @@ EmulatorShell::EmulatorShell ()
       m_paused          (false),
       m_speedMode       (SpeedMode::Authentic),
       m_colorMode       (ColorMode::Color),
+      m_fbReady         (false),
       m_cyclesPerFrame  (17050),
       m_sampleRemainder (0.0)
 {
@@ -76,6 +77,13 @@ EmulatorShell::EmulatorShell ()
 
 EmulatorShell::~EmulatorShell ()
 {
+    m_running.store (false, std::memory_order_release);
+
+    if (m_cpuThread.joinable ())
+    {
+        m_cpuThread.join ();
+    }
+
     m_d3dRenderer.Shutdown ();
 }
 
@@ -106,8 +114,10 @@ HRESULT EmulatorShell::Initialize (
     // Calculate cycles per frame
     m_cyclesPerFrame = config.clockSpeed / 60;
 
-    // Create framebuffer
-    m_framebuffer.resize (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
+    // Create framebuffers (CPU renders to one, UI reads the other)
+    size_t fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
+    m_cpuFramebuffer.resize (fbSize, 0);
+    m_uiFramebuffer.resize (fbSize, 0);
 
     // Enable Per-Monitor V2 DPI awareness
     SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -393,8 +403,7 @@ HRESULT EmulatorShell::Initialize (
     hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
 
-    // Initialize WASAPI audio (non-fatal if it fails)
-    m_wasapiAudio.Initialize ();
+    // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
     // Show window
     ShowWindow (m_hwnd, SW_SHOW);
@@ -420,44 +429,22 @@ int EmulatorShell::RunMessageLoop ()
 {
     MSG msg = {};
 
-    // Create a high-resolution waitable timer for frame pacing (~60fps)
-    HANDLE hTimer = CreateWaitableTimerEx (nullptr, nullptr,
-        CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    // Start the CPU thread
+    m_cpuThread = std::thread (&EmulatorShell::CpuThreadProc, this);
 
-    if (hTimer == nullptr)
+    // UI thread loop: process messages, present latest framebuffer with vsync
+    while (m_running.load (std::memory_order_acquire))
     {
-        // Fallback to standard timer if high-res not available
-        hTimer = CreateWaitableTimer (nullptr, FALSE, nullptr);
-    }
-
-    if (hTimer != nullptr)
-    {
-        // Set periodic timer: 16.67ms (~60fps) in 100-nanosecond intervals
-        LARGE_INTEGER dueTime = {};
-        dueTime.QuadPart = -166667;  // Negative = relative, 16.6667ms
-        SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
-    }
-
-    while (m_running)
-    {
-        // Wait for the frame timer or a Windows message
-        DWORD waitResult = MsgWaitForMultipleObjects (
-            (hTimer != nullptr) ? 1 : 0,
-            (hTimer != nullptr) ? &hTimer : nullptr,
-            FALSE,
-            m_paused ? INFINITE : 17,
-            QS_ALLINPUT);
-
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (msg.message == WM_QUIT)
             {
-                m_running = false;
+                m_running.store (false, std::memory_order_release);
 
-                if (hTimer != nullptr)
+                if (m_cpuThread.joinable ())
                 {
-                    CloseHandle (hTimer);
+                    m_cpuThread.join ();
                 }
 
                 return static_cast<int> (msg.wParam);
@@ -471,18 +458,93 @@ int EmulatorShell::RunMessageLoop ()
             }
         }
 
-        // Run a frame when the timer fires (not when paused)
-        if (!m_paused && (waitResult == WAIT_OBJECT_0 || hTimer == nullptr))
+        // Copy latest framebuffer under lock, then present with vsync
         {
-            RunOneFrame ();
+            std::lock_guard<std::mutex> lock (m_fbMutex);
 
-            // Re-arm the one-shot timer for the next frame
-            if (hTimer != nullptr)
+            if (m_fbReady)
             {
-                LARGE_INTEGER nextDue = {};
-                nextDue.QuadPart = -166667;
-                SetWaitableTimer (hTimer, &nextDue, 0, nullptr, nullptr, FALSE);
+                m_uiFramebuffer = m_cpuFramebuffer;
+                m_fbReady = false;
             }
+        }
+
+        m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data ());
+    }
+
+    if (m_cpuThread.joinable ())
+    {
+        m_cpuThread.join ();
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpuThreadProc
+//
+//  Runs on a dedicated thread.  Owns the 6502 execution loop, audio
+//  generation/submission (WASAPI), and software framebuffer rendering.
+//  Communicates with the UI thread via atomics and mutex-protected buffers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CpuThreadProc ()
+{
+    // Initialize COM on this thread for WASAPI
+    CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+
+    // Initialize WASAPI audio (non-fatal if it fails)
+    m_wasapiAudio.Initialize ();
+
+    // Create a high-resolution waitable timer for 60fps frame pacing
+    HANDLE hTimer = CreateWaitableTimerEx (nullptr, nullptr,
+        CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+
+    if (hTimer == nullptr)
+    {
+        hTimer = CreateWaitableTimer (nullptr, FALSE, nullptr);
+    }
+
+    while (m_running.load (std::memory_order_acquire))
+    {
+        if (m_paused.load (std::memory_order_acquire))
+        {
+            Sleep (10);
+            continue;
+        }
+
+        // Process deferred commands from the UI thread
+        ProcessCommands ();
+
+        // Arm the timer for this frame
+        if (hTimer != nullptr)
+        {
+            LARGE_INTEGER dueTime = {};
+            dueTime.QuadPart = -166667;  // 16.6667ms
+            SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
+        }
+
+        // Execute one frame of CPU + audio + video
+        RunOneFrame ();
+
+        // Publish the framebuffer for the UI thread
+        {
+            std::lock_guard<std::mutex> lock (m_fbMutex);
+            m_fbReady = true;
+        }
+
+        // Wait for the remainder of the frame period
+        SpeedMode speed = m_speedMode.load (std::memory_order_acquire);
+
+        if (speed != SpeedMode::Maximum && hTimer != nullptr)
+        {
+            WaitForSingleObject (hTimer, INFINITE);
         }
     }
 
@@ -491,7 +553,122 @@ int EmulatorShell::RunMessageLoop ()
         CloseHandle (hTimer);
     }
 
-    return 0;
+    m_wasapiAudio.Shutdown ();
+    CoUninitialize ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProcessCommands
+//
+//  Drains the command queue and executes each command on the CPU thread,
+//  where it is safe to touch CPU, bus, and device state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ProcessCommands ()
+{
+    std::vector<EmulatorCommand> cmds;
+
+    {
+        std::lock_guard<std::mutex> lock (m_cmdMutex);
+        cmds.swap (m_commandQueue);
+    }
+
+    for (const auto & cmd : cmds)
+    {
+        switch (cmd.id)
+        {
+            case IDM_MACHINE_RESET:
+            {
+                if (m_cpu)
+                {
+                    Word resetVec = m_cpu->ReadWord (0xFFFC);
+                    m_cpu->SetPC (resetVec);
+                }
+                break;
+            }
+
+            case IDM_MACHINE_POWERCYCLE:
+            {
+                m_memoryBus.Reset ();
+
+                if (m_cpu)
+                {
+                    m_cpu->InitForEmulation ();
+                }
+                break;
+            }
+
+            case IDM_MACHINE_STEP:
+            {
+                if (m_cpu)
+                {
+                    m_cpu->StepOne ();
+                }
+                break;
+            }
+
+            case IDM_DISK_INSERT1:
+            case IDM_DISK_INSERT2:
+            {
+                int drive = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
+
+                for (auto & dev : m_ownedDevices)
+                {
+                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+
+                    if (diskCtrl)
+                    {
+                        diskCtrl->MountDisk (drive, cmd.payload);
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case IDM_DISK_EJECT1:
+            case IDM_DISK_EJECT2:
+            {
+                int drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
+
+                for (auto & dev : m_ownedDevices)
+                {
+                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+
+                    if (diskCtrl)
+                    {
+                        diskCtrl->EjectDisk (drive);
+                        break;
+                    }
+                }
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PostCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostCommand (WORD id, const std::string & payload)
+{
+    std::lock_guard<std::mutex> lock (m_cmdMutex);
+    m_commandQueue.push_back ({ id, payload });
 }
 
 
@@ -507,13 +684,13 @@ int EmulatorShell::RunMessageLoop ()
 void EmulatorShell::RunOneFrame ()
 {
     // Execute CPU in ~1ms slices (~1023 cycles each) with per-slice audio
-    // submission.  This keeps audio flowing steadily even when message
-    // processing delays the frame loop.
+    // submission.  This keeps audio flowing steadily.
     static constexpr uint32_t kSliceCycles = 1023;
 
     uint32_t targetCycles = m_cyclesPerFrame;
+    SpeedMode speed = m_speedMode.load (std::memory_order_acquire);
 
-    if (m_speedMode == SpeedMode::Double)
+    if (speed == SpeedMode::Double)
     {
         targetCycles *= 2;
     }
@@ -578,13 +755,12 @@ void EmulatorShell::RunOneFrame ()
     // Select video mode based on soft switch state
     SelectVideoMode ();
 
-    // Render video — pass CPU memory[] for video RAM reads
-    // (CpuOperations::Store writes to memory[] directly, not through the bus)
+    // Render video to the CPU framebuffer
     if (m_activeVideoMode != nullptr)
     {
         m_activeVideoMode->Render (
             m_cpu->GetMemory (),
-            m_framebuffer.data (),
+            m_cpuFramebuffer.data (),
             kFramebufferWidth,
             kFramebufferHeight);
     }
@@ -608,16 +784,18 @@ void EmulatorShell::RunOneFrame ()
 
         for (int y = mixedFbY; y < kFramebufferHeight; y++)
         {
-            memcpy (&m_framebuffer[static_cast<size_t> (y) * kFramebufferWidth],
+            memcpy (&m_cpuFramebuffer[static_cast<size_t> (y) * kFramebufferWidth],
                     &textBuf[static_cast<size_t> (y) * kFramebufferWidth],
                     rowBytes);
         }
     }
 
     // Apply monochrome tint if needed
-    if (m_colorMode != ColorMode::Color)
+    ColorMode color = m_colorMode.load (std::memory_order_acquire);
+
+    if (color != ColorMode::Color)
     {
-        for (auto & pixel : m_framebuffer)
+        for (auto & pixel : m_cpuFramebuffer)
         {
             Byte r = (pixel >>  0) & 0xFF;
             Byte g = (pixel >>  8) & 0xFF;
@@ -625,7 +803,7 @@ void EmulatorShell::RunOneFrame ()
 
             Byte lum = static_cast<Byte> (0.299f * r + 0.587f * g + 0.114f * b);
 
-            switch (m_colorMode)
+            switch (color)
             {
                 case ColorMode::GreenMono:
                     pixel = (0xFF << 24) | (0 << 16) | (lum << 8) | 0;
@@ -641,9 +819,6 @@ void EmulatorShell::RunOneFrame ()
             }
         }
     }
-
-    // Upload and present
-    m_d3dRenderer.UploadAndPresent (m_framebuffer.data ());
 }
 
 
@@ -730,7 +905,7 @@ LRESULT EmulatorShell::WndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         case WM_DESTROY:
         {
-            m_running = false;
+            m_running.store (false, std::memory_order_release);
             PostQuitMessage (0);
             return 0;
         }
@@ -759,9 +934,6 @@ void EmulatorShell::HandleCommand (WORD commandId)
         case IDM_FILE_OPEN:
         {
             // TODO: Implement hot-swap machine config loading.
-            // Requires: tear down current CPU/bus/devices, parse new JSON,
-            // rebuild everything, re-initialize. Menu item is grayed out
-            // until this is implemented.
             break;
         }
 
@@ -771,92 +943,78 @@ void EmulatorShell::HandleCommand (WORD commandId)
             break;
         }
 
+        // CPU-touching commands are deferred to the CPU thread
         case IDM_MACHINE_RESET:
-        {
-            // Warm reset — fetch reset vector, preserve RAM
-            if (m_cpu)
-            {
-                Word resetVec = m_cpu->ReadWord (0xFFFC);
-                m_cpu->SetPC (resetVec);
-            }
-            break;
-        }
-
         case IDM_MACHINE_POWERCYCLE:
         {
-            // Cold boot — clear RAM, reset all devices
-            m_memoryBus.Reset ();
-
-            if (m_cpu)
-            {
-                m_cpu->InitForEmulation ();
-            }
+            PostCommand (commandId);
             break;
         }
 
         case IDM_MACHINE_PAUSE:
         {
-            m_paused = !m_paused;
-            m_menuSystem.SetPaused (m_paused);
+            bool paused = !m_paused.load (std::memory_order_acquire);
+            m_paused.store (paused, std::memory_order_release);
+            m_menuSystem.SetPaused (paused);
             UpdateWindowTitle ();
             break;
         }
 
         case IDM_MACHINE_STEP:
         {
-            if (m_paused && m_cpu)
+            if (m_paused.load (std::memory_order_acquire))
             {
-                m_cpu->StepOne ();
+                PostCommand (commandId);
             }
             break;
         }
 
         case IDM_MACHINE_SPEED_1X:
         {
-            m_speedMode = SpeedMode::Authentic;
-            m_menuSystem.SetSpeedMode (m_speedMode);
+            m_speedMode.store (SpeedMode::Authentic, std::memory_order_release);
+            m_menuSystem.SetSpeedMode (SpeedMode::Authentic);
             break;
         }
 
         case IDM_MACHINE_SPEED_2X:
         {
-            m_speedMode = SpeedMode::Double;
-            m_menuSystem.SetSpeedMode (m_speedMode);
+            m_speedMode.store (SpeedMode::Double, std::memory_order_release);
+            m_menuSystem.SetSpeedMode (SpeedMode::Double);
             break;
         }
 
         case IDM_MACHINE_SPEED_MAX:
         {
-            m_speedMode = SpeedMode::Maximum;
-            m_menuSystem.SetSpeedMode (m_speedMode);
+            m_speedMode.store (SpeedMode::Maximum, std::memory_order_release);
+            m_menuSystem.SetSpeedMode (SpeedMode::Maximum);
             break;
         }
 
         case IDM_VIEW_COLOR:
         {
-            m_colorMode = ColorMode::Color;
-            m_menuSystem.SetColorMode (m_colorMode);
+            m_colorMode.store (ColorMode::Color, std::memory_order_release);
+            m_menuSystem.SetColorMode (ColorMode::Color);
             break;
         }
 
         case IDM_VIEW_GREEN:
         {
-            m_colorMode = ColorMode::GreenMono;
-            m_menuSystem.SetColorMode (m_colorMode);
+            m_colorMode.store (ColorMode::GreenMono, std::memory_order_release);
+            m_menuSystem.SetColorMode (ColorMode::GreenMono);
             break;
         }
 
         case IDM_VIEW_AMBER:
         {
-            m_colorMode = ColorMode::AmberMono;
-            m_menuSystem.SetColorMode (m_colorMode);
+            m_colorMode.store (ColorMode::AmberMono, std::memory_order_release);
+            m_menuSystem.SetColorMode (ColorMode::AmberMono);
             break;
         }
 
         case IDM_VIEW_WHITE:
         {
-            m_colorMode = ColorMode::WhiteMono;
-            m_menuSystem.SetColorMode (m_colorMode);
+            m_colorMode.store (ColorMode::WhiteMono, std::memory_order_release);
+            m_menuSystem.SetColorMode (ColorMode::WhiteMono);
             break;
         }
 
@@ -885,7 +1043,6 @@ void EmulatorShell::HandleCommand (WORD commandId)
                 int w = rc.right - rc.left;
                 int h = rc.bottom - rc.top;
 
-                // Center on the current monitor
                 HMONITOR hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
                 MONITORINFO mi = { sizeof (mi) };
                 GetMonitorInfo (hMon, &mi);
@@ -914,21 +1071,8 @@ void EmulatorShell::HandleCommand (WORD commandId)
 
             if (GetOpenFileNameW (&ofn))
             {
-                // Convert wide path to narrow for DiskIIController
                 std::string narrowPath = PathResolver::WideToNarrow (std::wstring (filePath));
-                int drive = (commandId == IDM_DISK_INSERT1) ? 0 : 1;
-
-                // Find disk controller and mount
-                for (auto & dev : m_ownedDevices)
-                {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
-
-                    if (diskCtrl)
-                    {
-                        diskCtrl->MountDisk (drive, narrowPath);
-                        break;
-                    }
-                }
+                PostCommand (commandId, narrowPath);
             }
             break;
         }
@@ -936,18 +1080,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
         {
-            int drive = (commandId == IDM_DISK_EJECT1) ? 0 : 1;
-
-            for (auto & dev : m_ownedDevices)
-            {
-                auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
-
-                if (diskCtrl)
-                {
-                    diskCtrl->EjectDisk (drive);
-                    break;
-                }
-            }
+            PostCommand (commandId);
             break;
         }
 
