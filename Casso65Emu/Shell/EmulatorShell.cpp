@@ -440,26 +440,18 @@ int EmulatorShell::RunMessageLoop ()
         // Set periodic timer: 16.67ms (~60fps) in 100-nanosecond intervals
         LARGE_INTEGER dueTime = {};
         dueTime.QuadPart = -166667;  // Negative = relative, 16.6667ms
-        SetWaitableTimer (hTimer, &dueTime, 16, nullptr, nullptr, FALSE);
+        SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
     }
 
     while (m_running)
     {
-        // Wait for either the frame timer or a Windows message
-        DWORD waitResult = WAIT_TIMEOUT;
-
-        if (hTimer != nullptr)
-        {
-            waitResult = MsgWaitForMultipleObjects (
-                1, &hTimer, FALSE,
-                m_paused ? INFINITE : 100,
-                QS_ALLINPUT);
-        }
-        else
-        {
-            waitResult = MsgWaitForMultipleObjects (
-                0, nullptr, FALSE, 16, QS_ALLINPUT);
-        }
+        // Wait for the frame timer or a Windows message
+        DWORD waitResult = MsgWaitForMultipleObjects (
+            (hTimer != nullptr) ? 1 : 0,
+            (hTimer != nullptr) ? &hTimer : nullptr,
+            FALSE,
+            m_paused ? INFINITE : 17,
+            QS_ALLINPUT);
 
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
@@ -485,9 +477,17 @@ int EmulatorShell::RunMessageLoop ()
         }
 
         // Run a frame when the timer fires (not when paused)
-        if (!m_paused && waitResult == WAIT_OBJECT_0)
+        if (!m_paused && (waitResult == WAIT_OBJECT_0 || hTimer == nullptr))
         {
             RunOneFrame ();
+
+            // Re-arm the one-shot timer for the next frame
+            if (hTimer != nullptr)
+            {
+                LARGE_INTEGER nextDue = {};
+                nextDue.QuadPart = -166667;
+                SetWaitableTimer (hTimer, &nextDue, 0, nullptr, nullptr, FALSE);
+            }
         }
     }
 
