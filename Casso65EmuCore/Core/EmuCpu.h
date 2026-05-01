@@ -31,7 +31,7 @@ public:
     uint64_t   GetTotalCycles      () const { return m_totalCycles; }
     void       ResetCycles         ()       { m_totalCycles = 0; }
     uint64_t * GetCycleCounterPtr  ()       { return &m_totalCycles; }
-    void       IncrementCycles     ()       { m_totalCycles++; }
+    void       AddCycles           (Byte n) { m_totalCycles += n; }
 
     // Initialize for emulation: set SP and fetch reset vector
     void InitForEmulation ();

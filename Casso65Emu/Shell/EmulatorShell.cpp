@@ -511,10 +511,40 @@ void EmulatorShell::RunOneFrame ()
         targetCycles *= 2;
     }
 
-    for (uint32_t i = 0; i < targetCycles; i++)
+    // Cycle counts per opcode (NMOS 6502 base cycles, no page-crossing penalty)
+    static const Byte kCycleCounts[256] =
     {
+        7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0, // 00-0F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0, // 10-1F
+        6,6,0,0,3,3,5,0,4,2,2,0,4,4,6,0, // 20-2F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0, // 30-3F
+        6,6,0,0,0,3,5,0,3,2,2,0,3,4,6,0, // 40-4F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0, // 50-5F
+        6,6,0,0,0,3,5,0,4,2,2,0,5,4,6,0, // 60-6F
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0, // 70-7F
+        0,6,0,0,3,3,3,0,2,0,2,0,4,4,4,0, // 80-8F
+        2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0, // 90-9F
+        2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0, // A0-AF
+        2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0, // B0-BF
+        2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0, // C0-CF
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0, // D0-DF
+        2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0, // E0-EF
+        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0  // F0-FF
+    };
+
+    for (uint32_t i = 0; i < targetCycles; )
+    {
+        Byte opcode = m_cpu->PeekByte (m_cpu->GetPC ());
+        Byte cycles = kCycleCounts[opcode];
+
+        if (cycles == 0)
+        {
+            cycles = 2;  // Illegal opcode fallback
+        }
+
         m_cpu->StepOne ();
-        m_cpu->IncrementCycles ();
+        m_cpu->AddCycles (cycles);
+        i += cycles;
     }
 
     // Select video mode based on soft switch state
