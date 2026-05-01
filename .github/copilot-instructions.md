@@ -2,11 +2,14 @@
 
 ## Project Overview
 
-Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
+Casso65 is a 6502 CPU emulator, assembler, and Apple II platform emulator in C++.
+The solution has five projects:
 
-- **Casso65Core** — Static library containing all CPU logic (Cpu, CpuOperations, Microcode, instruction groups)
-- **Casso65** — Console application (just `main()`, links Casso65Core)
-- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links Casso65Core)
+- **Casso65Core** — Static library containing CPU logic, assembler, parser, opcode table
+- **Casso65EmuCore** — Static library containing Apple II devices, video modes, audio generator
+- **Casso65Emu** — Win32 GUI application (Apple II emulator, links Casso65Core and Casso65EmuCore)
+- **Casso65** — Console application (AS65-compatible assembler CLI, links Casso65Core)
+- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links Casso65Core and Casso65EmuCore)
 
 ## C++ Specific Guidelines
 
@@ -22,6 +25,32 @@ Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
 - **ALWAYS** preserve exact indentation when replacing code
 - Keep functions focused and short — ideally under ~50 lines
 - Each function should have a single clear purpose
+- Braces always required, even for single-statement `if`/`while`/`for`/`switch`
+- No comma-separated variable declarations
+- Prefer in-class member initialization (`.h`) over constructor initializer lists (`.cpp`)
+
+### Variable Declarations
+- **ALL** local variables declared at the **top** of the function (or top of a necessary local block)
+- Do **NOT** declare variables at point of first use
+- Column-align sequential declarations: type, name, `=`, value
+- Remove unnecessary scoping braces — hoist the variable to function top instead
+
+### Wrapped Function Parameters
+- When a function call is too long for one line, wrap and align parameters to the opening `(`
+```cpp
+hr = D3D11CreateDeviceAndSwapChain (nullptr,
+                                    D3D_DRIVER_TYPE_HARDWARE,
+                                    nullptr,
+                                    createFlags,
+                                    nullptr,
+                                    0,
+                                    D3D11_SDK_VERSION,
+                                    &scd,
+                                    &m_swapChain,
+                                    &m_device,
+                                    &featureLevel,
+                                    &m_context);
+```
 
 ### Code Formatting — CRITICAL RULES
 
