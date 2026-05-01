@@ -247,7 +247,6 @@ HRESULT D3DRenderer::InitializeShaders ()
                      0,
                      &vsBlob,
                      &errors);
-    if (errors) { errors.Reset (); }
     CHRA (hr);
 
     // Compile pixel shader
@@ -262,7 +261,6 @@ HRESULT D3DRenderer::InitializeShaders ()
                      0,
                      &psBlob,
                      &errors);
-    if (errors) { errors.Reset (); }
     CHRA (hr);
 
     // Create vertex shader
