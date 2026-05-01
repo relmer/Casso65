@@ -85,4 +85,5 @@ public:
     Byte                                 * pDestinationRegister;
     Operation                              operation;
     GlobalAddressingMode::AddressingMode   globalAddressingMode;
+    Byte                                   baseCycles;
 };

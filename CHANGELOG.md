@@ -8,6 +8,13 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **Cycle-accurate instruction timing** — added `baseCycles` field to `Microcode` struct
+  with canonical NMOS 6502 cycle counts for all 151 legal opcodes; `StepOne` now uses
+  `baseCycles` directly instead of counting bus transactions, with runtime penalties for
+  page-crossing (+1) and branch-taken (+1/+2); fixes ~30% cycle undercount that caused
+  the CPU to run too fast and audio pitch to be too high
+
 ### Fixed
 - **Audio buzz during boot** — WASAPI audio was filling the entire available buffer
   (up to 33 ms) with one frame's worth of speaker toggle data (16.67 ms), stretching

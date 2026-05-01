@@ -177,19 +177,7 @@ void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effecti
 {
     Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
 
-    // RMW on memory: phantom write of original value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
-
     (*pByte)--;
-
-    // RMW on memory: write modified value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
 
     cpu.status.flags.zero     = *pByte == 0;
     cpu.status.flags.negative = (bool) (*pByte & 0x80);
@@ -209,20 +197,7 @@ void CpuOperations::Increment (Cpu & cpu, Byte * pRegisterAffected, Word effecti
 {
     Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
 
-    // RMW on memory: phantom write of original value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
-
     (*pByte)++;
-
-
-    // RMW on memory: write modified value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
 
     cpu.status.flags.zero = *pByte == 0;
     cpu.status.flags.negative = (bool) (*pByte & 0x80);
@@ -466,21 +441,9 @@ void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effect
 {
     Byte * pByte = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
 
-    // RMW on memory: phantom write of original value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
     Byte originalValue = *pByte;
 
     *pByte <<= 1;
-
-    // RMW on memory: write modified value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
-
     *pByte |= cpu.status.flags.carry;
 
     cpu.status.flags.carry    = originalValue >> 7;
@@ -501,22 +464,9 @@ void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effect
 void CpuOperations::RotateRight (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
     Byte * pByte         = pRegisterAffected ? pRegisterAffected : &cpu.memory[effectiveAddress];
-
-    // RMW on memory: phantom write of original value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
     Byte   originalValue = *pByte;
 
     *pByte >>= 1;
-
-    // RMW on memory: write modified value (1 cycle)
-    if (!pRegisterAffected)
-    {
-        cpu.m_lastCycles++;
-    }
-
     *pByte  |= cpu.status.flags.carry << 7;
 
     cpu.status.flags.carry    = originalValue & 1;

@@ -531,11 +531,6 @@ void EmulatorShell::RunOneFrame ()
 
         Byte cycles = m_cpu->GetLastInstructionCycles ();
 
-        if (cycles == 0)
-        {
-            cycles = 2;
-        }
-
         m_cpu->AddCycles (cycles);
         i += cycles;
     }

@@ -241,15 +241,62 @@ void Cpu::Run ()
 
 void Cpu::StepOne ()
 {
-    m_lastCycles = 0;
-
     Byte        opcode      = ReadByte (PC);
     Microcode   microcode   = instructionSet[opcode];
     OperandInfo operandInfo = { 0 };
 
+
+
+    m_lastCycles = microcode.baseCycles;
+
     FetchOperand (microcode, operandInfo);
     ++PC;
+
+    // Page-crossing penalty for indexed reads (+1 cycle).
+    // Stores and RMW always pay the penalty (baked into baseCycles).
+    bool isReadOp =
+        microcode.operation != Microcode::Store       &&
+        microcode.operation != Microcode::ShiftLeft   &&
+        microcode.operation != Microcode::ShiftRight  &&
+        microcode.operation != Microcode::RotateLeft  &&
+        microcode.operation != Microcode::RotateRight &&
+        microcode.operation != Microcode::Decrement   &&
+        microcode.operation != Microcode::Increment;
+
+    if (isReadOp)
+    {
+        if (microcode.globalAddressingMode == GlobalAddressingMode::AbsoluteX  ||
+            microcode.globalAddressingMode == GlobalAddressingMode::AbsoluteY  ||
+            microcode.globalAddressingMode == GlobalAddressingMode::ZeroPageIndirectY)
+        {
+            Word baseAddr = operandInfo.location;
+
+            if (microcode.globalAddressingMode == GlobalAddressingMode::ZeroPageIndirectY)
+            {
+                baseAddr = (Word) (operandInfo.effectiveAddress - Y);
+            }
+
+            if ((baseAddr & 0xFF00) != (operandInfo.effectiveAddress & 0xFF00))
+            {
+                m_lastCycles++;
+            }
+        }
+    }
+
+    Word pcAfterFetch = PC;
+
     ExecuteInstruction (microcode, operandInfo);
+
+    // Branch penalty: +1 when taken, +1 more when crossing a page
+    if (microcode.operation == Microcode::Branch && PC != pcAfterFetch)
+    {
+        m_lastCycles++;
+
+        if ((pcAfterFetch & 0xFF00) != (PC & 0xFF00))
+        {
+            m_lastCycles++;
+        }
+    }
 }
 
 
@@ -811,7 +858,6 @@ Word Cpu::PopWord ()
 
 void Cpu::WriteByte (Word address, Byte value)
 {
-    m_lastCycles++;
     memory[address] = value;
 }
 
@@ -843,7 +889,6 @@ void Cpu::WriteWord (Word address, Word value)
 
 Byte Cpu::ReadByte (Word address)
 {
-    m_lastCycles++;
     return memory[address];
 }
 
@@ -1023,48 +1068,49 @@ void Cpu::InitializeMisc ()
         Microcode::Operation                   operation;
         Byte                                 * pSourceRegister;
         Byte                                 * pDestinationRegister;
+        Byte                                   baseCycles;
     };
 
     TableEntry table[] =
     {
-        { GroupMisc::BPL, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BMI, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BVC, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BVS, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BCC, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BCS, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BNE, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
-        { GroupMisc::BEQ, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr        },
+        { GroupMisc::BPL, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BMI, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BVC, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BVS, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BCC, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BCS, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BNE, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
+        { GroupMisc::BEQ, GlobalAddressingMode::Relative,            Microcode::Branch,               nullptr,        nullptr,        2 },
         
-        { GroupMisc::BRK, GlobalAddressingMode::SingleByteNoOperand, Microcode::Break,                nullptr,        nullptr        },
-        { GroupMisc::JSR, GlobalAddressingMode::JumpAbsolute,        Microcode::JumpSubroutine,       nullptr,        nullptr        },
-        { GroupMisc::RTI, GlobalAddressingMode::SingleByteNoOperand, Microcode::ReturnFromInterrupt,  nullptr,        nullptr        },
-        { GroupMisc::RTS, GlobalAddressingMode::SingleByteNoOperand, Microcode::ReturnFromSubroutine, nullptr,        nullptr        },
+        { GroupMisc::BRK, GlobalAddressingMode::SingleByteNoOperand, Microcode::Break,                nullptr,        nullptr,        7 },
+        { GroupMisc::JSR, GlobalAddressingMode::JumpAbsolute,        Microcode::JumpSubroutine,       nullptr,        nullptr,        6 },
+        { GroupMisc::RTI, GlobalAddressingMode::SingleByteNoOperand, Microcode::ReturnFromInterrupt,  nullptr,        nullptr,        6 },
+        { GroupMisc::RTS, GlobalAddressingMode::SingleByteNoOperand, Microcode::ReturnFromSubroutine, nullptr,        nullptr,        6 },
          
-        { GroupMisc::PHP, GlobalAddressingMode::SingleByteNoOperand, Microcode::Push,                 &status.status, nullptr        },
-        { GroupMisc::PLP, GlobalAddressingMode::SingleByteNoOperand, Microcode::Pull,                 nullptr,        &status.status },
-        { GroupMisc::PHA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Push,                 &A,             nullptr        },
-        { GroupMisc::PLA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Pull,                 nullptr,        &A             },
-        { GroupMisc::DEY, GlobalAddressingMode::SingleByteNoOperand, Microcode::Decrement,            &Y,             nullptr        },
-        { GroupMisc::TAY, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &A,             &Y             },
-        { GroupMisc::INY, GlobalAddressingMode::SingleByteNoOperand, Microcode::Increment,            &Y,             nullptr        },
-        { GroupMisc::INX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Increment,            &X,             nullptr        },
+        { GroupMisc::PHP, GlobalAddressingMode::SingleByteNoOperand, Microcode::Push,                 &status.status, nullptr,        3 },
+        { GroupMisc::PLP, GlobalAddressingMode::SingleByteNoOperand, Microcode::Pull,                 nullptr,        &status.status, 4 },
+        { GroupMisc::PHA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Push,                 &A,             nullptr,        3 },
+        { GroupMisc::PLA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Pull,                 nullptr,        &A,             4 },
+        { GroupMisc::DEY, GlobalAddressingMode::SingleByteNoOperand, Microcode::Decrement,            &Y,             nullptr,        2 },
+        { GroupMisc::TAY, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &A,             &Y,             2 },
+        { GroupMisc::INY, GlobalAddressingMode::SingleByteNoOperand, Microcode::Increment,            &Y,             nullptr,        2 },
+        { GroupMisc::INX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Increment,            &X,             nullptr,        2 },
          
-        { GroupMisc::CLC, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
-        { GroupMisc::SEC, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
-        { GroupMisc::CLI, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
-        { GroupMisc::SEI, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
-        { GroupMisc::TYA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &Y,             &A             },
-        { GroupMisc::CLV, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
-        { GroupMisc::CLD, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
-        { GroupMisc::SED, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr        },
+        { GroupMisc::CLC, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
+        { GroupMisc::SEC, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
+        { GroupMisc::CLI, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
+        { GroupMisc::SEI, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
+        { GroupMisc::TYA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &Y,             &A,             2 },
+        { GroupMisc::CLV, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
+        { GroupMisc::CLD, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
+        { GroupMisc::SED, GlobalAddressingMode::SingleByteNoOperand, Microcode::SetFlag,              &status.status, nullptr,        2 },
          
-        { GroupMisc::TXA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &X,             &A             },
-        { GroupMisc::TXS, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &X,             &SP            },
-        { GroupMisc::TAX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &A,             &X             },
-        { GroupMisc::TSX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &SP,            &X             },
-        { GroupMisc::DEX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Decrement,            &X,             nullptr        },
-        { GroupMisc::NOP, GlobalAddressingMode::SingleByteNoOperand, Microcode::NoOperation,          nullptr,        nullptr        },
+        { GroupMisc::TXA, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &X,             &A,             2 },
+        { GroupMisc::TXS, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &X,             &SP,            2 },
+        { GroupMisc::TAX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &A,             &X,             2 },
+        { GroupMisc::TSX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Transfer,             &SP,            &X,             2 },
+        { GroupMisc::DEX, GlobalAddressingMode::SingleByteNoOperand, Microcode::Decrement,            &X,             nullptr,        2 },
+        { GroupMisc::NOP, GlobalAddressingMode::SingleByteNoOperand, Microcode::NoOperation,          nullptr,        nullptr,        2 },
     };
 
 
@@ -1072,6 +1118,7 @@ void Cpu::InitializeMisc ()
     {
         Instruction instruction            = Instruction (GroupMisc::instruction[entry.opcode].instruction);
         instructionSet[instruction.asByte] = Microcode (instruction, GroupMisc::instruction[entry.opcode].name, entry.operation, entry.addressingMode, entry.pSourceRegister, entry.pDestinationRegister);
+        instructionSet[instruction.asByte].baseCycles = entry.baseCycles;
     }
 
 }
@@ -1104,6 +1151,36 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
         {
             Instruction instruction            = Instruction (opcode, addressingMode, group);
             instructionSet[instruction.asByte] = Microcode   (instruction, instructionName[opcode], operation, pSourceRegister, pDestinationRegister);
+
+            // Compute base cycle count from addressing mode and operation type
+            bool isStore     = (operation == Microcode::Store);
+            bool isRmw       = (operation == Microcode::ShiftLeft  || operation == Microcode::ShiftRight  ||
+                                operation == Microcode::RotateLeft || operation == Microcode::RotateRight ||
+                                operation == Microcode::Decrement  || operation == Microcode::Increment);
+            bool isMemoryRmw = isRmw && (instructionSet[instruction.asByte].globalAddressingMode != GlobalAddressingMode::Accumulator);
+
+            Byte cycles = 2;
+
+            switch (instructionSet[instruction.asByte].globalAddressingMode)
+            {
+            case GlobalAddressingMode::Immediate:           cycles = 2;                                        break;
+            case GlobalAddressingMode::ZeroPage:            cycles = isMemoryRmw ? 5 : 3;                      break;
+            case GlobalAddressingMode::ZeroPageX:           cycles = isMemoryRmw ? 6 : 4;                      break;
+            case GlobalAddressingMode::ZeroPageY:           cycles = 4;                                        break;
+            case GlobalAddressingMode::Absolute:            cycles = isMemoryRmw ? 6 : 4;                      break;
+            case GlobalAddressingMode::AbsoluteX:           cycles = isMemoryRmw ? 7 : (isStore ? 5 : 4);     break;
+            case GlobalAddressingMode::AbsoluteY:           cycles = isStore ? 5 : 4;                          break;
+            case GlobalAddressingMode::ZeroPageXIndirect:   cycles = 6;                                        break;
+            case GlobalAddressingMode::ZeroPageIndirectY:   cycles = isStore ? 6 : 5;                          break;
+            case GlobalAddressingMode::Accumulator:         cycles = 2;                                        break;
+            case GlobalAddressingMode::JumpAbsolute:        cycles = 3;                                        break;
+            case GlobalAddressingMode::JumpIndirect:        cycles = 5;                                        break;
+            case GlobalAddressingMode::Relative:            cycles = 2;                                        break;
+            case GlobalAddressingMode::SingleByteNoOperand: cycles = 2;                                        break;
+            default:                                                                                           break;
+            }
+
+            instructionSet[instruction.asByte].baseCycles = cycles;
         }
 
         ++addressingMode;

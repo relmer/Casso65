@@ -10,7 +10,7 @@ Casso65 is a 6502 CPU emulator and assembler written in C++. It emulates the MOS
 The project includes:
 
 - **A real, full-featured AS65-compatible assembler** — Casso65's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
-- **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, and all 14 addressing modes
+- **CPU emulator** — fetch-decode-execute cycle with register/flag management, stack operations, decimal mode (BCD) for ADC/SBC, all 14 addressing modes, and cycle-accurate instruction timing
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
 - **787+ unit tests** — comprehensive coverage of instruction encoding, addressing modes, arithmetic, branching, assembler features, and audio pipeline
 
@@ -149,7 +149,7 @@ All 56 standard 6502 mnemonics are implemented.
 - [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso65/issues/54))
 - [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso65/issues/55))
 - [ ] Memory-mapped I/O hooks — prerequisite for platform emulation ([#56](https://github.com/relmer/Casso65/issues/56))
-- [ ] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso65/issues/57))
+- [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso65/issues/57))
 - [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso65/issues/47))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso65/issues/49), [#50](https://github.com/relmer/Casso65/issues/50))
 

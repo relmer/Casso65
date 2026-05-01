@@ -19,7 +19,8 @@ Microcode::Microcode () :
     pSourceRegister      (nullptr),
     pDestinationRegister (nullptr),
     operation            (Operation::NoOperation),
-    globalAddressingMode (GlobalAddressingMode::SingleByteNoOperand)
+    globalAddressingMode (GlobalAddressingMode::SingleByteNoOperand),
+    baseCycles           (0)
 {
 }
 
@@ -46,7 +47,8 @@ Microcode::Microcode (Instruction    instruction,
     pSourceRegister      (pSourceRegister),
     pDestinationRegister (pDestinationRegister),
     operation            (operation),
-    globalAddressingMode (GlobalAddressingMode::SingleByteNoOperand)
+    globalAddressingMode (GlobalAddressingMode::SingleByteNoOperand),
+    baseCycles           (0)
 
 {
     switch (instruction.asBits.group)
@@ -111,7 +113,8 @@ Microcode::Microcode (Instruction                            instruction,
     pSourceRegister      (pSourceRegister),
     pDestinationRegister (pDestinationRegister),
     operation            (operation),
-    globalAddressingMode (addressingMode)
+    globalAddressingMode (addressingMode),
+    baseCycles           (0)
 
 {
 }
