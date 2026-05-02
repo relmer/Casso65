@@ -281,7 +281,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             m_speaker = static_cast<AppleSpeaker *> (device.get());
         }
 
-        m_memoryBus.AddDevice (device.get());
+
         m_memoryBus.AddDevice (device.get());
         m_ownedDevices.push_back (move (device));
     }
