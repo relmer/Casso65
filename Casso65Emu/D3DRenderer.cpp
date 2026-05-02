@@ -374,9 +374,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     HRESULT     hr        = S_OK;
     HMONITOR    hMon;
     MONITORINFO mi        = { sizeof (mi) };
-    BOOL        monResult = FALSE;
-    BOOL        posResult = FALSE;
-    BOOL        rectResult = FALSE;
+    BOOL        fSuccess  = FALSE;
 
 
 
@@ -384,22 +382,22 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Save windowed state
         m_windowedStyle = GetWindowLong (hwnd, GWL_STYLE);
-        rectResult = GetWindowRect (hwnd, &m_windowedRect);
-        CWRA (rectResult);
+        fSuccess = GetWindowRect (hwnd, &m_windowedRect);
+        CWRA (fSuccess);
 
         // Go borderless fullscreen
         hMon      = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-        monResult = GetMonitorInfo (hMon, &mi);
-        CWRA (monResult);
+        fSuccess = GetMonitorInfo (hMon, &mi);
+        CWRA (fSuccess);
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        posResult = SetWindowPos (hwnd, 
+        fSuccess = SetWindowPos (hwnd, 
                                   HWND_TOP,
                                   mi.rcMonitor.left, mi.rcMonitor.top,
                                   mi.rcMonitor.right - mi.rcMonitor.left,
                                   mi.rcMonitor.bottom - mi.rcMonitor.top,
                                   SWP_FRAMECHANGED);
-        CWRA (posResult);
+        CWRA (fSuccess);
 
         m_fullscreen = true;
     }
@@ -407,13 +405,13 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Restore windowed
         SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
-        posResult = SetWindowPos (hwnd, 
+        fSuccess = SetWindowPos (hwnd, 
                                   HWND_NOTOPMOST,
                                   m_windowedRect.left, m_windowedRect.top,
                                   m_windowedRect.right - m_windowedRect.left,
                                   m_windowedRect.bottom - m_windowedRect.top,
                                   SWP_FRAMECHANGED);
-        CWRA (posResult);
+        CWRA (fSuccess);
 
         m_fullscreen = false;
     }

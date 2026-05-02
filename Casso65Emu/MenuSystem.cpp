@@ -156,8 +156,8 @@ Error:
 
 HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
 {
-    HRESULT hr         = S_OK;
-    BOOL    menuResult = FALSE;
+    HRESULT hr       = S_OK;
+    BOOL    fSuccess = FALSE;
 
     const MenuDef menus[] =
     {
@@ -181,8 +181,8 @@ HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
         CHR (hr);
     }
 
-    menuResult = SetMenu (hwnd, m_menuBar);
-    CWRA (menuResult);
+    fSuccess = SetMenu (hwnd, m_menuBar);
+    CWRA (fSuccess);
 
 Error:
     return hr;
