@@ -455,7 +455,10 @@ void EmulatorShell::CreateVideoModes()
 
 HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr      = S_OK;
+    ifstream romFile;
+    Word     addr    = 0;
+    char     byte    = 0;
 
 
 
@@ -465,27 +468,32 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
     // and instruction execution. Copy ROM data into that array.
     for (const auto & region : config.memoryRegions)
     {
-        if (region.type == "rom" && !region.resolvedPath.empty())
+        if (region.type != "rom" || region.resolvedPath.empty())
         {
-            ifstream romFile (region.resolvedPath, ios::binary);
+            continue;
+        }
 
-            if (romFile.good())
+        romFile.open (region.resolvedPath, ios::binary);
+
+        if (!romFile.good())
+        {
+            continue;
+        }
+
+        addr = region.start;
+
+        while (romFile.good() && addr <= region.end)
+        {
+            romFile.read (&byte, 1);
+
+            if (romFile.gcount() == 1)
             {
-                Word addr = region.start;
-
-                while (romFile.good() && addr <= region.end)
-                {
-                    char byte;
-                    romFile.read (&byte, 1);
-
-                    if (romFile.gcount() == 1)
-                    {
-                        m_cpu->PokeByte (addr, static_cast<Byte> (byte));
-                        addr++;
-                    }
-                }
+                m_cpu->PokeByte (addr, static_cast<Byte> (byte));
+                addr++;
             }
         }
+
+        romFile.close();
     }
 
     m_cpu->InitForEmulation();
