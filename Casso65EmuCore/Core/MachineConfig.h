@@ -78,7 +78,7 @@ struct VideoConfig
 //   CPU clock  = 14,318,180 / 14        = 1,022,727 Hz
 //   Cycles/frame = 65 cycles/line * 262 lines = 17,030
 //   Frame rate = 1,022,727 / 17,030     = 60.05 Hz
-static constexpr uint32_t kAppleCpuClock      = 1022727;
+static constexpr uint32_t kAppleCpuClock       = 1022727;
 static constexpr uint32_t kAppleCyclesPerFrame = 17030;
 
 struct MachineConfig
@@ -106,12 +106,25 @@ struct MachineConfig
 class MachineConfigLoader
 {
 public:
-    static HRESULT Load (
-        const string & jsonText,
-        const vector<fs::path> & searchPaths,
-        MachineConfig & outConfig,
-        string & outError);
+    static HRESULT Load (const string           & jsonText,
+                         const vector<fs::path> & searchPaths,
+                         MachineConfig          & outConfig,
+                         string                 & outError);
 
 private:
     static HRESULT ParseHexAddress (const string & str, Word & outAddr, string & outError);
+
+    static HRESULT LoadMemoryRegions (
+        const JsonValue        & memArray,
+        const vector<fs::path> & searchPaths,
+        MachineConfig          & outConfig,
+        string                 & outError);
+
+    static HRESULT LoadDevices (
+        const JsonValue & devArray,
+        MachineConfig   & outConfig,
+        string          & outError);
+
+    static void LoadVideoConfig (const JsonValue & video, MachineConfig & outConfig);
+    static void LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
 };

@@ -1,4 +1,4 @@
-#include "Pch.h"
+﻿#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -382,7 +382,6 @@ void EmulatorShell::ShowDevicePopup()
     hMenu = CreatePopupMenu();
     CPRA (hMenu);
 
-    // Memory regions from config
     // Memory regions from config
     for (const auto & region : m_config.memoryRegions)
     {
