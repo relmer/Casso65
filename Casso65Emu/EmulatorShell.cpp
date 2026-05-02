@@ -275,7 +275,7 @@ void EmulatorShell::CreateStatusBar ()
 
 void EmulatorShell::UpdateStatusBar ()
 {
-    int     parts[4] = { 150, 220, 320, -1 };
+    int     parts[4] = { 60, 170, 320, -1 };
     wstring machineName;
     wstring cpuType;
     wstring clockText;
@@ -285,17 +285,17 @@ void EmulatorShell::UpdateStatusBar ()
 
     SendMessage (m_statusBar, SB_SETPARTS, 4, reinterpret_cast<LPARAM> (parts));
 
-    // Part 0 — Machine name
-    machineName = fs::path (m_config.name).wstring();
-    SendMessageW (m_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM> (machineName.c_str()));
-
-    // Part 1 — CPU type
+    // Part 0 — CPU type
     cpuType = fs::path (m_config.cpu).wstring();
-    SendMessageW (m_statusBar, SB_SETTEXTW, 1, reinterpret_cast<LPARAM> (cpuType.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM> (cpuType.c_str()));
 
-    // Part 2 — Clock speed in MHz
+    // Part 1 — Clock speed in MHz
     clockText = format (L"{:.3f} MHz", m_config.clockSpeed / 1000000.0);
-    SendMessageW (m_statusBar, SB_SETTEXTW, 2, reinterpret_cast<LPARAM> (clockText.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 1, reinterpret_cast<LPARAM> (clockText.c_str()));
+
+    // Part 2 — Machine name
+    machineName = fs::path (m_config.name).wstring();
+    SendMessageW (m_statusBar, SB_SETTEXTW, 2, reinterpret_cast<LPARAM> (machineName.c_str()));
 
     // Part 3 — Device count
     deviceText = format (L"{} devices", m_config.devices.size());
@@ -317,37 +317,31 @@ void EmulatorShell::ShowDevicePopup ()
     HMENU   hMenu  = nullptr;
     POINT   pt     = {};
     UINT    itemId = 1;
+    wstring label;
 
 
 
-    hMenu = CreatePopupMenu();
+    hMenu = CreatePopupMenu ();
+
     if (hMenu == nullptr)
     {
         return;
     }
 
-    for (size_t i = 0; i < m_config.devices.size(); ++i)
+    for (const auto & entry : m_memoryBus.GetEntries ())
     {
-        const DeviceConfig & devCfg = m_config.devices[i];
-        wstring              label;
+        MemoryDevice * dev = entry.device;
 
-        if (devCfg.hasRange)
-        {
-            label = format (L"{}  ${:04X}-${:04X}",
-                            fs::path (devCfg.type).wstring(),
-                            devCfg.start,
-                            devCfg.end);
-        }
-        else
-        {
-            label = fs::path (devCfg.type).wstring();
-        }
+        label = format (L"${:04X}-${:04X}",
+                        entry.start,
+                        entry.end);
 
-        AppendMenuW (hMenu, MF_STRING | MF_GRAYED, itemId++, label.c_str());
+        AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
     }
 
     GetCursorPos (&pt);
-    TrackPopupMenu (hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN, pt.x, pt.y, 0, m_hwnd, nullptr);
+    TrackPopupMenu (hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+                    pt.x, pt.y, 0, m_hwnd, nullptr);
     DestroyMenu (hMenu);
 }
 
@@ -1683,15 +1677,15 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" — ";
 
         // Convert machine name to wide string
-        wideName.assign (m_config.name.begin(), m_config.name.end());
+        wideName = fs::path (m_config.name).wstring();
         title += wideName;
     }
 
-    if (m_paused)
+    if (m_paused.load (memory_order_acquire))
     {
         title += L" [Paused]";
     }
-    else if (m_running)
+    else if (m_running.load (memory_order_acquire))
     {
         title += L" [Running]";
     }
