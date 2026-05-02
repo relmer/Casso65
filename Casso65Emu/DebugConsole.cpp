@@ -226,7 +226,8 @@ bool DebugConsole::IsVisible () const
 void DebugConsole::Log (const wstring & message)
 {
     wstring text;
-    int     len  = 0;
+    int     len = 0;
+    size_t  pos = 0;
 
 
 
@@ -235,8 +236,21 @@ void DebugConsole::Log (const wstring & message)
         return;
     }
 
+    // Win32 EDIT controls require \r\n for line breaks
     text = message + L"\r\n";
-    len  = GetWindowTextLength (m_editCtrl);
+
+    while ((pos = text.find (L'\n', pos)) != wstring::npos)
+    {
+        if (pos == 0 || text[pos - 1] != L'\r')
+        {
+            text.insert (pos, 1, L'\r');
+            pos++;
+        }
+
+        pos++;
+    }
+
+    len = GetWindowTextLength (m_editCtrl);
 
     SendMessage (m_editCtrl, EM_SETSEL, len, len);
     SendMessage (m_editCtrl, EM_REPLACESEL, FALSE, (LPARAM) text.c_str ());
