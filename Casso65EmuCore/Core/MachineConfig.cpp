@@ -73,12 +73,10 @@ HRESULT MachineConfigLoader::Load (
     // Parse JSON
     hr = JsonParser::Parse (jsonText, root, parseError);
 
-    if (FAILED (hr))
-    {
-        outError = format ("JSON parse error at line {}, column {}: {}",
-                           parseError.line, parseError.column, parseError.message);
-        goto Error;
-    }
+    CBR_SetError (SUCCEEDED (hr),
+                  outError = format ("JSON parse error at line {}, column {}: {}",
+                                    parseError.line, parseError.column,
+                                    parseError.message));
 
     CBR (root.IsObject ());
 
