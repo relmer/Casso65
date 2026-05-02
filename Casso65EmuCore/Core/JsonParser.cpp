@@ -152,7 +152,10 @@ HRESULT JsonValue::GetString (const string & key, string & outValue) const
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsString ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsString (),     JSON_E_TYPE_MISMATCH);
+
     outValue = Get (key).GetString ();
 
 Error:
@@ -175,7 +178,10 @@ HRESULT JsonValue::GetNumber (const string & key, double & outValue) const
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsNumber ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
+
     outValue = Get (key).GetNumber ();
 
 Error:
@@ -198,7 +204,10 @@ HRESULT JsonValue::GetInt (const string & key, int & outValue) const
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsNumber ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
+
     outValue = Get (key).GetInt ();
 
 Error:
@@ -221,7 +230,10 @@ HRESULT JsonValue::GetUint32 (const string & key, uint32_t & outValue) const
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsNumber ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
+
     outValue = static_cast<uint32_t> (Get (key).GetNumber ());
 
 Error:
@@ -244,7 +256,10 @@ HRESULT JsonValue::GetBool (const string & key, bool & outValue) const
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsBool ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsBool (),       JSON_E_TYPE_MISMATCH);
+
     outValue = Get (key).GetBool ();
 
 Error:
@@ -267,7 +282,10 @@ HRESULT JsonValue::GetObject (const string & key, const JsonValue *& outValue) c
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsObject ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsObject (),     JSON_E_TYPE_MISMATCH);
+
     outValue = &Get (key);
 
 Error:
@@ -290,7 +308,10 @@ HRESULT JsonValue::GetArray (const string & key, const JsonValue *& outValue) co
 
 
 
-    CBR (m_type == JsonType::Object && HasKey (key) && Get (key).IsArray ());
+    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
+    BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
+    BAIL_OUT_IF (!Get (key).IsArray (),      JSON_E_TYPE_MISMATCH);
+
     outValue = &Get (key);
 
 Error:
