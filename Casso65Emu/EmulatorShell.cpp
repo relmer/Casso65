@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -371,6 +371,9 @@ HRESULT EmulatorShell::Initialize (
     // Initialize D3D11
     hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
     CHR (hr);
+
+    // Initialize debug console window (created hidden)
+    m_debugConsole.InitializeConsole (hInstance);
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
@@ -1154,7 +1157,7 @@ void EmulatorShell::HandleCommand (WORD commandId)
             }
             else
             {
-                m_debugConsole.Show (m_hInstance);
+                m_debugConsole.Show ();
                 m_debugConsole.LogConfig (
                     format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
                         m_config.name, m_config.cpu, m_config.clockSpeed,
