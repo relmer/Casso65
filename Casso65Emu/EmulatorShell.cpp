@@ -106,12 +106,12 @@ HRESULT EmulatorShell::Initialize (
     hr = CreateMemoryDevices (config);
     CHR (hr);
 
-    WireLanguageCard ();
+    WireLanguageCard();
     MountCommandLineDisks (disk1Path, disk2Path);
-    CreateVideoModes ();
+    CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
-    hr = m_memoryBus.Validate ();
+    hr = m_memoryBus.Validate();
     CHRN (hr, L"Memory bus validation failed: overlapping device address ranges");
 
     hr = CreateCpu (config);
@@ -127,7 +127,7 @@ HRESULT EmulatorShell::Initialize (
     ShowWindow (m_hwnd, SW_SHOW);
     UpdateWindow (m_hwnd);
 
-    UpdateWindowTitle ();
+    UpdateWindowTitle();
 
 Error:
     return hr;
@@ -166,7 +166,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     CHR (hr);
 
     // Calculate window size for desired client area, scaled for DPI
-    dpi   = GetDpiForSystem ();
+    dpi   = GetDpiForSystem();
     scale = (dpi + 48) / 96;  // 96=1x, 144=1.5x→2, 192=2x→2, 240=2.5x→3
     if (scale < 1)
     {
@@ -231,10 +231,10 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         if (region.type == "ram")
         {
             auto device = make_unique<RamDevice> (region.start, region.end);
-            m_memoryBus.AddDevice (device.get ());
+            m_memoryBus.AddDevice (device.get());
             m_ownedDevices.push_back (move (device));
         }
-        else if (region.type == "rom" && !region.file.empty ())
+        else if (region.type == "rom" && !region.file.empty())
         {
             string romPath = region.resolvedPath;
             string error;
@@ -245,11 +245,11 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
             if (!romOk)
             {
-                wideError.assign (error.begin (), error.end ());
-                CBRN (false, wideError.c_str ());
+                wideError.assign (error.begin(), error.end());
+                CBRN (false, wideError.c_str());
             }
 
-            m_memoryBus.AddDevice (device.get ());
+            m_memoryBus.AddDevice (device.get());
             m_ownedDevices.push_back (move (device));
         }
     }
@@ -259,37 +259,36 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     {
         auto device = m_registry.Create (devConfig.type, devConfig, m_memoryBus);
 
-        if (device)
+        if (!device)
         {
-            // Track specific device pointers for quick access
-            if (devConfig.type == "apple2-keyboard" ||
-                devConfig.type == "apple2e-keyboard")
-            {
-                m_keyboard = static_cast<AppleKeyboard *> (device.get ());
-            }
-            else if (devConfig.type == "apple2-softswitches" ||
-                     devConfig.type == "apple2e-softswitches")
-            {
-                m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get ());
-            }
-            else if (devConfig.type == "apple2-speaker")
-            {
-                m_speaker = static_cast<AppleSpeaker *> (device.get ());
-            }
+            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devConfig.type.c_str());
+            continue;
+        }
 
-            m_memoryBus.AddDevice (device.get ());
-            m_ownedDevices.push_back (move (device));
-        }
-        else
+        // Track specific device pointers for quick access
+        if (devConfig.type == "apple2-keyboard" ||
+            devConfig.type == "apple2e-keyboard")
         {
-            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devConfig.type.c_str ());
+            m_keyboard = static_cast<AppleKeyboard *> (device.get());
         }
+        else if (devConfig.type == "apple2-softswitches" ||
+                 devConfig.type == "apple2e-softswitches")
+        {
+            m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
+        }
+        else if (devConfig.type == "apple2-speaker")
+        {
+            m_speaker = static_cast<AppleSpeaker *> (device.get());
+        }
+
+        m_memoryBus.AddDevice (device.get());
+        m_memoryBus.AddDevice (device.get());
+        m_ownedDevices.push_back (move (device));
     }
 
 Error:
     return hr;
 }
-
 
 
 
@@ -300,7 +299,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::WireLanguageCard ()
+void EmulatorShell::WireLanguageCard()
 {
     LanguageCard * lc        = nullptr;
     RomDevice    * romDevice = nullptr;
@@ -310,7 +309,7 @@ void EmulatorShell::WireLanguageCard ()
     // Find the LanguageCard device
     for (auto & dev : m_ownedDevices)
     {
-        lc = dynamic_cast<LanguageCard *> (dev.get ());
+        lc = dynamic_cast<LanguageCard *> (dev.get());
 
         if (lc != nullptr)
         {
@@ -324,7 +323,7 @@ void EmulatorShell::WireLanguageCard ()
     }
 
     // Find a ROM device covering $D000–$FFFF
-    for (const auto & entry : m_memoryBus.GetEntries ())
+    for (const auto & entry : m_memoryBus.GetEntries())
     {
         auto * rom = dynamic_cast<RomDevice *> (entry.device);
 
@@ -340,7 +339,7 @@ void EmulatorShell::WireLanguageCard ()
         return;
     }
 
-    Word romStart = romDevice->GetStart ();
+    Word romStart = romDevice->GetStart();
 
     // Copy $D000–$FFFF ROM data to language card
     vector<Byte> lcRomData (0x3000);
@@ -366,15 +365,15 @@ void EmulatorShell::WireLanguageCard ()
 
         auto lowerRom = RomDevice::CreateFromData (
             romStart, static_cast<Word> (0xCFFF),
-            lowerData.data (), lowerData.size ());
+            lowerData.data(), lowerData.size());
 
-        m_memoryBus.AddDevice (lowerRom.get ());
+        m_memoryBus.AddDevice (lowerRom.get());
         m_ownedDevices.push_back (move (lowerRom));
     }
 
     // Bank device intercepts $D000–$FFFF, routing to LC RAM or ROM
     auto lcBank = make_unique<LanguageCardBank> (*lc);
-    m_memoryBus.AddDevice (lcBank.get ());
+    m_memoryBus.AddDevice (lcBank.get());
     m_ownedDevices.push_back (move (lcBank));
 }
 
@@ -392,23 +391,23 @@ void EmulatorShell::MountCommandLineDisks (
     const string & disk1Path,
     const string & disk2Path)
 {
-    if (disk1Path.empty () && disk2Path.empty ())
+    if (disk1Path.empty() && disk2Path.empty())
     {
         return;
     }
 
     for (auto & dev : m_ownedDevices)
     {
-        auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+        auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
 
         if (diskCtrl)
         {
-            if (!disk1Path.empty ())
+            if (!disk1Path.empty())
             {
                 diskCtrl->MountDisk (0, disk1Path);
             }
 
-            if (!disk2Path.empty ())
+            if (!disk2Path.empty())
             {
                 diskCtrl->MountDisk (1, disk2Path);
             }
@@ -428,10 +427,10 @@ void EmulatorShell::MountCommandLineDisks (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CreateVideoModes ()
+void EmulatorShell::CreateVideoModes()
 {
     auto textMode = make_unique<AppleTextMode> (m_memoryBus);
-    m_activeVideoMode = textMode.get ();
+    m_activeVideoMode = textMode.get();
     m_videoModes.push_back (move (textMode));
 
     auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
@@ -466,20 +465,20 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
     // and instruction execution. Copy ROM data into that array.
     for (const auto & region : config.memoryRegions)
     {
-        if (region.type == "rom" && !region.resolvedPath.empty ())
+        if (region.type == "rom" && !region.resolvedPath.empty())
         {
             ifstream romFile (region.resolvedPath, ios::binary);
 
-            if (romFile.good ())
+            if (romFile.good())
             {
                 Word addr = region.start;
 
-                while (romFile.good () && addr <= region.end)
+                while (romFile.good() && addr <= region.end)
                 {
                     char byte;
                     romFile.read (&byte, 1);
 
-                    if (romFile.gcount () == 1)
+                    if (romFile.gcount() == 1)
                     {
                         m_cpu->PokeByte (addr, static_cast<Byte> (byte));
                         addr++;
@@ -489,12 +488,12 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
         }
     }
 
-    m_cpu->InitForEmulation ();
+    m_cpu->InitForEmulation();
 
     // Connect speaker to CPU cycle counter for audio timestamps
     if (m_speaker != nullptr)
     {
-        m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
+        m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr());
     }
 
     return hr;
