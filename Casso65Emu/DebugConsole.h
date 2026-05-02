@@ -21,9 +21,7 @@ public:
     DebugConsole ();
     ~DebugConsole ();
 
-    HRESULT InitializeConsole (HINSTANCE hInstance);
-
-    void Show ();
+    void Show (HINSTANCE hInstance);
     void Hide ();
     bool IsVisible () const;
 
@@ -36,6 +34,8 @@ protected:
     bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
 
 private:
+    HRESULT InitializeConsole (HINSTANCE hInstance);
+
     HWND    m_editCtrl = nullptr;
 };
 

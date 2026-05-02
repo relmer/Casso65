@@ -162,15 +162,18 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugConsole::Show ()
+void DebugConsole::Show (HINSTANCE hInstance)
 {
     if (m_hwnd == nullptr)
     {
-        return;
+        InitializeConsole (hInstance);
     }
 
-    ShowWindow (m_hwnd, SW_SHOW);
-    SetForegroundWindow (m_hwnd);
+    if (m_hwnd != nullptr)
+    {
+        ShowWindow (m_hwnd, SW_SHOW);
+        SetForegroundWindow (m_hwnd);
+    }
 }
 
 
