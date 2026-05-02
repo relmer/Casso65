@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "EmulatorShell.h"
 #include "Core/PathResolver.h"
@@ -381,18 +381,18 @@ void EmulatorShell::ShowDevicePopup()
     // Memory regions from config
     for (const auto & region : m_config.memoryRegions)
     {
-        if (region.type == "rom")
+        wstring typeName = fs::path (region.type).wstring ();
+        wstring fileName = fs::path (region.file).wstring ();
+
+        typeName[0] = towupper (typeName[0]);
+
+        if (fileName.empty ())
         {
-            label = format (L"${:04X}-${:04X}  {} ({})",
-                            region.start, region.end,
-                            fs::path (region.type).wstring (),
-                            fs::path (region.file).wstring ());
+            label = format (L"${:04X}-${:04X}  {}", region.start, region.end, typeName);
         }
         else
         {
-            label = format (L"${:04X}-${:04X}  {}",
-                            region.start, region.end,
-                            fs::path (region.type).wstring ());
+            label = format (L"${:04X}-${:04X}  {} ({})", region.start, region.end, typeName, fileName);
         }
 
         fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
