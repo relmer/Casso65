@@ -78,11 +78,12 @@ HRESULT MachineConfigLoader::Load (
     hr = JsonParser::Parse (jsonText, root, parseError);
     CBR_SetError (SUCCEEDED (hr),
                   outError = format ("JSON parse error at line {}, column {}: {}",
-                                    parseError.line, 
-                                    parseError.column,
-                                    parseError.message));
+                                     parseError.line, 
+                                     parseError.column,
+                                     parseError.message));
 
-    CBR (root.IsObject());
+    CBR_SetError (root.IsObject (),
+                  outError = "Machine config must be a JSON object");
 
     // Required: name
     hr = root.GetString ("name", outConfig.name);
