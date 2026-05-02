@@ -275,31 +275,50 @@ void EmulatorShell::CreateStatusBar ()
 
 void EmulatorShell::UpdateStatusBar ()
 {
-    int     parts[4] = { 60, 170, 320, -1 };
-    wstring machineName;
-    wstring cpuType;
+    wstring cpuText;
     wstring clockText;
+    wstring machineText;
     wstring deviceText;
+    HDC     hdc         = nullptr;
+    SIZE    sz          = {};
+    int     margin      = 16;
+    int     parts[4]    = {};
+    int     edge        = 0;
 
 
 
+    // Build labeled strings
+    cpuText     = format (L"CPU: {}", fs::path (m_config.cpu).wstring ());
+    clockText   = format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0);
+    machineText = format (L"Machine: {}", fs::path (m_config.name).wstring ());
+    deviceText  = format (L"{} devices", m_config.devices.size ());
+
+    // Measure each string and size the parts to fit
+    hdc = GetDC (m_statusBar);
+
+    GetTextExtentPoint32W (hdc, cpuText.c_str (), static_cast<int> (cpuText.size ()), &sz);
+    edge    += sz.cx + margin;
+    parts[0] = edge;
+
+    GetTextExtentPoint32W (hdc, clockText.c_str (), static_cast<int> (clockText.size ()), &sz);
+    edge    += sz.cx + margin;
+    parts[1] = edge;
+
+    GetTextExtentPoint32W (hdc, machineText.c_str (), static_cast<int> (machineText.size ()), &sz);
+    edge    += sz.cx + margin;
+    parts[2] = edge;
+
+    parts[3] = -1;
+
+    ReleaseDC (m_statusBar, hdc);
+
+    // Apply parts and text
     SendMessage (m_statusBar, SB_SETPARTS, 4, reinterpret_cast<LPARAM> (parts));
 
-    // Part 0 — CPU type
-    cpuType = fs::path (m_config.cpu).wstring();
-    SendMessageW (m_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM> (cpuType.c_str()));
-
-    // Part 1 — Clock speed in MHz
-    clockText = format (L"{:.3f} MHz", m_config.clockSpeed / 1000000.0);
-    SendMessageW (m_statusBar, SB_SETTEXTW, 1, reinterpret_cast<LPARAM> (clockText.c_str()));
-
-    // Part 2 — Machine name
-    machineName = fs::path (m_config.name).wstring();
-    SendMessageW (m_statusBar, SB_SETTEXTW, 2, reinterpret_cast<LPARAM> (machineName.c_str()));
-
-    // Part 3 — Device count
-    deviceText = format (L"{} devices", m_config.devices.size());
-    SendMessageW (m_statusBar, SB_SETTEXTW, 3, reinterpret_cast<LPARAM> (deviceText.c_str()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM> (cpuText.c_str ()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 1, reinterpret_cast<LPARAM> (clockText.c_str ()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 2, reinterpret_cast<LPARAM> (machineText.c_str ()));
+    SendMessageW (m_statusBar, SB_SETTEXTW, 3, reinterpret_cast<LPARAM> (deviceText.c_str ()));
 }
 
 
@@ -328,13 +347,67 @@ void EmulatorShell::ShowDevicePopup ()
         return;
     }
 
-    for (const auto & entry : m_memoryBus.GetEntries ())
+    // Memory regions from config
+    for (const auto & region : m_config.memoryRegions)
     {
-        MemoryDevice * dev = entry.device;
+        label = format (L"${:04X}-${:04X}  {}",
+                        region.start, region.end,
+                        fs::path (region.type).wstring ());
 
-        label = format (L"${:04X}-${:04X}",
-                        entry.start,
-                        entry.end);
+        if (!region.file.empty ())
+        {
+            label += L" (" + fs::path (region.file).wstring () + L")";
+        }
+
+        AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+    }
+
+    AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
+
+    // Named devices — look up actual address range from the bus
+    for (const auto & devCfg : m_config.devices)
+    {
+        wstring name  = fs::path (devCfg.type).wstring ();
+        bool    found = false;
+
+        for (const auto & dev : m_ownedDevices)
+        {
+            if (dev->GetStart () >= 0xC000 && dev->GetEnd () <= 0xCFFF)
+            {
+                // Check if this owned device matches the config entry
+                // by comparing pointer identity with tracked device pointers
+                bool match = false;
+
+                if (m_keyboard != nullptr && dev.get () == static_cast<MemoryDevice *> (m_keyboard) &&
+                    (devCfg.type == "apple2-keyboard" || devCfg.type == "apple2e-keyboard"))
+                {
+                    match = true;
+                }
+                else if (m_speaker != nullptr && dev.get () == static_cast<MemoryDevice *> (m_speaker) &&
+                         devCfg.type == "apple2-speaker")
+                {
+                    match = true;
+                }
+                else if (m_softSwitches != nullptr && dev.get () == static_cast<MemoryDevice *> (m_softSwitches) &&
+                         (devCfg.type == "apple2-softswitches" || devCfg.type == "apple2e-softswitches"))
+                {
+                    match = true;
+                }
+
+                if (match)
+                {
+                    label = format (L"${:04X}-${:04X}  {}",
+                                    dev->GetStart (), dev->GetEnd (), name);
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found)
+        {
+            label = name;
+        }
 
         AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
     }
@@ -1674,7 +1747,7 @@ void EmulatorShell::UpdateWindowTitle()
 
     if (!m_config.name.empty())
     {
-        title += L" — ";
+        title += L" \u2014 ";
 
         // Convert machine name to wide string
         wideName = fs::path (m_config.name).wstring();
