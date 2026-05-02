@@ -83,6 +83,8 @@ private:
     // CPU thread entry point and helpers
     void CpuThreadProc     ();
     void RunOneFrame       ();
+    void ExecuteCpuSlices   ();
+    void RenderFramebuffer  ();
     void ProcessCommands   ();
     void UpdateWindowTitle ();
     void SelectVideoMode   ();

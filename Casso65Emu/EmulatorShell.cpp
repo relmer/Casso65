@@ -653,6 +653,11 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
 //  RunOneFrame
 //
@@ -660,27 +665,36 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 void EmulatorShell::RunOneFrame ()
 {
+    ExecuteCpuSlices ();
+    RenderFramebuffer ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecuteCpuSlices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ExecuteCpuSlices ()
+{
     static constexpr uint32_t kSliceCycles = 1023;
 
-    uint32_t  targetCycles   = m_cyclesPerFrame;
-    SpeedMode speed          = m_speedMode.load (memory_order_acquire);
-    bool      audioActive    = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
+    uint32_t  targetCycles    = m_cyclesPerFrame;
+    SpeedMode speed           = m_speedMode.load (memory_order_acquire);
+    bool      audioActive     = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
     double    cyclesPerSample = 0.0;
-    uint32_t  sliceTarget    = 0;
-    uint32_t  sliceActual    = 0;
-    Byte      cycles         = 0;
-    double    exactSamples   = 0.0;
-    uint32_t  numSamples     = 0;
-    ColorMode color          = ColorMode::Color;
-    Byte      r              = 0;
-    Byte      g              = 0;
-    Byte      b              = 0;
-    Byte      lum            = 0;
+    uint32_t  sliceTarget     = 0;
+    uint32_t  sliceActual     = 0;
+    Byte      cycles          = 0;
+    double    exactSamples    = 0.0;
+    uint32_t  numSamples      = 0;
 
 
 
-    // Execute CPU in ~1ms slices (~1023 cycles each) with per-slice audio
-    // submission.  This keeps audio flowing steadily.
     if (speed == SpeedMode::Double)
     {
         targetCycles *= 2;
@@ -695,7 +709,6 @@ void EmulatorShell::RunOneFrame ()
 
     for (uint32_t executed = 0; executed < targetCycles; )
     {
-        // Determine slice size (last slice may be smaller)
         sliceTarget = targetCycles - executed;
 
         if (sliceTarget > kSliceCycles)
@@ -703,7 +716,6 @@ void EmulatorShell::RunOneFrame ()
             sliceTarget = kSliceCycles;
         }
 
-        // Execute CPU for this slice
         sliceActual = 0;
 
         while (sliceActual < sliceTarget)
@@ -718,11 +730,8 @@ void EmulatorShell::RunOneFrame ()
 
         executed += sliceActual;
 
-        // Submit audio for this slice
         if (audioActive)
         {
-            // Compute samples from actual cycles, accumulating remainder
-            // to prevent drift
             exactSamples = static_cast<double> (sliceActual) /
                            cyclesPerSample + m_sampleRemainder;
             numSamples   = static_cast<uint32_t> (exactSamples);
@@ -738,11 +747,30 @@ void EmulatorShell::RunOneFrame ()
             m_speaker->BeginFrame ();
         }
     }
+}
 
-    // Select video mode based on soft switch state
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderFramebuffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RenderFramebuffer ()
+{
+    ColorMode color = m_colorMode.load (memory_order_acquire);
+    Byte      r     = 0;
+    Byte      g     = 0;
+    Byte      b     = 0;
+    Byte      lum   = 0;
+
+
+
     SelectVideoMode ();
 
-    // Render video to the CPU framebuffer
     if (m_activeVideoMode != nullptr)
     {
         m_activeVideoMode->Render (m_cpu->GetMemory (),
@@ -775,17 +803,14 @@ void EmulatorShell::RunOneFrame ()
         }
     }
 
-    // Apply monochrome tint if needed
-    color = m_colorMode.load (memory_order_acquire);
-
+    // Apply monochrome tint
     if (color != ColorMode::Color)
     {
         for (auto & pixel : m_cpuFramebuffer)
         {
-            r = (pixel >>  0) & 0xFF;
-            g = (pixel >>  8) & 0xFF;
-            b = (pixel >> 16) & 0xFF;
-
+            r   = (pixel >>  0) & 0xFF;
+            g   = (pixel >>  8) & 0xFF;
+            b   = (pixel >> 16) & 0xFF;
             lum = static_cast<Byte> (0.299f * r + 0.587f * g + 0.114f * b);
 
             switch (color)
@@ -808,7 +833,6 @@ void EmulatorShell::RunOneFrame ()
         }
     }
 }
-
 
 
 
@@ -874,8 +898,11 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
+
+
     m_running.store (false, memory_order_release);
     PostQuitMessage (0);
+    
     return false;
 }
 
@@ -892,6 +919,8 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
+
+
 
     if (m_keyboard == nullptr)
     {
