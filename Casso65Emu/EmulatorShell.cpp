@@ -160,9 +160,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
 
 
-    // Enable Per-Monitor V2 DPI awareness (best effort — may already be set)
-    SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-
     // Register and create the window via the base class
     m_kpszWndClass  = kWindowClass;
     m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
