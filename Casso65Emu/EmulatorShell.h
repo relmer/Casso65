@@ -89,6 +89,14 @@ private:
     void UpdateWindowTitle ();
     void SelectVideoMode   ();
 
+    // Initialization helpers
+    HRESULT CreateEmulatorWindow   (HINSTANCE hInstance);
+    HRESULT CreateMemoryDevices    (const MachineConfig & config);
+    void    WireLanguageCard       ();
+    void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
+    void    CreateVideoModes       ();
+    HRESULT CreateCpu              (const MachineConfig & config);
+
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
 

@@ -41,7 +41,7 @@ static constexpr LPCWSTR kWindowClass      = L"Casso65EmuWindow";
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EmulatorShell::EmulatorShell ()
+EmulatorShell::EmulatorShell()
 {
 }
 
@@ -55,16 +55,16 @@ EmulatorShell::EmulatorShell ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EmulatorShell::~EmulatorShell ()
+EmulatorShell::~EmulatorShell()
 {
     m_running.store (false, memory_order_release);
 
-    if (m_cpuThread.joinable ())
+    if (m_cpuThread.joinable())
     {
-        m_cpuThread.join ();
+        m_cpuThread.join();
     }
 
-    m_d3dRenderer.Shutdown ();
+    m_d3dRenderer.Shutdown();
 }
 
 
@@ -83,32 +83,77 @@ HRESULT EmulatorShell::Initialize (
     const string & disk1Path,
     const string & disk2Path)
 {
-    HRESULT        hr        = S_OK;
-    UINT           dpi       = 0;
-    int            scale     = 0;
-    int            clientW   = 0;
-    int            clientH   = 0;
-    RECT           rc        = {};
-    DWORD          style     = 0;
-    size_t         fbSize    = 0;
-    bool           romOk     = false;
-    wstring   wideError;
-    LanguageCard * lc        = nullptr;
+    HRESULT hr = S_OK;
+
+    size_t  fbSize = 0;
 
 
 
-    m_config    = config;
+    m_config         = config;
+    m_cyclesPerFrame = config.clockSpeed / 60;
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
-
-    // Calculate cycles per frame
-    m_cyclesPerFrame = config.clockSpeed / 60;
 
     // Create framebuffers (CPU renders to one, UI reads the other)
     fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
     m_cpuFramebuffer.resize (fbSize, 0);
     m_uiFramebuffer.resize (fbSize, 0);
+
+    hr = CreateEmulatorWindow (hInstance);
+    CHR (hr);
+
+    hr = CreateMemoryDevices (config);
+    CHR (hr);
+
+    WireLanguageCard ();
+    MountCommandLineDisks (disk1Path, disk2Path);
+    CreateVideoModes ();
+
+    // Validate memory bus for overlapping device address ranges
+    hr = m_memoryBus.Validate ();
+    CHRN (hr, L"Memory bus validation failed: overlapping device address ranges");
+
+    hr = CreateCpu (config);
+    CHR (hr);
+
+    // Initialize D3D11
+    hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
+    CHR (hr);
+
+    // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
+
+    // Show window
+    ShowWindow (m_hwnd, SW_SHOW);
+    UpdateWindow (m_hwnd);
+
+    UpdateWindowTitle ();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateEmulatorWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
+{
+    HRESULT hr      = S_OK;
+    UINT    dpi     = 0;
+    int     scale   = 0;
+    int     clientW = 0;
+    int     clientH = 0;
+    RECT    rc      = {};
+    DWORD   style   = 0;
+
+
 
     // Enable Per-Monitor V2 DPI awareness
     SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -157,7 +202,30 @@ HRESULT EmulatorShell::Initialize (
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
 
-    // Create memory devices from config
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateMemoryDevices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
+{
+    HRESULT hr    = S_OK;
+    bool    romOk = false;
+
+    wstring wideError;
+
+
+
+    // Create memory-mapped regions (RAM and ROM)
     for (const auto & region : config.memoryRegions)
     {
         if (region.type == "ram")
@@ -186,7 +254,7 @@ HRESULT EmulatorShell::Initialize (
         }
     }
 
-    // Create named devices from config
+    // Create named devices from config (keyboard, speaker, soft switches, etc.)
     for (const auto & devConfig : config.devices)
     {
         auto device = m_registry.Create (devConfig.type, devConfig, m_memoryBus);
@@ -218,123 +286,184 @@ HRESULT EmulatorShell::Initialize (
         }
     }
 
-    // Wire Language Card bank switching if a language card is present
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireLanguageCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WireLanguageCard ()
+{
+    LanguageCard * lc        = nullptr;
+    RomDevice    * romDevice = nullptr;
+
+
+
+    // Find the LanguageCard device
     for (auto & dev : m_ownedDevices)
     {
-        if (lc == nullptr)
+        lc = dynamic_cast<LanguageCard *> (dev.get ());
+
+        if (lc != nullptr)
         {
-            lc = dynamic_cast<LanguageCard *> (dev.get ());
+            break;
         }
     }
 
-    if (lc != nullptr)
+    if (lc == nullptr)
     {
-        // Find a ROM device covering $D000-$FFFF
-        RomDevice * romDevice = nullptr;
-
-        for (const auto & entry : m_memoryBus.GetEntries ())
-        {
-            auto * rom = dynamic_cast<RomDevice *> (entry.device);
-
-            if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
-            {
-                romDevice = rom;
-                break;
-            }
-        }
-
-        if (romDevice != nullptr)
-        {
-            Word romStart = romDevice->GetStart ();
-
-            // Copy $D000-$FFFF ROM data to language card
-            vector<Byte> lcRomData (0x3000);
-
-            for (size_t i = 0; i < 0x3000; i++)
-            {
-                lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
-            }
-
-            lc->SetRomData (lcRomData);
-            m_memoryBus.RemoveDevice (romDevice);
-
-            // Re-add lower ROM ($C100-$CFFF) if original extended below $D000
-            if (romStart < 0xD000)
-            {
-                size_t lowerSize = 0xD000 - romStart;
-                vector<Byte> lowerData (lowerSize);
-
-                for (size_t i = 0; i < lowerSize; i++)
-                {
-                    lowerData[i] = romDevice->Read (static_cast<Word> (romStart + i));
-                }
-
-                auto lowerRom = RomDevice::CreateFromData (
-                    romStart, static_cast<Word> (0xCFFF),
-                    lowerData.data (), lowerData.size ());
-
-                m_memoryBus.AddDevice (lowerRom.get ());
-                m_ownedDevices.push_back (move (lowerRom));
-            }
-        }
-
-        // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-        auto lcBank = make_unique<LanguageCardBank> (*lc);
-        m_memoryBus.AddDevice (lcBank.get ());
-        m_ownedDevices.push_back (move (lcBank));
+        return;
     }
 
-    // Mount command-line disk images if a Disk II controller was created
-    if (!disk1Path.empty () || !disk2Path.empty ())
+    // Find a ROM device covering $D000–$FFFF
+    for (const auto & entry : m_memoryBus.GetEntries ())
     {
-        for (auto & dev : m_ownedDevices)
+        auto * rom = dynamic_cast<RomDevice *> (entry.device);
+
+        if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
         {
-            auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
-
-            if (diskCtrl)
-            {
-                if (!disk1Path.empty ())
-                {
-                    diskCtrl->MountDisk (0, disk1Path);
-                }
-
-                if (!disk2Path.empty ())
-                {
-                    diskCtrl->MountDisk (1, disk2Path);
-                }
-
-                break;
-            }
+            romDevice = rom;
+            break;
         }
     }
 
-    // Create video modes
+    if (romDevice == nullptr)
     {
-        auto textMode = make_unique<AppleTextMode> (m_memoryBus);
-        m_activeVideoMode = textMode.get ();
-        m_videoModes.push_back (move (textMode));
-
-        auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
-        m_videoModes.push_back (move (loResMode));
-
-        auto hiResMode = make_unique<AppleHiResMode> (m_memoryBus);
-        m_videoModes.push_back (move (hiResMode));
-
-        auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
-        m_videoModes.push_back (move (doubleHiResMode));
+        return;
     }
 
-    // Validate memory bus for overlapping device address ranges
-    hr = m_memoryBus.Validate ();
-    CHRN (hr, L"Memory bus validation failed: overlapping device address ranges");
+    Word romStart = romDevice->GetStart ();
 
-    // Create CPU
+    // Copy $D000–$FFFF ROM data to language card
+    vector<Byte> lcRomData (0x3000);
+
+    for (size_t i = 0; i < 0x3000; i++)
+    {
+        lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
+    }
+
+    lc->SetRomData (lcRomData);
+    m_memoryBus.RemoveDevice (romDevice);
+
+    // Re-add lower ROM ($C100–$CFFF) if original extended below $D000
+    if (romStart < 0xD000)
+    {
+        size_t lowerSize = 0xD000 - romStart;
+        vector<Byte> lowerData (lowerSize);
+
+        for (size_t i = 0; i < lowerSize; i++)
+        {
+            lowerData[i] = romDevice->Read (static_cast<Word> (romStart + i));
+        }
+
+        auto lowerRom = RomDevice::CreateFromData (
+            romStart, static_cast<Word> (0xCFFF),
+            lowerData.data (), lowerData.size ());
+
+        m_memoryBus.AddDevice (lowerRom.get ());
+        m_ownedDevices.push_back (move (lowerRom));
+    }
+
+    // Bank device intercepts $D000–$FFFF, routing to LC RAM or ROM
+    auto lcBank = make_unique<LanguageCardBank> (*lc);
+    m_memoryBus.AddDevice (lcBank.get ());
+    m_ownedDevices.push_back (move (lcBank));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountCommandLineDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::MountCommandLineDisks (
+    const string & disk1Path,
+    const string & disk2Path)
+{
+    if (disk1Path.empty () && disk2Path.empty ())
+    {
+        return;
+    }
+
+    for (auto & dev : m_ownedDevices)
+    {
+        auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+
+        if (diskCtrl)
+        {
+            if (!disk1Path.empty ())
+            {
+                diskCtrl->MountDisk (0, disk1Path);
+            }
+
+            if (!disk2Path.empty ())
+            {
+                diskCtrl->MountDisk (1, disk2Path);
+            }
+
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateVideoModes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CreateVideoModes ()
+{
+    auto textMode = make_unique<AppleTextMode> (m_memoryBus);
+    m_activeVideoMode = textMode.get ();
+    m_videoModes.push_back (move (textMode));
+
+    auto loResMode = make_unique<AppleLoResMode> (m_memoryBus);
+    m_videoModes.push_back (move (loResMode));
+
+    auto hiResMode = make_unique<AppleHiResMode> (m_memoryBus);
+    m_videoModes.push_back (move (hiResMode));
+
+    auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
+    m_videoModes.push_back (move (doubleHiResMode));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateCpu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
+{
+    HRESULT hr = S_OK;
+
+
+
     m_cpu = make_unique<EmuCpu> (m_memoryBus);
 
     // The base Cpu class uses an internal memory[] array for opcode fetch
-    // and instruction execution. We must copy ROM data into that array so
-    // the CPU can execute it. The MemoryBus is used for I/O devices and
-    // video RAM reads, but the CPU's execution path reads from memory[].
+    // and instruction execution. Copy ROM data into that array.
     for (const auto & region : config.memoryRegions)
     {
         if (region.type == "rom" && !region.resolvedPath.empty ())
@@ -368,19 +497,6 @@ HRESULT EmulatorShell::Initialize (
         m_speaker->SetCycleCounter (m_cpu->GetCycleCounterPtr ());
     }
 
-    // Initialize D3D11
-    hr = m_d3dRenderer.Initialize (m_hwnd, kFramebufferWidth, kFramebufferHeight);
-    CHR (hr);
-
-    // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
-
-    // Show window
-    ShowWindow (m_hwnd, SW_SHOW);
-    UpdateWindow (m_hwnd);
-
-    UpdateWindowTitle ();
-
-Error:
     return hr;
 }
 
@@ -394,7 +510,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EmulatorShell::RunMessageLoop ()
+int EmulatorShell::RunMessageLoop()
 {
     MSG msg = {};
 
@@ -413,9 +529,9 @@ int EmulatorShell::RunMessageLoop ()
             {
                 m_running.store (false, memory_order_release);
 
-                if (m_cpuThread.joinable ())
+                if (m_cpuThread.joinable())
                 {
-                    m_cpuThread.join ();
+                    m_cpuThread.join();
                 }
 
                 return static_cast<int> (msg.wParam);
@@ -440,12 +556,12 @@ int EmulatorShell::RunMessageLoop ()
             }
         }
 
-        m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data ());
+        m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data());
     }
 
-    if (m_cpuThread.joinable ())
+    if (m_cpuThread.joinable())
     {
-        m_cpuThread.join ();
+        m_cpuThread.join();
     }
 
     return 0;
@@ -465,7 +581,7 @@ int EmulatorShell::RunMessageLoop ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CpuThreadProc ()
+void EmulatorShell::CpuThreadProc()
 {
     HANDLE        hTimer  = nullptr;
     LARGE_INTEGER dueTime = {};
@@ -477,7 +593,7 @@ void EmulatorShell::CpuThreadProc ()
     CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 
     // Initialize WASAPI audio (non-fatal if it fails)
-    m_wasapiAudio.Initialize ();
+    m_wasapiAudio.Initialize();
 
     // Create a high-resolution waitable timer for 60fps frame pacing
     hTimer = CreateWaitableTimerEx (nullptr, nullptr,
@@ -498,7 +614,7 @@ void EmulatorShell::CpuThreadProc ()
         }
 
         // Process deferred commands from the UI thread
-        ProcessCommands ();
+        ProcessCommands();
 
         // Arm the timer for this frame
         if (hTimer != nullptr)
@@ -508,7 +624,7 @@ void EmulatorShell::CpuThreadProc ()
         }
 
         // Execute one frame of CPU + audio + video
-        RunOneFrame ();
+        RunOneFrame();
 
         // Publish the framebuffer for the UI thread
         {
@@ -530,8 +646,8 @@ void EmulatorShell::CpuThreadProc ()
         CloseHandle (hTimer);
     }
 
-    m_wasapiAudio.Shutdown ();
-    CoUninitialize ();
+    m_wasapiAudio.Shutdown();
+    CoUninitialize();
 }
 
 
@@ -547,7 +663,7 @@ void EmulatorShell::CpuThreadProc ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ProcessCommands ()
+void EmulatorShell::ProcessCommands()
 {
     vector<EmulatorCommand> cmds;
 
@@ -572,11 +688,11 @@ void EmulatorShell::ProcessCommands ()
 
             case IDM_MACHINE_POWERCYCLE:
             {
-                m_memoryBus.Reset ();
+                m_memoryBus.Reset();
 
                 if (m_cpu)
                 {
-                    m_cpu->InitForEmulation ();
+                    m_cpu->InitForEmulation();
                 }
                 break;
             }
@@ -585,7 +701,7 @@ void EmulatorShell::ProcessCommands ()
             {
                 if (m_cpu)
                 {
-                    m_cpu->StepOne ();
+                    m_cpu->StepOne();
                 }
                 break;
             }
@@ -597,7 +713,7 @@ void EmulatorShell::ProcessCommands ()
 
                 for (auto & dev : m_ownedDevices)
                 {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
 
                     if (diskCtrl)
                     {
@@ -615,7 +731,7 @@ void EmulatorShell::ProcessCommands ()
 
                 for (auto & dev : m_ownedDevices)
                 {
-                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get ());
+                    auto * diskCtrl = dynamic_cast<DiskIIController *> (dev.get());
 
                     if (diskCtrl)
                     {
@@ -663,10 +779,10 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunOneFrame ()
+void EmulatorShell::RunOneFrame()
 {
-    ExecuteCpuSlices ();
-    RenderFramebuffer ();
+    ExecuteCpuSlices();
+    RenderFramebuffer();
 }
 
 
@@ -679,13 +795,13 @@ void EmulatorShell::RunOneFrame ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ExecuteCpuSlices ()
+void EmulatorShell::ExecuteCpuSlices()
 {
     static constexpr uint32_t kSliceCycles = 1023;
 
     uint32_t  targetCycles    = m_cyclesPerFrame;
     SpeedMode speed           = m_speedMode.load (memory_order_acquire);
-    bool      audioActive     = (m_speaker != nullptr && m_wasapiAudio.IsInitialized ());
+    bool      audioActive     = (m_speaker != nullptr && m_wasapiAudio.IsInitialized());
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
@@ -703,8 +819,8 @@ void EmulatorShell::ExecuteCpuSlices ()
     if (audioActive)
     {
         cyclesPerSample = static_cast<double> (m_config.clockSpeed) /
-                          static_cast<double> (m_wasapiAudio.GetSampleRate ());
-        m_speaker->BeginFrame ();
+                          static_cast<double> (m_wasapiAudio.GetSampleRate());
+        m_speaker->BeginFrame();
     }
 
     for (uint32_t executed = 0; executed < targetCycles; )
@@ -720,9 +836,9 @@ void EmulatorShell::ExecuteCpuSlices ()
 
         while (sliceActual < sliceTarget)
         {
-            m_cpu->StepOne ();
+            m_cpu->StepOne();
 
-            cycles = m_cpu->GetLastInstructionCycles ();
+            cycles = m_cpu->GetLastInstructionCycles();
 
             m_cpu->AddCycles (cycles);
             sliceActual += cycles;
@@ -732,19 +848,18 @@ void EmulatorShell::ExecuteCpuSlices ()
 
         if (audioActive)
         {
-            exactSamples = static_cast<double> (sliceActual) /
-                           cyclesPerSample + m_sampleRemainder;
+            exactSamples = static_cast<double> (sliceActual) / cyclesPerSample + m_sampleRemainder;
             numSamples   = static_cast<uint32_t> (exactSamples);
 
             m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
 
-            m_wasapiAudio.SubmitFrame (m_speaker->GetToggleTimestamps (),
+            m_wasapiAudio.SubmitFrame (m_speaker->GetToggleTimestamps(),
                                        sliceActual,
-                                       m_speaker->GetFrameInitialState (),
+                                       m_speaker->GetFrameInitialState(),
                                        numSamples);
 
-            m_speaker->ClearTimestamps ();
-            m_speaker->BeginFrame ();
+            m_speaker->ClearTimestamps();
+            m_speaker->BeginFrame();
         }
     }
 }
@@ -759,7 +874,7 @@ void EmulatorShell::ExecuteCpuSlices ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RenderFramebuffer ()
+void EmulatorShell::RenderFramebuffer()
 {
     ColorMode color = m_colorMode.load (memory_order_acquire);
     Byte      r     = 0;
@@ -769,18 +884,18 @@ void EmulatorShell::RenderFramebuffer ()
 
 
 
-    SelectVideoMode ();
+    SelectVideoMode();
 
     if (m_activeVideoMode != nullptr)
     {
-        m_activeVideoMode->Render (m_cpu->GetMemory (),
-                                   m_cpuFramebuffer.data (),
+        m_activeVideoMode->Render (m_cpu->GetMemory(),
+                                   m_cpuFramebuffer.data(),
                                    kFramebufferWidth,
                                    kFramebufferHeight);
     }
 
     // Mixed mode: overlay text on the bottom 4 rows (rows 20-23)
-    if (m_mixedMode && m_graphicsMode && !m_videoModes.empty ())
+    if (m_mixedMode && m_graphicsMode && !m_videoModes.empty())
     {
         static constexpr int kMixedCharH  = 8;
         static constexpr int kMixedScaleY = 2;
@@ -788,8 +903,8 @@ void EmulatorShell::RenderFramebuffer ()
 
         vector<uint32_t> textBuf (static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight, 0);
 
-        m_videoModes[0]->Render (m_cpu->GetMemory (),
-                                 textBuf.data (),
+        m_videoModes[0]->Render (m_cpu->GetMemory(),
+                                 textBuf.data(),
                                  kFramebufferWidth,
                                  kFramebufferHeight);
 
@@ -1080,7 +1195,7 @@ void EmulatorShell::OnMachineCommand (int id)
             paused = !m_paused.load (memory_order_acquire);
             m_paused.store (paused, memory_order_release);
             m_menuSystem.SetPaused (paused);
-            UpdateWindowTitle ();
+            UpdateWindowTitle();
             break;
         }
 
@@ -1122,13 +1237,13 @@ void EmulatorShell::OnMachineCommand (int id)
                 L"Clock Speed: {} Hz\n"
                 L"Memory Regions: {}\n"
                 L"Devices: {}",
-                wstring (m_config.name.begin (), m_config.name.end ()),
-                wstring (m_config.cpu.begin (), m_config.cpu.end ()),
+                wstring (m_config.name.begin(), m_config.name.end()),
+                wstring (m_config.cpu.begin(), m_config.cpu.end()),
                 m_config.clockSpeed,
-                m_config.memoryRegions.size (),
-                m_config.devices.size ());
+                m_config.memoryRegions.size(),
+                m_config.devices.size());
 
-            MessageBoxW (m_hwnd, info.c_str (), L"Machine Info", MB_ICONINFORMATION | MB_OK);
+            MessageBoxW (m_hwnd, info.c_str(), L"Machine Info", MB_ICONINFORMATION | MB_OK);
             break;
         }
     }
@@ -1195,7 +1310,7 @@ void EmulatorShell::OnViewCommand (int id)
 
         case IDM_VIEW_RESET_SIZE:
         {
-            if (!m_d3dRenderer.IsFullscreen ())
+            if (!m_d3dRenderer.IsFullscreen())
             {
                 dpi   = GetDpiForWindow (m_hwnd);
                 scale = (dpi + 48) / 96;
@@ -1256,7 +1371,7 @@ void EmulatorShell::OnDiskCommand (int id)
 
             if (GetOpenFileNameW (&ofn))
             {
-                PostCommand (static_cast<WORD> (id), fs::path (filePath).string ());
+                PostCommand (static_cast<WORD> (id), fs::path (filePath).string());
             }
             break;
         }
@@ -1286,9 +1401,9 @@ void EmulatorShell::OnHelpCommand (int id)
     {
         case IDM_HELP_DEBUG:
         {
-            if (m_debugConsole.IsVisible ())
+            if (m_debugConsole.IsVisible())
             {
-                m_debugConsole.Hide ();
+                m_debugConsole.Hide();
             }
             else
             {
@@ -1297,7 +1412,7 @@ void EmulatorShell::OnHelpCommand (int id)
                     m_debugConsole.LogConfig (
                         format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
                             m_config.name, m_config.cpu, m_config.clockSpeed,
-                            m_config.devices.size ()));
+                            m_config.devices.size()));
                 }
             }
             break;
@@ -1345,7 +1460,7 @@ void EmulatorShell::OnHelpCommand (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateWindowTitle ()
+void EmulatorShell::UpdateWindowTitle()
 {
     wstring title;
     wstring wideName;
@@ -1359,12 +1474,12 @@ void EmulatorShell::UpdateWindowTitle ()
 
     title = L"Casso65";
 
-    if (!m_config.name.empty ())
+    if (!m_config.name.empty())
     {
         title += L" — ";
 
         // Convert machine name to wide string
-        wideName.assign (m_config.name.begin (), m_config.name.end ());
+        wideName.assign (m_config.name.begin(), m_config.name.end());
         title += wideName;
     }
 
@@ -1381,7 +1496,7 @@ void EmulatorShell::UpdateWindowTitle ()
         title += L" [Stopped]";
     }
 
-    SetWindowText (m_hwnd, title.c_str ());
+    SetWindowText (m_hwnd, title.c_str());
 }
 
 
@@ -1394,9 +1509,9 @@ void EmulatorShell::UpdateWindowTitle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SelectVideoMode ()
+void EmulatorShell::SelectVideoMode()
 {
-    if (m_videoModes.size () < 3)
+    if (m_videoModes.size() < 3)
     {
         return;
     }
@@ -1404,27 +1519,27 @@ void EmulatorShell::SelectVideoMode ()
     // Read soft switch state
     if (m_softSwitches)
     {
-        m_graphicsMode = m_softSwitches->IsGraphicsMode ();
-        m_mixedMode    = m_softSwitches->IsMixedMode ();
-        m_page2        = m_softSwitches->IsPage2 ();
-        m_hiresMode    = m_softSwitches->IsHiresMode ();
+        m_graphicsMode = m_softSwitches->IsGraphicsMode();
+        m_mixedMode    = m_softSwitches->IsMixedMode();
+        m_page2        = m_softSwitches->IsPage2();
+        m_hiresMode    = m_softSwitches->IsHiresMode();
     }
 
     // Select video mode based on soft switch state
     if (!m_graphicsMode)
     {
         // Text mode
-        m_activeVideoMode = m_videoModes[0].get ();
+        m_activeVideoMode = m_videoModes[0].get();
     }
     else if (!m_hiresMode)
     {
         // Lo-res graphics
-        m_activeVideoMode = m_videoModes[1].get ();
+        m_activeVideoMode = m_videoModes[1].get();
     }
     else
     {
         // Hi-res graphics
-        m_activeVideoMode = m_videoModes[2].get ();
+        m_activeVideoMode = m_videoModes[2].get();
     }
 
     // Pass page2 state to the active renderer
