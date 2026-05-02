@@ -159,12 +159,12 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT        hr              = S_OK;
-    bool           fComInitialized = false;
+    HRESULT        hr = S_OK;
     wstring        machineName;
     wstring        disk1Path;
     wstring        disk2Path;
     MachineConfig  config;
+    EmulatorShell  shell;
 
 
 
@@ -176,12 +176,6 @@ int WINAPI wWinMain (
     {
         MessageBoxW (NULL, message, L"Casso65 Emulator", MB_OK | MB_ICONERROR);
     });
-
-    // Initialize COM for WASAPI
-    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-    CHRA (hr);
-
-    fComInitialized = true;
 
     // Parse command line
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path);
@@ -197,23 +191,16 @@ int WINAPI wWinMain (
     hr = LoadMachineConfig (machineName, disk1Path, config);
     CHR (hr);
 
-    {
-        // Initialize emulator
-        EmulatorShell shell;
-        hr = shell.Initialize (hInstance, config,
-                               fs::path (disk1Path).string (), fs::path (disk2Path).string ());
-        CHRN (hr, L"Failed to initialize emulator");
+    // Initialize emulator
+    hr = shell.Initialize (hInstance, config,
+                           fs::path (disk1Path).string (),
+                           fs::path (disk2Path).string ());
+    CHRN (hr, L"Failed to initialize emulator");
 
-        // Run message loop
-        return shell.RunMessageLoop ();
-    }
+    // Run message loop
+    return shell.RunMessageLoop ();
 
 Error:
-    if (fComInitialized)
-    {
-        CoUninitialize ();
-    }
-
     return FAILED (hr) ? 1 : 0;
 }
 
