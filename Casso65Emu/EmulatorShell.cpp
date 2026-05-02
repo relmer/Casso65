@@ -275,50 +275,57 @@ void EmulatorShell::CreateStatusBar ()
 
 void EmulatorShell::UpdateStatusBar ()
 {
-    wstring cpuText;
-    wstring clockText;
-    wstring machineText;
-    wstring deviceText;
-    HDC     hdc         = nullptr;
-    SIZE    sz          = {};
-    int     margin      = 16;
-    int     parts[4]    = {};
-    int     edge        = 0;
+    static constexpr int kPartCount = 4;
+    static constexpr int kPadding   = 24;
+
+    struct StatusPart { int index; wstring text; };
+
+    StatusPart items[kPartCount] =
+    {
+        { 0, format (L"CPU: {}",          fs::path (m_config.cpu).wstring ()) },
+        { 1, format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0) },
+        { 2, format (L"Machine: {}",       fs::path (m_config.name).wstring ()) },
+        { 3, format (L"{} devices",        m_config.devices.size ()) },
+    };
+
+    HDC     hdc     = GetDC (m_statusBar);
+    HFONT   sbFont  = reinterpret_cast<HFONT> (SendMessage (m_statusBar, WM_GETFONT, 0, 0));
+    HFONT   oldFont = nullptr;
+    SIZE    sz      = {};
+    int     parts[kPartCount] = {};
+    int     edge    = 0;
 
 
 
-    // Build labeled strings
-    cpuText     = format (L"CPU: {}", fs::path (m_config.cpu).wstring ());
-    clockText   = format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0);
-    machineText = format (L"Machine: {}", fs::path (m_config.name).wstring ());
-    deviceText  = format (L"{} devices", m_config.devices.size ());
+    if (sbFont != nullptr)
+    {
+        oldFont = static_cast<HFONT> (SelectObject (hdc, sbFont));
+    }
 
-    // Measure each string and size the parts to fit
-    hdc = GetDC (m_statusBar);
+    for (int i = 0; i < kPartCount - 1; i++)
+    {
+        GetTextExtentPoint32W (hdc, items[i].text.c_str (),
+                               static_cast<int> (items[i].text.size ()), &sz);
+        edge    += sz.cx + kPadding;
+        parts[i] = edge;
+    }
 
-    GetTextExtentPoint32W (hdc, cpuText.c_str (), static_cast<int> (cpuText.size ()), &sz);
-    edge    += sz.cx + margin;
-    parts[0] = edge;
+    parts[kPartCount - 1] = -1;
 
-    GetTextExtentPoint32W (hdc, clockText.c_str (), static_cast<int> (clockText.size ()), &sz);
-    edge    += sz.cx + margin;
-    parts[1] = edge;
-
-    GetTextExtentPoint32W (hdc, machineText.c_str (), static_cast<int> (machineText.size ()), &sz);
-    edge    += sz.cx + margin;
-    parts[2] = edge;
-
-    parts[3] = -1;
+    if (oldFont != nullptr)
+    {
+        SelectObject (hdc, oldFont);
+    }
 
     ReleaseDC (m_statusBar, hdc);
 
-    // Apply parts and text
-    SendMessage (m_statusBar, SB_SETPARTS, 4, reinterpret_cast<LPARAM> (parts));
+    SendMessage (m_statusBar, SB_SETPARTS, kPartCount, reinterpret_cast<LPARAM> (parts));
 
-    SendMessageW (m_statusBar, SB_SETTEXTW, 0, reinterpret_cast<LPARAM> (cpuText.c_str ()));
-    SendMessageW (m_statusBar, SB_SETTEXTW, 1, reinterpret_cast<LPARAM> (clockText.c_str ()));
-    SendMessageW (m_statusBar, SB_SETTEXTW, 2, reinterpret_cast<LPARAM> (machineText.c_str ()));
-    SendMessageW (m_statusBar, SB_SETTEXTW, 3, reinterpret_cast<LPARAM> (deviceText.c_str ()));
+    for (int i = 0; i < kPartCount; i++)
+    {
+        SendMessageW (m_statusBar, SB_SETTEXTW, items[i].index,
+                      reinterpret_cast<LPARAM> (items[i].text.c_str ()));
+    }
 }
 
 
