@@ -2,16 +2,27 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Casso65",
+            "name": "Launch Casso65 (CLI)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/x64/Debug/Casso65.exe",
+            "program": "${workspaceFolder}/ARM64/Debug/Casso65.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "console": "integratedTerminal",
-            "preLaunchTask": "Build Debug"
+            "preLaunchTask": "Build Debug (current arch)"
+        },
+        {
+            "name": "Launch Casso65Emu",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/ARM64/Debug/Casso65Emu.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "preLaunchTask": "Build Debug (current arch)"
         }
     ]
 }
