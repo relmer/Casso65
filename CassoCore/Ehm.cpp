@@ -156,7 +156,7 @@ void EhmNotifyUser (const wchar_t * message)
     }
     else
     {
-        MessageBoxW (NULL, message, L"Casso65", MB_OK | MB_ICONERROR);
+        MessageBoxW (NULL, message, L"Casso", MB_OK | MB_ICONERROR);
     }
 #else
     std::fwprintf (stderr, L"Error: %s\n", message);

@@ -143,14 +143,14 @@ HRESULT DebugConsole::InitializeConsole (HINSTANCE hInstance)
 
 
 
-    m_kpszWndClass  = L"Casso65DebugConsole";
+    m_kpszWndClass  = L"CassoDebugConsole";
     m_hbrBackground = reinterpret_cast<HBRUSH> (COLOR_WINDOW + 1);
 
     hr = Window::Initialize (hInstance);
     CHR (hr);
 
     hr = Window::Create (0,
-                         L"Casso65 Debug Console",
+                         L"Casso Debug Console",
                          WS_OVERLAPPEDWINDOW,
                          CW_USEDEFAULT, CW_USEDEFAULT,
                          600, 400,

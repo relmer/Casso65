@@ -4,21 +4,21 @@
 **Created**: 2025-07-22  
 **Status**: In Progress  
 **Last Updated**: 2025-07-27  
-**Input**: User description: "Add a GUI-based Apple II platform emulator (Casso65Emu) to the Casso65 6502 emulator project"
+**Input**: User description: "Add a GUI-based Apple II platform emulator (Casso) to the Casso65 6502 emulator project"
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot Apple II+ to BASIC Prompt (Priority: P1)
 
-A user launches Casso65Emu with an Apple II+ machine configuration and the appropriate ROM image. The emulator window opens, the CPU executes the ROM boot sequence, and the familiar 40-column text display appears with the Applesoft BASIC `]` prompt. The user can type BASIC commands using their PC keyboard and see the output on screen.
+A user launches Casso with an Apple II+ machine configuration and the appropriate ROM image. The emulator window opens, the CPU executes the ROM boot sequence, and the familiar 40-column text display appears with the Applesoft BASIC `]` prompt. The user can type BASIC commands using their PC keyboard and see the output on screen.
 
 **Why this priority**: This is the foundational "first visible output" that proves the entire architecture works end-to-end — CPU execution, memory bus routing, ROM loading, keyboard input, text video rendering, and Win32 display. Every subsequent feature builds on this.
 
-**Independent Test**: Can be fully tested by launching `Casso65Emu.exe --machine apple2plus` with a valid ROM file and verifying the `]` prompt appears. The user can type `PRINT "HELLO"` and see the output. Delivers a working text-mode Apple II+ emulator.
+**Independent Test**: Can be fully tested by launching `Casso.exe --machine apple2plus` with a valid ROM file and verifying the `]` prompt appears. The user can type `PRINT "HELLO"` and see the output. Delivers a working text-mode Apple II+ emulator.
 
 **Acceptance Scenarios**:
 
-1. **Given** a valid Apple II+ ROM file is present in the configured ROM directory, **When** the user runs `Casso65Emu.exe --machine apple2plus`, **Then** a window opens displaying 40-column green-on-black text with the Applesoft BASIC `]` prompt within 3 seconds
+1. **Given** a valid Apple II+ ROM file is present in the configured ROM directory, **When** the user runs `Casso.exe --machine apple2plus`, **Then** a window opens displaying 40-column green-on-black text with the Applesoft BASIC `]` prompt within 3 seconds
 2. **Given** the emulator is running at the `]` prompt, **When** the user types `PRINT "HELLO WORLD"` and presses Enter, **Then** the text `HELLO WORLD` appears on the next line followed by a new `]` prompt
 3. **Given** the emulator is running, **When** the user presses Ctrl+Reset, **Then** the emulator resets and returns to the `]` prompt
 4. **Given** the machine config specifies a CPU clock speed of 1,022,727 Hz (14.31818 MHz / 14), **When** the emulator runs, **Then** the emulation speed closely approximates real Apple II timing (cursor blink rate and keystroke responsiveness feel authentic)
@@ -66,7 +66,7 @@ A user boots with a disk image containing DOS 3.3 or ProDOS. The Language Card b
 
 **Acceptance Scenarios**:
 
-1. **Given** a DOS 3.3 system disk image, **When** the user runs `Casso65Emu.exe --machine apple2plus --disk1 dos33.dsk`, **Then** DOS 3.3 boots and displays the `]` prompt with the DOS greeting
+1. **Given** a DOS 3.3 system disk image, **When** the user runs `Casso.exe --machine apple2plus --disk1 dos33.dsk`, **Then** DOS 3.3 boots and displays the `]` prompt with the DOS greeting
 2. **Given** DOS is running, **When** the user types `CATALOG`, **Then** the files on the disk image are listed correctly
 3. **Given** a .dsk file with a BASIC program, **When** the user types `RUN PROGRAM`, **Then** the program loads from disk and executes
 4. **Given** a write-protected disk image, **When** a program attempts to write to disk, **Then** the emulator reports a disk write-protection error consistent with real Apple II behavior
@@ -99,7 +99,7 @@ A user selects the Apple IIe machine configuration and gets access to 128KB RAM,
 
 **Acceptance Scenarios**:
 
-1. **Given** the Apple IIe machine config, **When** the user runs `Casso65Emu.exe --machine apple2e`, **Then** the emulator boots with the Apple IIe ROM and supports lowercase keyboard input by default
+1. **Given** the Apple IIe machine config, **When** the user runs `Casso.exe --machine apple2e`, **Then** the emulator boots with the Apple IIe ROM and supports lowercase keyboard input by default
 2. **Given** IIe mode, **When** the user activates 80-column mode (e.g., `PR#3`), **Then** the display switches to 80×24 character mode
 3. **Given** IIe mode with 80-column active, **When** a program uses double hi-res graphics, **Then** 560×192 resolution graphics render with 16 colors
 4. **Given** IIe mode, **When** the user presses the keys mapped to Open Apple and Closed Apple, **Then** the corresponding button state is readable by software at the standard addresses
@@ -137,7 +137,7 @@ A developer creates a new machine configuration JSON file and registers new devi
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide a separate GUI executable (`Casso65Emu`) that links against the existing Casso65Core static library without modifying Casso65Core's public API
+- **FR-001**: System MUST provide a separate GUI executable (`Casso`) that links against the existing CassoCore static library without modifying CassoCore's public API
 - **FR-002**: System MUST load machine configurations from JSON files that define memory map, ROM file paths, CPU type, clock speed, device wiring, video geometry, and keyboard type
 - **FR-003**: System MUST implement a component registry where named device types are registered as C++ classes and referenced by name in machine config files
 - **FR-004**: System MUST route all CPU memory access through a MemoryBus that delegates reads and writes to the appropriate MemoryDevice based on address
@@ -155,8 +155,8 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-016**: System MUST accept command-line arguments: `--machine <name>` (required), `--disk1 <path>` (optional), `--disk2 <path>` (optional)
 - **FR-017**: System MUST NOT depend on any third-party libraries; only the Windows SDK and C++ Standard Library are permitted
 - **FR-018**: System MUST validate machine config files at startup and report clear, actionable errors for missing files, unknown device types, overlapping address ranges, and malformed JSON
-- **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 787+ unit tests must continue to pass with no changes to Casso65Core's public API
-- **FR-020**: System MUST integrate with the existing Casso65Core `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
+- **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 787+ unit tests must continue to pass with no changes to CassoCore's public API
+- **FR-020**: System MUST integrate with the existing CassoCore `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
 - **FR-021**: System MUST use the existing NMOS 6502 CPU emulation for all three target machines (Apple II, II+, IIe). The original Apple IIe (1983) uses the NMOS 6502, not the 65C02. Support for the Enhanced IIe (65C02) and Apple //c is out of scope for this spec and may be added as a future enhancement.
 - **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a resizable client area with Per-Monitor V2 DPI awareness. The default size is 560×384 pixels (2× scaling of 280×192).
 
@@ -234,7 +234,7 @@ Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed o
 - **ComponentRegistry**: Factory registry mapping string device type names to C++ class constructors; used by the machine config loader to instantiate devices
 - **VideoOutput**: Interface for video renderers that read video RAM and produce RGBA pixel framebuffers; each video mode (text, lo-res, hi-res, double hi-res) is a separate implementation
 - **DiskImage**: Represents a mounted .dsk file with sector read/write capability; manages file I/O and protects against corruption on unexpected exit
-- **EmuCpu**: Subclass of the existing Casso65Core `Cpu` that overrides `ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` to route through the MemoryBus. Constructed with a reference to the MemoryBus. Uses the NMOS 6502 instruction set for all target machines.
+- **EmuCpu**: Subclass of the existing CassoCore `Cpu` that overrides `ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` to route through the MemoryBus. Constructed with a reference to the MemoryBus. Uses the NMOS 6502 instruction set for all target machines.
 - **EmulatorShell**: The main application class that owns the Win32 window, MemoryBus, EmuCpu, video renderers, and input/audio subsystems. Runs the emulation loop and coordinates frame timing.
 
 ## Success Criteria *(mandatory)*
@@ -275,7 +275,7 @@ These are binding architectural choices made during design. They constrain all d
 - Users provide their own Apple II ROM images (these are copyrighted and will not be distributed with the project); ROM files are gitignored
 - The emulator targets Windows 10/11 on x64 and ARM64 architectures, consistent with existing Casso65 platform support
 - Direct3D 11 (part of the Windows SDK, not third-party) is used for rendering. A D3D11 device, swap chain, and single textured quad provide the display pipeline, enabling future CRT shader effects (scanlines, bloom, curvature) via HLSL. This approach is sufficient for the 1 MHz Apple II's display refresh requirements; no GPU acceleration is needed
-- The existing Casso65Core 6502 CPU emulation is cycle-accurate enough to run Apple II software correctly; if timing adjustments are needed they will be addressed as bugs, not as spec changes
+- The existing CassoCore 6502 CPU emulation is cycle-accurate enough to run Apple II software correctly; if timing adjustments are needed they will be addressed as bugs, not as spec changes
 - Disk II emulation supports the standard 140KB .dsk format (DOS-order, 16 sectors × 35 tracks); other formats (e.g., .nib, .woz) are out of scope for the initial implementation
 - Audio output uses the WASAPI (Windows Audio Session API) shared-mode stream for speaker emulation; WASAPI buffer is 100ms with 1ms execution slice granularity and a pending sample buffer to decouple generation from drain
 - The Apple II+ and original Apple II differ only in ROM content (Applesoft vs. Integer BASIC); both use the same machine config structure with different ROM file references
@@ -410,7 +410,7 @@ Each byte encodes two vertically-stacked 4-bit color blocks: low nybble (bits 0�
 
 ## Machine Configuration File Schema
 
-Machine configs are JSON files stored in `Casso65Emu/machines/`. Each file defines the complete hardware configuration for one computer model. The emulator loads the config at startup based on the `--machine` argument.
+Machine configs are JSON files stored in `Casso/machines/`. Each file defines the complete hardware configuration for one computer model. The emulator loads the config at startup based on the `--machine` argument.
 
 ### Config Fields
 
@@ -628,15 +628,15 @@ The Apple IIe is a significant hardware upgrade. These differences require disti
 }
 ```
 
-## CPU Integration with Casso65Core
+## CPU Integration with CassoCore
 
-The existing `Cpu` class in Casso65Core uses a flat 64KB `memory[]` vector and non-virtual `ReadByte`/`WriteByte` methods. To support the MemoryBus architecture without breaking existing functionality:
+The existing `Cpu` class in CassoCore uses a flat 64KB `memory[]` vector and non-virtual `ReadByte`/`WriteByte` methods. To support the MemoryBus architecture without breaking existing functionality:
 
 1. **Make memory access methods virtual**: Change `ReadByte`, `WriteByte`, `ReadWord`, `WriteWord` from non-virtual to virtual in `Cpu.h`. These are `protected` methods — this is not a public API change. All existing code (assembler CLI, unit tests) continues to use the base `Cpu` class with its flat memory array, completely unaffected.
 
-2. **Create `EmuCpu` subclass**: A new class in the Casso65Emu project that overrides the four memory access methods to delegate to the `MemoryBus`. The `EmuCpu` constructor takes a `MemoryBus&` reference.
+2. **Create `EmuCpu` subclass**: A new class in the Casso project that overrides the four memory access methods to delegate to the `MemoryBus`. The `EmuCpu` constructor takes a `MemoryBus&` reference.
 
-3. **CPU**: All three target machines (Apple II, II+, IIe) use the NMOS 6502. The existing Casso65Core CPU emulation is used directly via `EmuCpu` — no instruction set changes needed. Support for the Enhanced IIe (65C02) and Apple //c is a future enhancement.
+3. **CPU**: All three target machines (Apple II, II+, IIe) use the NMOS 6502. The existing CassoCore CPU emulation is used directly via `EmuCpu` — no instruction set changes needed. Support for the Enhanced IIe (65C02) and Apple //c is a future enhancement.
 
 4. **Cycle counting**: The `EmuCpu` tracks cycles executed per `StepOne()` call so the emulation loop can synchronize to real-time speed. The base `Cpu` class does not currently expose cycle counts; `EmuCpu` adds this internally.
 
@@ -681,15 +681,15 @@ When the host PC is faster than the emulated clock speed (which it always will b
 
 ### Project Layout
 
-Casso65Emu is a new Win32 application project added to the `Casso65.sln` solution. It links against the Casso65Core static library.
+Casso is a new Win32 application project added to the `Casso65.sln` solution. It links against the CassoCore static library.
 
 ```
 Casso65.sln
-├── Casso65Core/       Static library — CPU, assembler (existing, unchanged)
-├── Casso65/           Console application — assembler CLI (existing, unchanged)
+├── CassoCore/       Static library — CPU, assembler (existing, unchanged)
+├── CassoCli/           Console application — assembler CLI (existing, unchanged)
 ├── UnitTest/          Test DLL (existing, unchanged)
-└── Casso65Emu/        NEW — Win32 GUI application
-    ├── Casso65Emu.vcxproj
+└── Casso/        NEW — Win32 GUI application
+    ├── Casso.vcxproj
     ├── machines/      JSON machine config files
     │   ├── apple2.json
     │   ├── apple2plus.json

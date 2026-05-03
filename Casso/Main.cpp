@@ -174,7 +174,7 @@ int WINAPI wWinMain (
     // Register GUI error notification so EHM errors show a MessageBox
     SetNotifyFunction ([] (const wchar_t * message)
     {
-        MessageBoxW (NULL, message, L"Casso65 Emulator", MB_OK | MB_ICONERROR);
+        MessageBoxW (NULL, message, L"Casso Emulator", MB_OK | MB_ICONERROR);
     });
 
     // Parse command line

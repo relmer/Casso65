@@ -3,7 +3,7 @@
 All notable changes to Casso65 are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
-Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](Casso65Core/Version.h).
+Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
@@ -29,12 +29,12 @@ Entries before versioning was introduced use dates only.
   handler that intercepts the event and calls FreeConsole instead
 - ROM search path bug: ROM files are now searched independently across all search paths,
   fixing failures when `machines/` and `roms/` are at different base directories
-- **Black screen in Casso65Emu** — D3D11 shaders were never compiled, so the textured
+- **Black screen in Casso** — D3D11 shaders were never compiled, so the textured
   quad draw call was skipped and only the black clear color was displayed; implemented
   runtime shader compilation via D3DCompile
 
 ### Added
-- `PathResolver` class in Casso65EmuCore — testable search-path logic for locating
+- `PathResolver` class in CassoEmuCore — testable search-path logic for locating
   machine configs and ROM files
 - `MemoryRegion::resolvedPath` — fully resolved ROM path stored after config loading
 - Unit tests for `PathResolver` (BuildSearchPaths, FindFile) and `MachineConfigLoader`
@@ -45,7 +45,7 @@ Entries before versioning was introduced use dates only.
   PokeByte/WriteByte dual-sync to internal memory and bus, STA instruction end-to-end
   visibility to video renderers
 - **AudioGenerator** — extracted PCM generation from `WasapiAudio::SubmitFrame` into a
-  testable `AudioGenerator::GeneratePCM` static method in Casso65EmuCore
+  testable `AudioGenerator::GeneratePCM` static method in CassoEmuCore
 - **AudioTests** — 15 adversarial audio tests covering silence/DC, single toggle, square
   wave, rapid toggles, edge cases (zero cycles, zero samples), and speaker-to-PCM pipeline
 
@@ -107,7 +107,7 @@ Entries before versioning was introduced use dates only.
 ## 2026-04-23
 
 ### Added
-- Extracted `Casso65Core` static library from monolithic project
+- Extracted `CassoCore` static library from monolithic project
 - `UnitTest` project with 66 initial tests (Microsoft Native CppUnitTest)
 - Build/test automation scripts and VS Code tasks
 

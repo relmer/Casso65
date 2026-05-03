@@ -138,7 +138,7 @@ Factory registry mapping string device type names to C++ constructors.
 
 ### EmuCpu
 
-Subclass of Casso65Core `Cpu`. Routes memory access through MemoryBus.
+Subclass of CassoCore `Cpu`. Routes memory access through MemoryBus.
 
 | Field | Type | Description |
 |-------|------|-------------|

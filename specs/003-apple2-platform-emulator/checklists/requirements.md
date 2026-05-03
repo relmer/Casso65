@@ -41,7 +41,7 @@
 
 The following gaps were identified during review and addressed:
 
-1. **CPU-MemoryBus integration** (FR-020): Added explanation of how the existing `Cpu` class connects to the MemoryBus via subclassing and virtual method override. Added new "CPU Integration with Casso65Core" section.
+1. **CPU-MemoryBus integration** (FR-020): Added explanation of how the existing `Cpu` class connects to the MemoryBus via subclassing and virtual method override. Added new "CPU Integration with CassoCore" section.
 2. **65C02 support** (FR-021): Added requirement for 65C02 opcode extension for Apple IIe support.
 3. **Apple II original config** (FR-026): Added Apple II (original/Integer BASIC) as a supported machine with its own config. Added "Apple II Model Differences" section with comparison tables.
 4. **GUI specification** (FR-022): Added window spec, menu bar, keyboard shortcuts, title bar format. Added "GUI Application Structure" section.

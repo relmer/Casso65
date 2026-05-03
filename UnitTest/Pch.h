@@ -2,7 +2,7 @@
 
 
 
-#include "../Casso65Core/Pch.h"
+#include "../CassoCore/Pch.h"
 
 #include <crtdbg.h>
 #include <cstdlib>

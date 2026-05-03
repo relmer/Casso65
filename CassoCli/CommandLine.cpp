@@ -1223,11 +1223,11 @@ CommandLineOptions ParseCommandLine (int argc, char * argv[])
 
 static void PrintUsageHeader (const char * sp, const char * lp)
 {
-    std::cout << "Casso65 - 6502 Assembler and Emulator  v" VERSION_STRING
+    std::cout << "CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING
               << " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n"
               << "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n"
               << "\n"
-              << "Usage: Casso65 <source> [flags] | run <binary | source> [options] | "
+              << "Usage: CassoCli <source> [flags] | run <binary | source> [options] | "
               << sp << "? | " << lp << "version\n";
 }
 
@@ -1371,7 +1371,7 @@ void PrintUsage (char prefix)
 
 void PrintVersion ()
 {
-    std::cout << "Casso65 v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n";
+    std::cout << "CassoCli v" VERSION_STRING " (" << arch << ")  " VERSION_BUILD_TIMESTAMP "\n";
 }
 
 

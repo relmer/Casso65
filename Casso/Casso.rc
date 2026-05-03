@@ -36,11 +36,11 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName",      "\0"
-            VALUE "FileDescription",  "Casso65 Apple II Emulator\0"
+            VALUE "FileDescription",  "Casso Apple II Emulator\0"
             VALUE "FileVersion",      "0.9.0.0\0"
-            VALUE "InternalName",     "Casso65Emu\0"
-            VALUE "OriginalFilename", "Casso65Emu.exe\0"
-            VALUE "ProductName",      "Casso65\0"
+            VALUE "InternalName",     "Casso\0"
+            VALUE "OriginalFilename", "Casso.exe\0"
+            VALUE "ProductName",      "Casso\0"
             VALUE "ProductVersion",   "0.9.0.0\0"
         END
     END

@@ -160,7 +160,7 @@ Physical: 0  7 14  5 12  3 10  1  8 15  6 13  4 11  2  9
 
 **Decision**: Extend existing opcode table in `EmuCpu` initialization with ~37 new valid instructions and guaranteed NOP behavior for all undefined opcodes.
 
-**Rationale**: The Apple IIe requires 65C02 support. The existing Casso65Core `instructionSet` table (256 Microcode entries) can be extended by `EmuCpu` without modifying the base table used by existing tests. The 65C02 adds useful instructions (PHX/PHY/PLX/PLY, BRA, STZ, TSB, TRB) and a new addressing mode (zero-page indirect).
+**Rationale**: The Apple IIe requires 65C02 support. The existing CassoCore `instructionSet` table (256 Microcode entries) can be extended by `EmuCpu` without modifying the base table used by existing tests. The 65C02 adds useful instructions (PHX/PHY/PLX/PLY, BRA, STZ, TSB, TRB) and a new addressing mode (zero-page indirect).
 
 **Alternatives considered**:
 - **Separate Cpu65C02 class**: Would duplicate too much code from the base Cpu class. Extending via `EmuCpu` is cleaner.

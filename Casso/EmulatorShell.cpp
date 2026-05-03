@@ -30,7 +30,7 @@
 
 static constexpr int    kFramebufferWidth  = 560;
 static constexpr int    kFramebufferHeight = 384;
-static constexpr LPCWSTR kWindowClass      = L"Casso65EmuWindow";
+static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
 
 
@@ -185,7 +185,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // Create window
     hr = Window::Create (0,
-                         L"Casso65",
+                         L"Casso",
                          style,
                          CW_USEDEFAULT, CW_USEDEFAULT,
                          rc.right - rc.left, rc.bottom - rc.top,
@@ -1761,12 +1761,12 @@ void EmulatorShell::OnHelpCommand (int id)
         case IDM_HELP_ABOUT:
         {
             MessageBoxW (m_hwnd,
-                L"Casso65 Apple II Emulator\n"
+                L"Casso Apple II Emulator\n"
                 L"Version 0.9.0\n\n"
                 L"An Apple II platform emulator built on the\n"
-                L"Casso65 6502 assembler/emulator project.\n\n"
+                L"Casso 6502 assembler/emulator project.\n\n"
                 L"https://github.com/relmer/Casso65",
-                L"About Casso65", MB_ICONINFORMATION | MB_OK);
+                L"About Casso", MB_ICONINFORMATION | MB_OK);
             break;
         }
     }
@@ -1789,7 +1789,7 @@ void EmulatorShell::UpdateWindowTitle()
         return;
     }
 
-    title = L"Casso65";
+    title = L"Casso";
 
     if (!m_config.name.empty())
     {

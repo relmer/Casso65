@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a GUI-based Apple II platform emulator to the Casso65 solution as two new projects: `Casso65EmuCore` (static library with emulator core logic — devices, video, audio, config) and `Casso65Emu` (Win32 GUI application). The emulator links against the existing Casso65Core static library and provides data-driven machine configurations (JSON) for Apple II, Apple II+, and Apple IIe. All three target machines use the NMOS 6502 CPU (65C02 support for Enhanced IIe and //c is out of scope). It renders via Direct3D 11 with ComPtr<T> COM management, generates audio through WASAPI with 1ms execution slices on a dedicated CPU thread, and uses a component registry architecture to map named device types to C++ classes. The emulator supports text mode, lo-res graphics, hi-res graphics with NTSC color artifacting, 80-column/double hi-res (IIe), Disk II controller emulation (.dsk format), and Language Card bank-switching. No third-party libraries are used.
+Add a GUI-based Apple II platform emulator to the Casso65 solution as two new projects: `CassoEmuCore` (static library with emulator core logic — devices, video, audio, config) and `Casso` (Win32 GUI application). The emulator links against the existing CassoCore static library and provides data-driven machine configurations (JSON) for Apple II, Apple II+, and Apple IIe. All three target machines use the NMOS 6502 CPU (65C02 support for Enhanced IIe and //c is out of scope). It renders via Direct3D 11 with ComPtr<T> COM management, generates audio through WASAPI with 1ms execution slices on a dedicated CPU thread, and uses a component registry architecture to map named device types to C++ classes. The emulator supports text mode, lo-res graphics, hi-res graphics with NTSC color artifacting, 80-column/double hi-res (IIe), Disk II controller emulation (.dsk format), and Language Card bank-switching. No third-party libraries are used.
 
 ## Technical Context
 
@@ -17,7 +17,7 @@ Add a GUI-based Apple II platform emulator to the Casso65 solution as two new pr
 **Project Type**: Desktop application (Win32 GUI) + static library extension
 **Performance Goals**: 60 fps video output, 1,022,727 Hz emulated CPU clock (14.31818 MHz / 14), 100ms WASAPI audio buffer with 1ms execution slices, <50ms keyboard response
 **Constraints**: CPU thread + UI thread architecture, no third-party libs, resizable window with Per-Monitor V2 DPI awareness, 100ms WASAPI audio buffer
-**Scale/Scope**: 3 machine configurations (Apple II, II+, IIe), ~14 device component classes, ~65 source files across Casso65EmuCore and Casso65Emu
+**Scale/Scope**: 3 machine configurations (Apple II, II+, IIe), ~14 device component classes, ~65 source files across CassoEmuCore and Casso
 
 ## Constitution Check
 
@@ -38,7 +38,7 @@ Add a GUI-based Apple II platform emulator to the Casso65 solution as two new pr
 
 ### III. User Experience Consistency — ✅ PASS
 
-- **CLI syntax**: `Casso65Emu.exe --machine <name> --disk1 <path> --disk2 <path>` follows established `--flag` pattern.
+- **CLI syntax**: `Casso.exe --machine <name> --disk1 <path> --disk2 <path>` follows established `--flag` pattern.
 - **Error messages**: Clear, actionable errors for missing ROM, unknown device, invalid JSON, overlapping addresses.
 
 ### IV. Performance Requirements — ✅ PASS
@@ -52,7 +52,7 @@ Add a GUI-based Apple II platform emulator to the Casso65 solution as two new pr
 - **YAGNI**: No CRT shader (grayed-out menu item), no .nib/.woz formats, no network play. Only what's specified.
 - **Single responsibility**: Each device class handles one hardware component. MemoryBus only routes addresses. EmulatorShell only coordinates frame loop.
 - **Function size**: All functions under 50 lines. Video renderers use helper functions for row address calculation, byte decoding, color lookup.
-- **File scope**: Casso65EmuCore static library (extracted from Casso65Emu for faster test builds) + Casso65Emu Win32 GUI. Total: 5 projects (Casso65Core, Casso65EmuCore, Casso65Emu, Casso65, UnitTest). Casso65Core change is minimal (`virtual` keyword on 4 protected methods).
+- **File scope**: CassoEmuCore static library (extracted from Casso for faster test builds) + Casso Win32 GUI. Total: 5 projects (CassoCore, CassoEmuCore, Casso, Casso65, UnitTest). CassoCore change is minimal (`virtual` keyword on 4 protected methods).
 
 ### Technology Constraints — ✅ PASS
 
@@ -79,11 +79,11 @@ specs/003-apple2-platform-emulator/
 ### Source Code (repository root)
 
 ```text
-Casso65.sln                          # Updated — adds Casso65EmuCore and Casso65Emu projects
-├── Casso65Core/                     # Existing static library (minimal change: virtual keyword)
+Casso65.sln                          # Updated — adds CassoEmuCore and Casso projects
+├── CassoCore/                     # Existing static library (minimal change: virtual keyword)
 │   ├── Cpu.h                        #   ReadByte/WriteByte/ReadWord/WriteWord → virtual
 │   └── (all other files unchanged)
-├── Casso65/                         # Existing console app (unchanged)
+├── CassoCli/                         # Existing console app (unchanged)
 ├── UnitTest/                        # Existing tests (787+ tests, with new emulator tests)
 │   └── EmuTests/                    #   NEW — emulator-specific unit tests
 │       ├── MemoryBusTests.cpp
@@ -98,8 +98,8 @@ Casso65.sln                          # Updated — adds Casso65EmuCore and Casso
 │       ├── LanguageCardTests.cpp
 │       ├── SoftSwitchTests.cpp
 │       └── KeyboardTests.cpp
-├── Casso65EmuCore/                  # NEW — Static library (extracted for faster test builds)
-│   ├── Casso65EmuCore.vcxproj
+├── CassoEmuCore/                  # NEW — Static library (extracted for faster test builds)
+│   ├── CassoEmuCore.vcxproj
 │   ├── Pch.h / Pch.cpp             #   Precompiled header (using namespace std; namespace fs = std::filesystem)
 │   ├── Core/                        #   Core emulator architecture
 │   │   ├── MemoryBus.h/.cpp         #     Address-space router
@@ -131,8 +131,8 @@ Casso65.sln                          # Updated — adds Casso65EmuCore and Casso
 │   │   └── NtscColorTable.h         #     Pre-computed NTSC artifact color LUTs
 │   └── Audio/                       #   Audio subsystem
 │       └── AudioGenerator.h/.cpp    #     Audio sample generation (decoupled from WASAPI)
-└── Casso65Emu/                      # NEW — Win32 GUI application (flat structure, no subdirs)
-    ├── Casso65Emu.vcxproj
+└── Casso/                      # NEW — Win32 GUI application (flat structure, no subdirs)
+    ├── Casso.vcxproj
     ├── Pch.h / Pch.cpp              #   Precompiled header (includes <windows.h>, D3D11, ComPtr<T>, etc.)
     ├── Main.cpp                     #   WinMain, CPU thread launch, emulation loop
     ├── Window.h/.cpp                #   Base class with virtual On* handlers (ported from Mandelbrot repo)
@@ -142,7 +142,7 @@ Casso65.sln                          # Updated — adds Casso65EmuCore and Casso
     ├── MenuSystem.h/.cpp            #   Table-driven Win32 menu creation and command dispatch
     ├── DebugConsole.h/.cpp          #   Debug log window (derives from Window, lazy-init, real Show/Hide)
     ├── resource.h                   #   Win32 resource IDs
-    ├── Casso65Emu.rc                #   Menu accelerators, icon, version info
+    ├── Casso.rc                #   Menu accelerators, icon, version info
     ├── machines/                    #   JSON machine config files
     │   ├── apple2.json
     │   ├── apple2plus.json
@@ -153,12 +153,12 @@ Casso65.sln                          # Updated — adds Casso65EmuCore and Casso
         └── PixelShader.hlsl
 ```
 
-**Structure Decision**: Two new projects added: `Casso65EmuCore` static library (Core, Devices, Video, Audio — extracted for faster test builds) and `Casso65Emu` Win32 GUI application (flat structure — Window base class, EmulatorShell, D3DRenderer, WasapiAudio, MenuSystem, DebugConsole). The Casso65Core static library receives one minimal change (4 methods become virtual). All new unit tests go into a new `EmuTests/` folder within the existing UnitTest project. Total: 5 projects, ~65 source files across EmuCore and Emu.
+**Structure Decision**: Two new projects added: `CassoEmuCore` static library (Core, Devices, Video, Audio — extracted for faster test builds) and `Casso` Win32 GUI application (flat structure — Window base class, EmulatorShell, D3DRenderer, WasapiAudio, MenuSystem, DebugConsole). The CassoCore static library receives one minimal change (4 methods become virtual). All new unit tests go into a new `EmuTests/` folder within the existing UnitTest project. Total: 5 projects, ~65 source files across EmuCore and Emu.
 
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| 4th+5th projects (Casso65EmuCore + Casso65Emu) | GUI emulator is fundamentally different from CLI assembler — different entry point (WinMain vs main), different dependencies (D3D11, WASAPI, Win32 menus), different subsystem (WINDOWS vs CONSOLE). Casso65EmuCore extracted as static library so UnitTest can link it without pulling in Win32 GUI dependencies (faster test builds) | Merging into Casso65 CLI would violate single responsibility and add GUI dependencies to a command-line tool; a single Casso65Emu project would require UnitTest to link GUI code |
+| 4th+5th projects (CassoEmuCore + Casso) | GUI emulator is fundamentally different from CLI assembler — different entry point (WinMain vs main), different dependencies (D3D11, WASAPI, Win32 menus), different subsystem (WINDOWS vs CONSOLE). CassoEmuCore extracted as static library so UnitTest can link it without pulling in Win32 GUI dependencies (faster test builds) | Merging into Casso65 CLI would violate single responsibility and add GUI dependencies to a command-line tool; a single Casso project would require UnitTest to link GUI code |
 | ~14 device component classes | Each device implements distinct hardware behavior (stepper motor state machine, bank-switching sequencing, speaker toggle, NTSC color decoding, etc.) that cannot be generalized | A single "GenericDevice" would require massive switch statements and violate SRP; the component registry architecture enables extensibility per FR-003 |
 | Hand-written JSON parser | No third-party libs allowed; WinRT JSON APIs require UWP or C++/WinRT projection library (effectively third-party) | ~500-700 lines of self-contained code; well-defined schema makes this tractable and fully testable |

@@ -29,8 +29,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}</ProjectGuid>
-    <RootNamespace>Casso65EmuCore</RootNamespace>
+    <ProjectGuid>{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}</ProjectGuid>
+    <RootNamespace>CassoCore</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -97,10 +97,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -110,7 +106,6 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -124,7 +119,6 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -136,7 +130,6 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -150,7 +143,6 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -162,7 +154,6 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -176,10 +167,19 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\Casso65Core;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Assembler.cpp" />
+    <ClCompile Include="AssemblySession.cpp" />
+    <ClCompile Include="Cpu.cpp" />
+    <ClCompile Include="CpuOperations.cpp" />
+    <ClCompile Include="Ehm.cpp" />
+    <ClCompile Include="ExpressionEvaluator.cpp" />
+    <ClCompile Include="Microcode.cpp" />
+    <ClCompile Include="OpcodeTable.cpp" />
+    <ClCompile Include="OutputFormats.cpp" />
+    <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -188,64 +188,30 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Core\JsonParser.cpp" />
-    <ClCompile Include="Core\JsonValue.cpp" />
-    <ClCompile Include="Core\MachineConfig.cpp" />
-    <ClCompile Include="Core\PathResolver.cpp" />
-    <ClCompile Include="Core\MemoryBus.cpp" />
-    <ClCompile Include="Core\EmuCpu.cpp" />
-    <ClCompile Include="Core\ComponentRegistry.cpp" />
-    <ClCompile Include="Devices\RamDevice.cpp" />
-    <ClCompile Include="Devices\RomDevice.cpp" />
-    <ClCompile Include="Devices\AppleKeyboard.cpp" />
-    <ClCompile Include="Devices\AppleSoftSwitchBank.cpp" />
-    <ClCompile Include="Devices\AppleSpeaker.cpp" />
-    <ClCompile Include="Devices\LanguageCard.cpp" />
-    <ClCompile Include="Devices\DiskIIController.cpp" />
-    <ClCompile Include="Devices\AppleIIeKeyboard.cpp" />
-    <ClCompile Include="Devices\AuxRamCard.cpp" />
-    <ClCompile Include="Devices\AppleIIeSoftSwitchBank.cpp" />
-    <ClCompile Include="Video\AppleTextMode.cpp" />
-    <ClCompile Include="Video\AppleLoResMode.cpp" />
-    <ClCompile Include="Video\AppleHiResMode.cpp" />
-    <ClCompile Include="Video\Apple80ColTextMode.cpp" />
-    <ClCompile Include="Video\AppleDoubleHiResMode.cpp" />
-    <ClCompile Include="Audio\AudioGenerator.cpp" />
+    <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Assembler.h" />
+    <ClInclude Include="AssemblySession.h" />
+    <ClInclude Include="AssemblerTypes.h" />
+    <ClInclude Include="Cpu.h" />
+    <ClInclude Include="CpuOperations.h" />
+    <ClInclude Include="CpuStatus.h" />
+    <ClInclude Include="Ehm.h" />
+    <ClInclude Include="ExpressionEvaluator.h" />
+    <ClInclude Include="GlobalAddressingModes.h" />
+    <ClInclude Include="Group00.h" />
+    <ClInclude Include="Group01.h" />
+    <ClInclude Include="Group10.h" />
+    <ClInclude Include="GroupMisc.h" />
+    <ClInclude Include="Instruction.h" />
+    <ClInclude Include="Microcode.h" />
+    <ClInclude Include="OpcodeTable.h" />
+    <ClInclude Include="OutputFormats.h" />
+    <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />
-    <ClInclude Include="Core\MemoryDevice.h" />
-    <ClInclude Include="Core\ComponentRegistry.h" />
-    <ClInclude Include="Core\JsonParser.h" />
-    <ClInclude Include="Core\JsonValue.h" />
-    <ClInclude Include="Core\MemoryBus.h" />
-    <ClInclude Include="Core\EmuCpu.h" />
-    <ClInclude Include="Core\MachineConfig.h" />
-    <ClInclude Include="Core\PathResolver.h" />
-    <ClInclude Include="Devices\RamDevice.h" />
-    <ClInclude Include="Devices\RomDevice.h" />
-    <ClInclude Include="Devices\AppleKeyboard.h" />
-    <ClInclude Include="Devices\AppleSoftSwitchBank.h" />
-    <ClInclude Include="Devices\AppleSpeaker.h" />
-    <ClInclude Include="Devices\LanguageCard.h" />
-    <ClInclude Include="Devices\DiskIIController.h" />
-    <ClInclude Include="Devices\AppleIIeKeyboard.h" />
-    <ClInclude Include="Devices\AuxRamCard.h" />
-    <ClInclude Include="Devices\AppleIIeSoftSwitchBank.h" />
-    <ClInclude Include="Video\VideoOutput.h" />
-    <ClInclude Include="Video\AppleTextMode.h" />
-    <ClInclude Include="Video\AppleLoResMode.h" />
-    <ClInclude Include="Video\AppleHiResMode.h" />
-    <ClInclude Include="Video\Apple80ColTextMode.h" />
-    <ClInclude Include="Video\AppleDoubleHiResMode.h" />
-    <ClInclude Include="Video\NtscColorTable.h" />
-    <ClInclude Include="Video\CharacterRom.h" />
-    <ClInclude Include="Audio\AudioGenerator.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Casso65Core\Casso65Core.vcxproj">
-      <Project>{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}</Project>
-    </ProjectReference>
+    <ClInclude Include="Utils.h" />
+    <ClInclude Include="Version.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

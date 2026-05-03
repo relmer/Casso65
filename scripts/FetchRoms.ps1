@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Downloads Apple II ROM images from the AppleWin project for use with Casso65Emu.
+    Downloads Apple II ROM images from the AppleWin project for use with Casso.
 
 .DESCRIPTION
     Downloads ROM files from AppleWin's GitHub repository and places them in
-    the Casso65Emu/roms/ directory.  The roms/ directory is gitignored — ROM
+    the Casso/roms/ directory.  The roms/ directory is gitignored — ROM
     images are copyrighted by Apple and not distributed with this project.
 
     Files downloaded:

@@ -5,7 +5,7 @@
 
 ## File Location
 
-Machine configs are stored in `Casso65Emu/machines/` as `.json` files. The `--machine <name>` CLI argument resolves to `machines/<name>.json`.
+Machine configs are stored in `Casso/machines/` as `.json` files. The `--machine <name>` CLI argument resolves to `machines/<name>.json`.
 
 ## Schema
 

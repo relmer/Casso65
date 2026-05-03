@@ -35,18 +35,18 @@ msbuild Casso65.sln /p:Configuration=Debug /p:Platform=x64
 ```
 
 The solution builds five projects:
-1. **Casso65Core** — static library (existing, unchanged)
-2. **Casso65EmuCore** — static library (NEW — emulator core: devices, video, audio, config)
-3. **Casso65Emu** — Win32 GUI emulator (NEW — links Casso65Core and Casso65EmuCore)
+1. **CassoCore** — static library (existing, unchanged)
+2. **CassoEmuCore** — static library (NEW — emulator core: devices, video, audio, config)
+3. **Casso** — Win32 GUI emulator (NEW — links CassoCore and CassoEmuCore)
 4. **Casso65** — console assembler CLI (existing, unchanged)
-5. **UnitTest** — test DLL (existing, with new emulator tests — links Casso65Core and Casso65EmuCore)
+5. **UnitTest** — test DLL (existing, with new emulator tests — links CassoCore and CassoEmuCore)
 
 ## ROM Setup
 
 ROM images are copyrighted and not distributed with the project. Place them in:
 
 ```
-Casso65Emu/roms/
+Casso/roms/
 ├── apple2.rom           # Apple II (Integer BASIC) — 12KB
 ├── apple2plus.rom       # Apple II+ (Applesoft BASIC) — 12KB
 ├── apple2e.rom          # Apple IIe system ROM
@@ -67,7 +67,7 @@ The `roms/` directory is gitignored.
 
 ```powershell
 # From solution root:
-x64/Debug/Casso65Emu.exe --machine apple2plus
+x64/Debug/Casso.exe --machine apple2plus
 ```
 
 Expected: Window opens with green-on-black 40-column text displaying the Applesoft BASIC `]` prompt.
@@ -75,7 +75,7 @@ Expected: Window opens with green-on-black 40-column text displaying the Appleso
 ### Boot DOS 3.3 from Disk
 
 ```powershell
-x64/Debug/Casso65Emu.exe --machine apple2plus --disk1 path/to/dos33.dsk
+x64/Debug/Casso.exe --machine apple2plus --disk1 path/to/dos33.dsk
 ```
 
 Expected: DOS 3.3 boots, displays greeting, presents `]` prompt. Type `CATALOG` to list files.
@@ -83,7 +83,7 @@ Expected: DOS 3.3 boots, displays greeting, presents `]` prompt. Type `CATALOG` 
 ### Boot Apple IIe
 
 ```powershell
-x64/Debug/Casso65Emu.exe --machine apple2e --disk1 path/to/prodos.dsk
+x64/Debug/Casso.exe --machine apple2e --disk1 path/to/prodos.dsk
 ```
 
 Expected: Apple IIe boots with 65C02, supports lowercase input. `PR#3` activates 80-column mode.
@@ -91,7 +91,7 @@ Expected: Apple IIe boots with 65C02, supports lowercase input. `PR#3` activates
 ### Boot Original Apple II (Integer BASIC)
 
 ```powershell
-x64/Debug/Casso65Emu.exe --machine apple2
+x64/Debug/Casso.exe --machine apple2
 ```
 
 Expected: Window displays Integer BASIC `>` prompt.
@@ -143,13 +143,13 @@ All 787+ existing tests continue to pass. New emulator-specific tests cover:
 ## Project Layout
 
 ```
-Casso65EmuCore/              # Static library (Core, Devices, Video, Audio)
+CassoEmuCore/              # Static library (Core, Devices, Video, Audio)
 ├── Core/        # MemoryBus, MemoryDevice, ComponentRegistry, EmuCpu, JsonParser, PathResolver, MachineConfig
 ├── Devices/     # RamDevice, RomDevice, AppleKeyboard, AppleSpeaker, LanguageCard, DiskII, etc.
 ├── Video/       # AppleTextMode, AppleLoResMode, AppleHiResMode, CharacterRom, NtscColorTable
 └── Audio/       # AudioGenerator (sample generation, decoupled from WASAPI)
 
-Casso65Emu/                  # Win32 GUI application (flat structure)
+Casso/                  # Win32 GUI application (flat structure)
 ├── Window.h/.cpp            # Base class with virtual On* handlers
 ├── EmulatorShell.h/.cpp     # Main app (derives from Window), CPU thread, frame loop
 ├── D3DRenderer.h/.cpp       # D3D11 device, swap chain (12 ComPtr members)
@@ -165,8 +165,8 @@ Casso65Emu/                  # Win32 GUI application (flat structure)
 
 | Problem | Solution |
 |---------|----------|
-| "ROM file not found" | Place ROM files in `Casso65Emu/roms/` or run `scripts/FetchRoms.ps1` |
+| "ROM file not found" | Place ROM files in `Casso/roms/` or run `scripts/FetchRoms.ps1` |
 | "Unknown machine" | Check spelling. Valid names: `apple2`, `apple2plus`, `apple2e` |
 | No audio | Check Windows audio output device. WASAPI failure is non-fatal (warning in debug console). |
 | Black screen | Verify ROM file is correct size and not corrupted. Check debug console (Ctrl+D). |
-| Existing tests fail | Verify Casso65Core changes are limited to adding `virtual` keyword on 4 protected methods in `Cpu.h`. No public API changes. Ensure UnitTest links both Casso65Core and Casso65EmuCore. |
+| Existing tests fail | Verify CassoCore changes are limited to adding `virtual` keyword on 4 protected methods in `Cpu.h`. No public API changes. Ensure UnitTest links both CassoCore and CassoEmuCore. |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 GenerateHarteTests.py — Download Tom Harte SingleStepTests JSON and convert
-to compact binary test data files for the Casso65 unit test runner.
+to compact binary test data files for the Casso unit test runner.
 
 Source: https://github.com/SingleStepTests/65x02
 Output: UnitTest/<cpu>/XX.bin  (one file per opcode, lowercase hex)

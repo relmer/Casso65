@@ -89,7 +89,7 @@ static const MenuItem kHelpMenuItems[] =
     { MF_STRING, IDM_HELP_KEYMAP, L"&Keyboard Map\tF1" },
     { MF_STRING | MF_GRAYED, IDM_HELP_DEBUG,  L"&Debug Console\tCtrl+D" },
     { 0,         kSep,            nullptr },
-    { MF_STRING, IDM_HELP_ABOUT,  L"&About Casso65..." },
+    { MF_STRING, IDM_HELP_ABOUT,  L"&About Casso..." },
 };
 
 struct MenuDef

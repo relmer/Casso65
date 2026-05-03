@@ -5,11 +5,11 @@
 Casso65 is a 6502 CPU emulator, assembler, and Apple II platform emulator in C++.
 The solution has five projects:
 
-- **Casso65Core** — Static library containing CPU logic, assembler, parser, opcode table
-- **Casso65EmuCore** — Static library containing Apple II devices, video modes, audio generator
-- **Casso65Emu** — Win32 GUI application (Apple II emulator, links Casso65Core and Casso65EmuCore)
-- **Casso65** — Console application (AS65-compatible assembler CLI, links Casso65Core)
-- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links Casso65Core and Casso65EmuCore)
+- **CassoCore** — Static library containing CPU logic, assembler, parser, opcode table
+- **CassoEmuCore** — Static library containing Apple II devices, video modes, audio generator
+- **Casso** — Win32 GUI application (Apple II emulator, links CassoCore and CassoEmuCore)
+- **CassoCli** — Console application (AS65-compatible assembler CLI, links CassoCore)
+- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links CassoCore and CassoEmuCore)
 
 ## C++ Specific Guidelines
 
@@ -177,7 +177,7 @@ void Function2()
 - Use `TestCpu::WriteBytes()` to set up instruction sequences in memory
 - Use `TestCpu::Step()` / `StepN()` to execute instructions
 - Call `CpuOperations` static methods directly for unit-level tests
-- No test may run the real `Casso65` binary
+- No test may run the real `CassoCli` binary
 
 ## Build System
 

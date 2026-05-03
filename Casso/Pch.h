@@ -31,7 +31,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../Casso65Core/Ehm.h"
+#include "../CassoCore/Ehm.h"
 
 using namespace std;
 namespace fs = std::filesystem;

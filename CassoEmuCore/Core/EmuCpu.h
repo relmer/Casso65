@@ -12,7 +12,7 @@
 //
 //  EmuCpu
 //
-//  Subclass of Casso65Core Cpu that routes memory access through MemoryBus.
+//  Subclass of CassoCore Cpu that routes memory access through MemoryBus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,15 +3,15 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/Casso65Core",
-                "${workspaceFolder}/Casso65",
-                "${workspaceFolder}/Casso65Emu",
-                "${workspaceFolder}/Casso65EmuCore",
+                "${workspaceFolder}/CassoCore",
+                "${workspaceFolder}/CassoCli",
+                "${workspaceFolder}/Casso",
+                "${workspaceFolder}/CassoEmuCore",
                 "${workspaceFolder}/UnitTest",
                 "${env:ProgramFiles}/Microsoft Visual Studio/**/VC/Auxiliary/VS/UnitTest/include"
             ],
             "forcedInclude": [
-                "${workspaceFolder}/Casso65Emu/Pch.h"
+                "${workspaceFolder}/Casso/Pch.h"
             ],
             "defines": [
                 "_DEBUG",

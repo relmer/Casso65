@@ -1,23 +1,23 @@
-# CLI Contract: Casso65Emu
+# CLI Contract: Casso
 
 **Feature**: `003-apple2-platform-emulator`
 **Date**: 2025-07-22
 
 ## Executable
 
-`Casso65Emu.exe` — Win32 GUI application (WINDOWS subsystem)
+`Casso.exe` — Win32 GUI application (WINDOWS subsystem)
 
 ## Command-Line Arguments
 
 ```
-Casso65Emu.exe --machine <name> [--disk1 <path>] [--disk2 <path>]
+Casso.exe --machine <name> [--disk1 <path>] [--disk2 <path>]
 ```
 
 ### Required Arguments
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `--machine <name>` | string | Machine configuration name. Resolves to `Casso65Emu/machines/<name>.json`. |
+| `--machine <name>` | string | Machine configuration name. Resolves to `Casso/machines/<name>.json`. |
 
 ### Optional Arguments
 
@@ -38,16 +38,16 @@ Casso65Emu.exe --machine <name> [--disk1 <path>] [--disk2 <path>]
 
 ```bash
 # Boot Apple II+ to BASIC prompt
-Casso65Emu.exe --machine apple2plus
+Casso.exe --machine apple2plus
 
 # Boot Apple II+ with DOS 3.3 disk
-Casso65Emu.exe --machine apple2plus --disk1 dos33.dsk
+Casso.exe --machine apple2plus --disk1 dos33.dsk
 
 # Boot Apple IIe with ProDOS
-Casso65Emu.exe --machine apple2e --disk1 prodos.dsk
+Casso.exe --machine apple2e --disk1 prodos.dsk
 
 # Boot original Apple II (Integer BASIC)
-Casso65Emu.exe --machine apple2
+Casso.exe --machine apple2
 ```
 
 ## Error Behavior

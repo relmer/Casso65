@@ -59,7 +59,7 @@ All production code MUST have corresponding unit tests:
 
 All user-facing output MUST follow established patterns:
 
-- **CLI Syntax**: Use standard `--flag` long options and `-f` short options; subcommand style (`Casso65 assemble`, `Casso65 run`)
+- **CLI Syntax**: Use standard `--flag` long options and `-f` short options; subcommand style (`CassoCli assemble`, `CassoCli run`)
 - **Error Messages**: Errors go to stderr; user-facing messages MUST be clear, actionable, and consistent in tone
 - **Help System**: All features MUST be documented in `--help` output
 - **Backward Compatibility**: Existing command-line behavior MUST NOT change without explicit user notification

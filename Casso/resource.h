@@ -1,6 +1,6 @@
 #pragma once
 
-// Resource IDs for Casso65Emu
+// Resource IDs for Casso
 
 // Menu IDs
 #define IDM_FILE_OPEN               40001

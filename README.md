@@ -19,10 +19,10 @@ The project includes:
 
 ```
 Casso65.sln
-├── Casso65Core/     Static library — CPU emulator, assembler, parser, opcode table
-├── Casso65EmuCore/  Static library — Apple II devices, video modes, audio generator
-├── Casso65Emu/      Win32 application — Apple II platform emulator (D3D11, WASAPI)
-├── Casso65/         Console application — AS65-compatible assembler CLI with `run` subcommand
+├── CassoCore/     Static library — CPU emulator, assembler, parser, opcode table
+├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator
+├── Casso/      Win32 application — Apple II platform emulator (D3D11, WASAPI)
+├── CassoCli/        Console application — AS65-compatible assembler CLI with `run` subcommand
 └── UnitTest/       Test DLL — Microsoft Native CppUnitTest (787+ tests)
 ```
 
@@ -67,23 +67,23 @@ Casso65.sln
 
 ```powershell
 # Assemble a source file to a flat binary (AS65 mode — no subcommand)
-.\x64\Debug\Casso65.exe input.a65 -o output.bin
+.\x64\Debug\CassoCli.exe input.a65 -o output.bin
 
 # Assemble with a listing file and a symbol table
-.\x64\Debug\Casso65.exe input.a65 -o output.bin -l listing.txt -t
+.\x64\Debug\CassoCli.exe input.a65 -o output.bin -l listing.txt -t
 
 # Output Motorola S-record (.s19) or Intel HEX (.hex)
-.\x64\Debug\Casso65.exe input.a65 -s   -o output.s19
-.\x64\Debug\Casso65.exe input.a65 -s2  -o output.hex
+.\x64\Debug\CassoCli.exe input.a65 -s   -o output.s19
+.\x64\Debug\CassoCli.exe input.a65 -s2  -o output.hex
 
 # Pre-define a symbol on the command line, generate cycle counts in the listing
-.\x64\Debug\Casso65.exe input.a65 -d DEBUG=1 -cl listing.txt
+.\x64\Debug\CassoCli.exe input.a65 -d DEBUG=1 -cl listing.txt
 
 # Assemble and run an assembly source directly
-.\x64\Debug\Casso65.exe run input.a65
+.\x64\Debug\CassoCli.exe run input.a65
 
 # Load and run a pre-assembled binary at a specific address
-.\x64\Debug\Casso65.exe run output.bin --load $8000
+.\x64\Debug\CassoCli.exe run output.bin --load $8000
 ```
 
 ### Apple II Emulator
@@ -97,10 +97,10 @@ distributed with this project. A script is included to download them from the
 .\scripts\FetchRoms.ps1
 
 # Run the emulator (defaults to Apple II+)
-.\ARM64\Debug\Casso65Emu.exe
+.\ARM64\Debug\Casso.exe
 
 # Run with a specific machine config
-.\ARM64\Debug\Casso65Emu.exe --machine machines\apple2e.json
+.\ARM64\Debug\Casso.exe --machine machines\apple2e.json
 ```
 
 The `roms/` directory is gitignored. Available machine configs are in `machines/`.
