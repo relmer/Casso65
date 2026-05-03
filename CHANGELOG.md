@@ -6,48 +6,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.0.244] — 2026-05-03
 
 ### Added
-- **Cycle-accurate instruction timing** — added `baseCycles` field to `Microcode` struct
-  with canonical NMOS 6502 cycle counts for all 151 legal opcodes; `StepOne` now uses
-  `baseCycles` directly instead of counting bus transactions, with runtime penalties for
-  page-crossing (+1) and branch-taken (+1/+2); fixes ~30% cycle undercount that caused
-  the CPU to run too fast and audio pitch to be too high
+- **Apple II platform emulator (Casso.exe)** — GUI-based Apple II, II+, and IIe emulator
+  with D3D11 rendering, WASAPI audio, data-driven JSON machine configs, and keyboard input
+- **CPU thread architecture** — dedicated CPU thread for 6502 execution and audio,
+  UI thread for Win32 messages and D3D Present with vsync
+- **Status bar** — shows CPU type, clock speed (MHz), machine name, and device count;
+  clicking devices shows a popup listing all bus-mapped devices with address ranges
+- **Edit menu** — Copy Text (reads 40×24 text screen as ASCII), Copy Screenshot
+  (framebuffer as DIB bitmap), Paste (Ctrl+V feeds clipboard into keyboard)
+- **Window base class** — ported from Mandelbrot repo, virtual On* message handlers;
+  EmulatorShell and DebugConsole derive from it
+- **ComPtr\<T\>** — Microsoft::WRL::ComPtr alias replaces all raw COM pointer management
+  in D3DRenderer and WasapiAudio; eliminates manual Release() chains
+- **Table-driven menus** — MenuSystem uses static MenuItem arrays and BuildPopupMenu loop
+- **Apple II key constants** — kAppleKeyLeft/Right/Up/Down/Escape/Delete in AppleKeyboard.h
+- **JsonValue typed accessors** — GetString/GetInt/GetUint32/GetBool/GetObject/GetArray
+  with HRESULT + out param; specific error codes (JSON_E_KEY_MISSING, JSON_E_TYPE_MISMATCH)
+- **EHM unified architecture** — single \_\_EHM\_Base macro; F suffix for failure actions
+  (CHRF, CBRF, CWRF); N suffix implemented as F + EhmNotifyUser; legacy \_SetError removed
+- **Cycle-accurate instruction timing** — baseCycles in Microcode with runtime page-cross
+  and branch-taken penalties
+- **1ms execution slicing** — CPU runs in ~1023-cycle slices with per-slice audio submission,
+  inspired by AppleWin's architecture
+- **Pending audio buffer** — decouples PCM generation from WASAPI drain to prevent stutter
+- **PathResolver with std::filesystem::path** — replaces manual string concatenation and
+  WideToNarrow/NarrowToWide conversion functions
+- **DPI-scaled debug console font** — uses GetDpiForWindow + MulDiv
+
+### Changed
+- **Project rename** — Casso65Core → CassoCore, Casso65EmuCore → CassoEmuCore,
+  Casso65Emu → Casso, Casso65 → CassoCli; repo renamed to relmer/Casso
+- **Exact NTSC timing** — CPU clock 1,022,727 Hz (was 1,023,000), cycles/frame 17,030
+  (was 17,050); derived from 14.31818 MHz crystal
+- **Speaker amplitude** — ±0.25f (was ±1.0f) to match reference audio levels
+- **WASAPI buffer** — 100ms (was 33ms) for jitter headroom
+- **D3D vsync** — Present(1) on UI thread, Present(0) was double-gating with frame timer
+- **using namespace std** + **namespace fs** in both Emu Pch.h files
+- **In-class member initialization** preferred over constructor initializer lists
+- **Casso65Emu flattened** — removed Audio/, Shell/, Resources/, shaders/ subdirectories
+- **machines/ → Machines/, roms/ → ROMs/** — directory casing standardized
 
 ### Fixed
-- **Audio buzz during boot** — WASAPI audio was filling the entire available buffer
-  (up to 33 ms) with one frame's worth of speaker toggle data (16.67 ms), stretching
-  timestamps and creating a sustained buzz; capped audio submission to one frame's
-  worth of samples and pre-filled the initial buffer with silence
-- **Bright green screen (CPU not executing ROM)** — `Cpu::StepOne` and `Cpu::Run`
-  fetched opcodes via `memory[PC]` directly, bypassing `EmuCpu::ReadByte` override
-  that routes through the MemoryBus; changed to call virtual `ReadByte(PC)` so the
-  CPU correctly reads ROM and I/O through the bus
-- **Debug console close kills emulator** — closing the debug console window (Ctrl+D)
-  sent CTRL_CLOSE_EVENT which terminated the entire process; added a console control
-  handler that intercepts the event and calls FreeConsole instead
-- ROM search path bug: ROM files are now searched independently across all search paths,
-  fixing failures when `Machines/` and `ROMs/` are at different base directories
-- **Black screen in Casso** — D3D11 shaders were never compiled, so the textured
-  quad draw call was skipped and only the black clear color was displayed; implemented
-  runtime shader compilation via D3DCompile
-
-### Added
-- `PathResolver` class in CassoEmuCore — testable search-path logic for locating
-  machine configs and ROM files
-- `MemoryRegion::resolvedPath` — fully resolved ROM path stored after config loading
-- Unit tests for `PathResolver` (BuildSearchPaths, FindFile) and `MachineConfigLoader`
-  (Load, ROM resolution, error cases)
-- **VideoRenderTests** — 7 new tests verifying all video renderers (text, lo-res, hi-res)
-  work correctly with real memory pointers, not just nullptr; catches the green-screen bug
-- **EmuCpu memory validation tests** — 6 new tests verifying GetMemory() non-null,
-  PokeByte/WriteByte dual-sync to internal memory and bus, STA instruction end-to-end
-  visibility to video renderers
-- **AudioGenerator** — extracted PCM generation from `WasapiAudio::SubmitFrame` into a
-  testable `AudioGenerator::GeneratePCM` static method in CassoEmuCore
-- **AudioTests** — 15 adversarial audio tests covering silence/DC, single toggle, square
-  wave, rapid toggles, edge cases (zero cycles, zero samples), and speaker-to-PCM pipeline
+- **Mixed-mode text flicker** — framebuffer race condition; CPU thread now copies completed
+  framebuffer to UI buffer under mutex
+- **Hi-res NTSC colors** — two-pass renderer correctly handles cross-byte-boundary adjacent
+  pixels; HCOLOR=3 renders as solid white
+- **Power cycle** — now clears RAM ($0000-$BFFF) for cold boot with APPLE ][ banner
+- **Paste drops characters** — DrainPasteBuffer now checks keyboard strobe before feeding
+  next character
+- **Duplicate AddDevice** — every device was registered twice on the memory bus
+- **Bus overlap detection** — Validate() uses CBRN with specific conflicting address ranges
+- **Title bar garbage** — em-dash encoded as UTF-8 in source, replaced with \\u2014 escape
+- **Debug console newlines** — bare LF converted to CRLF for Win32 EDIT control
+- **Audio buzz during boot** — capped submission to one frame, pre-filled silence
+- **Green screen** — CPU opcode fetch now uses virtual ReadByte through MemoryBus
+- **Black screen** — D3D11 shaders implemented via runtime D3DCompile
+- **ParseHexAddress** — overflow and invalid-char validation added
 
 ## [0.9.32] — 2026-04-28
 
