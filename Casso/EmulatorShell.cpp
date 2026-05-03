@@ -1365,7 +1365,8 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
-    if      (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
+    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)       { OnEditCommand (id); }
+    else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
     else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_RESET_SIZE)    { OnViewCommand (id); }
