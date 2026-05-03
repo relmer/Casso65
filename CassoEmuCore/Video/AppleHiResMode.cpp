@@ -69,67 +69,68 @@ Word AppleHiResMode::GetActivePageAddress (bool page2) const
 
 void AppleHiResMode::Render (
     const Byte * videoRam,
-    uint32_t * framebuffer,
-    int fbWidth,
-    int fbHeight)
+    uint32_t   * framebuffer,
+    int          fbWidth,
+    int          fbHeight)
 {
+    Word     pageBase = GetActivePageAddress (m_page2);
+    bool     pixels[280]   = {};
+    bool     palettes[280] = {};
+    Byte     data     = 0;
+    bool     palBit   = false;
+    uint32_t color    = 0;
+    int      fbX      = 0;
+    int      fbY      = 0;
+    bool     leftOn   = false;
+    bool     rightOn  = false;
 
-    Word pageBase = GetActivePageAddress (m_page2);
+
 
     for (int scanline = 0; scanline < 192; scanline++)
     {
         Word lineAddr = ScanlineAddress (scanline, pageBase);
 
-        bool prevPixelOn = false;
-
+        // Pass 1: decode all 280 pixels and palette bits
         for (int byteIdx = 0; byteIdx < 40; byteIdx++)
         {
-            Byte data = (videoRam ? videoRam[static_cast<Word> (lineAddr + byteIdx)] : m_bus.ReadByte (static_cast<Word> (lineAddr + byteIdx)));
+            data   = videoRam
+                   ? videoRam[static_cast<Word> (lineAddr + byteIdx)]
+                   : m_bus.ReadByte (static_cast<Word> (lineAddr + byteIdx));
+            palBit = (data & 0x80) != 0;
 
-            bool paletteBit = (data & 0x80) != 0;
-
-            // 7 pixels per byte (bits 0-6, LSB = leftmost)
             for (int bit = 0; bit < 7; bit++)
             {
-                bool pixelOn = (data & (1 << bit)) != 0;
-                int screenCol = byteIdx * 7 + bit;
+                int x = byteIdx * 7 + bit;
 
-                uint32_t color;
+                pixels[x]   = (data & (1 << bit)) != 0;
+                palettes[x] = palBit;
+            }
+        }
 
-                if (!pixelOn)
+        // Pass 2: determine color for each pixel
+        fbY = scanline * 2;
+
+        for (int x = 0; x < 280; x++)
+        {
+            if (!pixels[x])
+            {
+                color = kNtscBlack;
+            }
+            else
+            {
+                leftOn  = (x > 0)   && pixels[x - 1];
+                rightOn = (x < 279) && pixels[x + 1];
+
+                if (leftOn || rightOn)
                 {
-                    color = kNtscBlack;
-                }
-                else if (prevPixelOn || (bit < 6 && (data & (1 << (bit + 1)))))
-                {
-                    // Adjacent ON pixels = white
                     color = kNtscWhite;
-
-                    // Also make previous pixel white if it was a non-white color
-                    if (prevPixelOn && screenCol > 0)
-                    {
-                        int prevFbX = (screenCol - 1) * 2;
-                        int fbY     = scanline * 2;
-
-                        if (prevFbX >= 0 && prevFbX + 1 < fbWidth)
-                        {
-                            framebuffer[fbY * fbWidth + prevFbX]     = kNtscWhite;
-                            framebuffer[fbY * fbWidth + prevFbX + 1] = kNtscWhite;
-
-                            if (fbY + 1 < fbHeight)
-                            {
-                                framebuffer[(fbY + 1) * fbWidth + prevFbX]     = kNtscWhite;
-                                framebuffer[(fbY + 1) * fbWidth + prevFbX + 1] = kNtscWhite;
-                            }
-                        }
-                    }
                 }
                 else
                 {
-                    // Single pixel ON — color depends on column and palette
-                    bool evenCol = (screenCol % 2) == 0;
+                    // Isolated pixel — artifact color
+                    bool evenCol = (x % 2) == 0;
 
-                    if (!paletteBit)
+                    if (!palettes[x])
                     {
                         color = evenCol ? kNtscViolet : kNtscGreen;
                     }
@@ -138,21 +139,15 @@ void AppleHiResMode::Render (
                         color = evenCol ? kNtscBlue : kNtscOrange;
                     }
                 }
-
-                // Write 2x2 pixels to framebuffer (560x384 from 280x192)
-                int fbX = screenCol * 2;
-                int fbY = scanline * 2;
-
-                if (fbX + 1 < fbWidth && fbY + 1 < fbHeight)
-                {
-                    framebuffer[fbY * fbWidth + fbX]           = color;
-                    framebuffer[fbY * fbWidth + fbX + 1]       = color;
-                    framebuffer[(fbY + 1) * fbWidth + fbX]     = color;
-                    framebuffer[(fbY + 1) * fbWidth + fbX + 1] = color;
-                }
-
-                prevPixelOn = pixelOn;
             }
+
+            // Write 2x2 pixels to framebuffer (560x384 from 280x192)
+            fbX = x * 2;
+
+            framebuffer[fbY       * fbWidth + fbX]     = color;
+            framebuffer[fbY       * fbWidth + fbX + 1] = color;
+            framebuffer[(fbY + 1) * fbWidth + fbX]     = color;
+            framebuffer[(fbY + 1) * fbWidth + fbX + 1] = color;
         }
     }
 }
