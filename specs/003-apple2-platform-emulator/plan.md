@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a GUI-based Apple II platform emulator to the Casso65 solution as two new projects: `CassoEmuCore` (static library with emulator core logic — devices, video, audio, config) and `Casso` (Win32 GUI application). The emulator links against the existing CassoCore static library and provides data-driven machine configurations (JSON) for Apple II, Apple II+, and Apple IIe. All three target machines use the NMOS 6502 CPU (65C02 support for Enhanced IIe and //c is out of scope). It renders via Direct3D 11 with ComPtr<T> COM management, generates audio through WASAPI with 1ms execution slices on a dedicated CPU thread, and uses a component registry architecture to map named device types to C++ classes. The emulator supports text mode, lo-res graphics, hi-res graphics with NTSC color artifacting, 80-column/double hi-res (IIe), Disk II controller emulation (.dsk format), and Language Card bank-switching. No third-party libraries are used.
+Add a GUI-based Apple II platform emulator to the Casso solution as two new projects: `CassoEmuCore` (static library with emulator core logic — devices, video, audio, config) and `Casso` (Win32 GUI application). The emulator links against the existing CassoCore static library and provides data-driven machine configurations (JSON) for Apple II, Apple II+, and Apple IIe. All three target machines use the NMOS 6502 CPU (65C02 support for Enhanced IIe and //c is out of scope). It renders via Direct3D 11 with ComPtr<T> COM management, generates audio through WASAPI with 1ms execution slices on a dedicated CPU thread, and uses a component registry architecture to map named device types to C++ classes. The emulator supports text mode, lo-res graphics, hi-res graphics with NTSC color artifacting, 80-column/double hi-res (IIe), Disk II controller emulation (.dsk format), and Language Card bank-switching. No third-party libraries are used.
 
 ## Technical Context
 
@@ -52,7 +52,7 @@ Add a GUI-based Apple II platform emulator to the Casso65 solution as two new pr
 - **YAGNI**: No CRT shader (grayed-out menu item), no .nib/.woz formats, no network play. Only what's specified.
 - **Single responsibility**: Each device class handles one hardware component. MemoryBus only routes addresses. EmulatorShell only coordinates frame loop.
 - **Function size**: All functions under 50 lines. Video renderers use helper functions for row address calculation, byte decoding, color lookup.
-- **File scope**: CassoEmuCore static library (extracted from Casso for faster test builds) + Casso Win32 GUI. Total: 5 projects (CassoCore, CassoEmuCore, Casso, Casso65, UnitTest). CassoCore change is minimal (`virtual` keyword on 4 protected methods).
+- **File scope**: CassoEmuCore static library (extracted from Casso for faster test builds) + Casso Win32 GUI. Total: 5 projects (CassoCore, CassoEmuCore, Casso, Casso, UnitTest). CassoCore change is minimal (`virtual` keyword on 4 protected methods).
 
 ### Technology Constraints — ✅ PASS
 
@@ -79,7 +79,7 @@ specs/003-apple2-platform-emulator/
 ### Source Code (repository root)
 
 ```text
-Casso65.sln                          # Updated — adds CassoEmuCore and Casso projects
+Casso.sln                          # Updated — adds CassoEmuCore and Casso projects
 ├── CassoCore/                     # Existing static library (minimal change: virtual keyword)
 │   ├── Cpu.h                        #   ReadByte/WriteByte/ReadWord/WriteWord → virtual
 │   └── (all other files unchanged)
@@ -159,6 +159,6 @@ Casso65.sln                          # Updated — adds CassoEmuCore and Casso p
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| 4th+5th projects (CassoEmuCore + Casso) | GUI emulator is fundamentally different from CLI assembler — different entry point (WinMain vs main), different dependencies (D3D11, WASAPI, Win32 menus), different subsystem (WINDOWS vs CONSOLE). CassoEmuCore extracted as static library so UnitTest can link it without pulling in Win32 GUI dependencies (faster test builds) | Merging into Casso65 CLI would violate single responsibility and add GUI dependencies to a command-line tool; a single Casso project would require UnitTest to link GUI code |
+| 4th+5th projects (CassoEmuCore + Casso) | GUI emulator is fundamentally different from CLI assembler — different entry point (WinMain vs main), different dependencies (D3D11, WASAPI, Win32 menus), different subsystem (WINDOWS vs CONSOLE). CassoEmuCore extracted as static library so UnitTest can link it without pulling in Win32 GUI dependencies (faster test builds) | Merging into Casso CLI would violate single responsibility and add GUI dependencies to a command-line tool; a single Casso project would require UnitTest to link GUI code |
 | ~14 device component classes | Each device implements distinct hardware behavior (stepper motor state machine, bank-switching sequencing, speaker toggle, NTSC color decoding, etc.) that cannot be generalized | A single "GenericDevice" would require massive switch statements and violate SRP; the component registry architecture enables extensibility per FR-003 |
 | Hand-written JSON parser | No third-party libs allowed; WinRT JSON APIs require UWP or C++/WinRT projection library (effectively third-party) | ~500-700 lines of self-contained code; well-defined schema makes this tractable and fully testable |

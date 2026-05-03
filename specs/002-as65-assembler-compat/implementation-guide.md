@@ -48,10 +48,10 @@ Do NOT rewrite the entire Assemble() method at once. Instead:
 
 ### Files to Modify
 
-- `Casso65Core/Assembler.cpp` — Pass 2 value resolution, directive handling
-- `Casso65Core/Assembler.h` — may need `#include "ExpressionEvaluator.h"`
-- `Casso65Core/Parser.h` — add `expression` field to `ClassifiedOperand` (or create a new operand struct)
-- `Casso65Core/Parser.cpp` — store raw operand text for expression evaluation
+- `CassoCore/Assembler.cpp` — Pass 2 value resolution, directive handling
+- `CassoCore/Assembler.h` — may need `#include "ExpressionEvaluator.h"`
+- `CassoCore/Parser.h` — add `expression` field to `ClassifiedOperand` (or create a new operand struct)
+- `CassoCore/Parser.cpp` — store raw operand text for expression evaluation
 
 ### What NOT to Change
 

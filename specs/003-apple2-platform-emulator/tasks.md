@@ -25,7 +25,7 @@
 - [X] T002 Create precompiled header `Casso/Pch.h` and `Casso/Pch.cpp` including `<windows.h>`, `<d3d11.h>`, `<dxgi.h>`, `<mmdeviceapi.h>`, `<audioclient.h>`, `<string>`, `<vector>`, `<memory>`, `<unordered_map>`
 - [X] T003 Create project directory structure: `Casso/Core/`, `Casso/Devices/`, `Casso/Video/`, `Casso/Audio/`, `Casso/Shell/`, `Casso/Resources/`, `Casso/machines/`, `Casso/roms/`, `Casso/shaders/`
 - [X] T004 [P] Add `Casso/roms/` to `.gitignore` to exclude user-supplied ROM images from source control
-- [X] T005 [P] Update `Casso65.sln` to include the new `Casso` project with correct project dependencies (depends on CassoCore)
+- [X] T005 [P] Update `Casso.sln` to include the new `Casso` project with correct project dependencies (depends on CassoCore)
 - [X] T006 Make `ReadByte`, `WriteByte`, `ReadWord`, `WriteWord` virtual in `CassoCore/Cpu.h` (lines 85–88, protected interface only — no public API change)
 - [X] T007 Verify all 577+ existing unit tests still pass after the virtual keyword change in T006
 
@@ -85,7 +85,7 @@
 - [X] T030 [US1] Register `AppleKeyboard`, `AppleSoftSwitchBank` factories and `AppleTextMode` video mode in `RegisterBuiltinDevices()` in `Casso/Core/ComponentRegistry.cpp`
 - [X] T031 [US1] Wire keyboard input from `WM_KEYDOWN`/`WM_CHAR` Win32 messages through `EmulatorShell` to `AppleKeyboard` device — translate PC key codes to Apple II ASCII, handle Ctrl+Reset (warm reset via reset vector per FR-032), integrate into frame loop
 - [X] T032 [US1] Implement emulation timing in `EmulatorShell` — execute ~17,050 CPU cycles per frame via `EmuCpu::StepOne()` loop, select active `VideoOutput` based on soft switch state, call `Render()` to fill framebuffer, `UploadAndPresent()`, `QueryPerformanceCounter`-based frame timing at ~60 fps, speed synchronization with idle time insertion
-- [X] T033 [US1] Implement window title bar updates in `EmulatorShell` — display `"Casso65 — Apple II+ [Running]"` per FR-022, update state to Paused/Stopped when applicable
+- [X] T033 [US1] Implement window title bar updates in `EmulatorShell` — display `"Casso — Apple II+ [Running]"` per FR-022, update state to Paused/Stopped when applicable
 - [X] T034 [US1] Implement Pause/Resume (Pause key) and Step (F11 when paused) in `EmulatorShell` per FR-032 — pause halts CPU execution but keeps window responsive, step executes one `StepOne()` call
 
 **Checkpoint**: User Story 1 complete — Apple II+ boots to `]` prompt, keyboard works, text displays correctly. This is the MVP.
@@ -405,5 +405,5 @@ Thorough unit test coverage for all new production code. Tests go in `UnitTest/E
 
 - [X] **T091** [US7] Implement File > Open Machine Config dialog: Win32 `GetOpenFileName` filtered to `.json` files, tear down current machine (stop emulation, release devices, clear bus), load new config, reinitialize and start emulation. (`Casso/EmulatorShell.cpp`)
 - [X] **T092** [US7] Implement File > Recent Machines submenu: track last 5 machine configs in a simple `.ini` or registry key, populate submenu dynamically, select to load. (`Casso/EmulatorShell.cpp`)
-- [X] **T093** Implement Help > About Casso65 dialog: `DialogBox` with version string from `Version.h`, project URL, copyright. (`Casso/EmulatorShell.cpp`)
+- [X] **T093** Implement Help > About Casso dialog: `DialogBox` with version string from `Version.h`, project URL, copyright. (`Casso/EmulatorShell.cpp`)
 - [X] **T094** Fix accelerator table (T018): add `Ctrl+Shift+1` (Drive 1 Eject), `Ctrl+Shift+2` (Drive 2 Eject) to keyboard accelerator table. (`Casso/main.cpp`)

@@ -4,7 +4,7 @@
 **Created**: 2025-07-22  
 **Status**: In Progress  
 **Last Updated**: 2025-07-27  
-**Input**: User description: "Add a GUI-based Apple II platform emulator (Casso) to the Casso65 6502 emulator project"
+**Input**: User description: "Add a GUI-based Apple II platform emulator (Casso) to the Casso 6502 emulator project"
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -155,10 +155,10 @@ A developer creates a new machine configuration JSON file and registers new devi
 - **FR-016**: System MUST accept command-line arguments: `--machine <name>` (required), `--disk1 <path>` (optional), `--disk2 <path>` (optional)
 - **FR-017**: System MUST NOT depend on any third-party libraries; only the Windows SDK and C++ Standard Library are permitted
 - **FR-018**: System MUST validate machine config files at startup and report clear, actionable errors for missing files, unknown device types, overlapping address ranges, and malformed JSON
-- **FR-019**: System MUST preserve all existing Casso65 project functionality — the existing 787+ unit tests must continue to pass with no changes to CassoCore's public API
+- **FR-019**: System MUST preserve all existing Casso project functionality — the existing 787+ unit tests must continue to pass with no changes to CassoCore's public API
 - **FR-020**: System MUST integrate with the existing CassoCore `Cpu` class by subclassing it (e.g., `EmuCpu`) and overriding the memory access methods (`ReadByte`, `WriteByte`, `ReadWord`, `WriteWord`) to route through the MemoryBus instead of the flat `memory[]` array. The base `Cpu` methods must be made `virtual` (a non-breaking change to the protected interface — no public API change). The existing `PeekByte`/`PokeByte` public accessors and all unit tests remain unaffected.
 - **FR-021**: System MUST use the existing NMOS 6502 CPU emulation for all three target machines (Apple II, II+, IIe). The original Apple IIe (1983) uses the NMOS 6502, not the 65C02. Support for the Enhanced IIe (65C02) and Apple //c is out of scope for this spec and may be added as a future enhancement.
-- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso65 — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a resizable client area with Per-Monitor V2 DPI awareness. The default size is 560×384 pixels (2× scaling of 280×192).
+- **FR-022**: System MUST display a Win32 window with a title bar showing the machine name and emulation state (e.g., "Casso — Apple II+ [Running]"), a menu bar (see Menu Hierarchy below), and a resizable client area with Per-Monitor V2 DPI awareness. The default size is 560×384 pixels (2× scaling of 280×192).
 
 ### Menu Hierarchy
 
@@ -209,7 +209,7 @@ View
 Help
 ├── Keyboard Map...            F1
 ├── Debug Console...           Ctrl+D
-└── About Casso65...
+└── About Casso...
 ```
 
 Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed out until the feature is available. Speed and Color Mode items use radio-button check marks to show the current selection. The Debug Console window shows diagnostic log output, machine config summary, device wiring status, and unhandled soft switch accesses.
@@ -247,7 +247,7 @@ Menu items that depend on unimplemented features (e.g., CRT Shader) are grayed o
 - **SC-004**: All 16 Apple II lo-res colors display correctly and are visually distinguishable on a modern monitor
 - **SC-005**: Hi-res graphics programs produce color output consistent with NTSC artifacting behavior documented in Apple II technical references
 - **SC-006**: Emulation runs at 100% real-time speed (1,022,727 Hz effective) on any modern Windows PC without frame drops during normal operation
-- **SC-007**: All existing 787+ Casso65 unit tests continue to pass after adding the new project
+- **SC-007**: All existing 787+ Casso unit tests continue to pass after adding the new project
 - **SC-008**: A developer can add support for a new machine type by creating a JSON config file and writing device component classes, without modifying the emulator shell, MemoryBus, or any existing machine configs
 - **SC-009**: Apple IIe emulation supports 80-column text mode and double hi-res graphics, running software that requires these features
 - **SC-010**: The emulator exits cleanly when encountering configuration errors, providing error messages that identify the specific problem (missing ROM, unknown device, invalid JSON) and suggest corrective action
@@ -263,7 +263,7 @@ These are binding architectural choices made during design. They constrain all d
 | **Rendering API** | Direct3D 11 | Windows SDK built-in (not third-party). Enables future CRT shader effects (scanlines, bloom, curvature) via HLSL pixel shaders. Simpler than GDI for scaled framebuffer output. Video renderers write RGBA to a CPU-side framebuffer; the framebuffer is uploaded to a D3D11 texture and drawn as a full-window textured quad. No GDI/DIB involved. |
 | **Window framework** | Raw Win32 (`CreateWindowEx`, message pump, `CreateMenu`) | Zero dependencies. The window is primarily a D3D11 viewport with a menu bar — minimal UI. Can be upgraded to a richer framework later without affecting the rendering or emulation layers. |
 | **Audio API** | WASAPI (Windows Audio Session API) | Modern, low-latency, available on all Windows 10+ targets. Speaker toggle at $C030 generates square-wave samples pushed to a WASAPI shared-mode stream. |
-| **Third-party libraries** | None | Consistent with Casso65 project policy. Only Windows SDK + C++ STL. |
+| **Third-party libraries** | None | Consistent with Casso project policy. Only Windows SDK + C++ STL. |
 | **Machine configuration** | Data-driven JSON files + component registry | New machines added via config + device components. No machine-specific subclasses in the emulator shell. |
 | **Threading model** | CPU thread + UI thread | Dedicated CPU thread for emulation (1ms execution slices, WASAPI audio submission, framebuffer rendering). UI thread handles Win32 message pump, D3D11 Present(1) with vsync, keyboard dispatch. Shared state uses atomic keyboard latch, mutex-protected framebuffer, atomic flags, and a command queue. WASAPI init/submit/shutdown all on CPU thread with its own CoInitializeEx. |
 | **Disk write strategy** | User-selectable: buffer-and-flush or copy-on-write | Buffer-and-flush: changes held in memory, written to the .dsk file on eject or exit (matches real floppy behavior). Copy-on-write: original .dsk is never modified; changes saved to a sidecar `.delta` file. User selects via Disk menu. Default is buffer-and-flush. |
@@ -273,7 +273,7 @@ These are binding architectural choices made during design. They constrain all d
 ## Assumptions
 
 - Users provide their own Apple II ROM images (these are copyrighted and will not be distributed with the project); ROM files are gitignored
-- The emulator targets Windows 10/11 on x64 and ARM64 architectures, consistent with existing Casso65 platform support
+- The emulator targets Windows 10/11 on x64 and ARM64 architectures, consistent with existing Casso platform support
 - Direct3D 11 (part of the Windows SDK, not third-party) is used for rendering. A D3D11 device, swap chain, and single textured quad provide the display pipeline, enabling future CRT shader effects (scanlines, bloom, curvature) via HLSL. This approach is sufficient for the 1 MHz Apple II's display refresh requirements; no GPU acceleration is needed
 - The existing CassoCore 6502 CPU emulation is cycle-accurate enough to run Apple II software correctly; if timing adjustments are needed they will be addressed as bugs, not as spec changes
 - Disk II emulation supports the standard 140KB .dsk format (DOS-order, 16 sectors × 35 tracks); other formats (e.g., .nib, .woz) are out of scope for the initial implementation
@@ -281,7 +281,7 @@ These are binding architectural choices made during design. They constrain all d
 - The Apple II+ and original Apple II differ only in ROM content (Applesoft vs. Integer BASIC); both use the same machine config structure with different ROM file references
 - The focus is on accurate functional emulation, not cycle-exact hardware reproduction; minor timing differences that don't affect software compatibility are acceptable
 - The emulation uses a dedicated CPU thread for 6502 execution (1ms slices), WASAPI audio submission, and framebuffer rendering. The UI thread handles Win32 message pump, D3D11 Present(1) with vsync, and keyboard dispatch. Shared state uses atomic keyboard latch, mutex-protected framebuffer, atomic flags, and a command queue.
-- Making `Cpu::ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` virtual is a safe change to the protected (non-public) interface — it does not affect the existing Casso65 CLI or unit tests, which continue to use the base `Cpu` class with its flat memory array.
+- Making `Cpu::ReadByte`/`WriteByte`/`ReadWord`/`WriteWord` virtual is a safe change to the protected (non-public) interface — it does not affect the existing Casso CLI or unit tests, which continue to use the base `Cpu` class with its flat memory array.
 - The original Apple II (Integer BASIC) is a lower-priority configuration — most users will use Apple II+ or IIe. It is included for completeness but shares all components with the Apple II+ except the ROM file.
 
 ## Apple II Hardware Memory Maps
@@ -681,10 +681,10 @@ When the host PC is faster than the emulated clock speed (which it always will b
 
 ### Project Layout
 
-Casso is a new Win32 application project added to the `Casso65.sln` solution. It links against the CassoCore static library.
+Casso is a new Win32 application project added to the `Casso.sln` solution. It links against the CassoCore static library.
 
 ```
-Casso65.sln
+Casso.sln
 ├── CassoCore/       Static library — CPU, assembler (existing, unchanged)
 ├── CassoCli/           Console application — assembler CLI (existing, unchanged)
 ├── UnitTest/          Test DLL (existing, unchanged)
@@ -702,7 +702,7 @@ Casso65.sln
 
 - **Window type**: Win32 `HWND` created with `CreateWindowEx`, `WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX` (resize disabled in windowed mode)
 - **Client area**: Fixed 560×384 pixels (2× the Apple II 280×192 hi-res resolution)
-- **Title bar**: `"Casso65 — {machine name} [{state}]"` where state is Running, Paused, or Stopped (e.g., `"Casso65 — Apple II+ [Running]"`)
+- **Title bar**: `"Casso — {machine name} [{state}]"` where state is Running, Paused, or Stopped (e.g., `"Casso — Apple II+ [Running]"`)
 - **Menu bar**: See the authoritative Menu Hierarchy under FR-022 (File, Machine, Disk, View, Help)
 - **Fullscreen**: Alt+Enter toggles D3D11 swap chain fullscreen with aspect-ratio-correct scaling (FR-031)
 - **Disk insertion**: Uses standard Win32 `GetOpenFileName` dialog filtered to `.dsk` files

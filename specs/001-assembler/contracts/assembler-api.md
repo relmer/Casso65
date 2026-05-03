@@ -2,7 +2,7 @@
 
 **Feature**: 001-assembler | **Date**: 2026-04-23
 
-## Public API — Casso65Core (Assembler)
+## Public API — CassoCore (Assembler)
 
 ### Construction
 
@@ -126,12 +126,12 @@ Word addr = cpu.LabelAddress (result, "loop");
 
 ---
 
-## CLI Contract — Casso65 Executable
+## CLI Contract — Casso Executable
 
 ### Subcommand: `assemble`
 
 ```
-Casso65 assemble <input.asm> -o <output.bin> [options]
+Casso assemble <input.asm> -o <output.bin> [options]
 ```
 
 | Flag | Description |
@@ -150,7 +150,7 @@ Casso65 assemble <input.asm> -o <output.bin> [options]
 ### Subcommand: `run`
 
 ```
-Casso65 run <input.asm|input.bin> [options]
+Casso run <input.asm|input.bin> [options]
 ```
 
 | Flag | Description |

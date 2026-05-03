@@ -18,7 +18,7 @@ Follow-up TODOs: None
 ================================================================================
 -->
 
-# Casso65 Constitution
+# Casso Constitution
 
 ## Core Principles
 
@@ -74,7 +74,7 @@ Performance considerations apply where relevant:
 - **Reasonable Scale**: Assembler and emulator should handle typical 6502 programs (< 10K lines, 64 KB address space) without noticeable delay
 - **Resource Efficiency**: Prefer simple, direct implementations over over-engineered abstractions
 
-**Rationale**: Casso65 is a development tool; responsiveness matters for developer experience.
+**Rationale**: Casso is a development tool; responsiveness matters for developer experience.
 
 ### V. Simplicity & Maintainability
 

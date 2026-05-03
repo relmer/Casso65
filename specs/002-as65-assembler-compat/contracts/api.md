@@ -3,7 +3,7 @@
 **Feature**: 002-as65-assembler-compat  
 **Date**: 2026-04-25
 
-## Library API (Casso65Core)
+## Library API (CassoCore)
 
 ### Assembler Class
 
@@ -82,18 +82,18 @@ WriteIntelHex (output, stream, entryPoint)     → void
     → output contains byte ranges with start/end addresses.
 ```
 
-## CLI Contract (Casso65 executable)
+## CLI Contract (Casso executable)
 
 ### AS65-Compatible Flags
 
 ```
-casso65 [-cdghilmnopqstvwxz] file
+Casso [-cdghilmnopqstvwxz] file
 
   -c           Show cycle counts in listing
   -d<name>     Define symbol (default: DEBUG=1)
   -g           Generate debug information file
   -h<lines>    Page height (0=infinite)
-  -i           Case-insensitive opcodes (default in Casso65)
+  -i           Case-insensitive opcodes (default in Casso)
   -l           Generate pass 2 listing
   -l<file>     Listing file name
   -m           Show macro expansions in listing
@@ -109,18 +109,18 @@ casso65 [-cdghilmnopqstvwxz] file
   -z           Fill unused with $00 (default $FF)
 ```
 
-### Existing Casso65 CLI (preserved)
+### Existing Casso CLI (preserved)
 
 ```
-casso65 assemble <file> [-o <outfile>] [-l <labels>] [-a] [--fill N]
-casso65 run <file> [--stop ADDR] [--max-cycles N] [--entry ADDR] [--reset-vector]
-casso65 --help
-casso65 --version
+Casso assemble <file> [-o <outfile>] [-l <labels>] [-a] [--fill N]
+Casso run <file> [--stop ADDR] [--max-cycles N] [--entry ADDR] [--reset-vector]
+Casso --help
+Casso --version
 ```
 
 ### Compatibility Mode
 
-When invoked with AS65-style flags (single-dash concatenated), Casso65 operates in AS65 compatibility mode. When invoked with spec-001-style subcommands (`assemble`, `run`), it operates in Casso65 native mode. Both modes are supported simultaneously.
+When invoked with AS65-style flags (single-dash concatenated), Casso operates in AS65 compatibility mode. When invoked with spec-001-style subcommands (`assemble`, `run`), it operates in Casso native mode. Both modes are supported simultaneously.
 
 ## Return Codes (matching AS65)
 

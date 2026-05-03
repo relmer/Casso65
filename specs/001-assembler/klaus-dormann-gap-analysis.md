@@ -1,13 +1,13 @@
 # Klaus Dormann Functional Test Suite — Assembler Gap Analysis
 
-**Status**: Investigation report for issue [#26](https://github.com/relmer/Casso65/issues/26) (parent [#7](https://github.com/relmer/Casso65/issues/7))
+**Status**: Investigation report for issue [#26](https://github.com/relmer/Casso/issues/26) (parent [#7](https://github.com/relmer/Casso/issues/7))
 **Date**: 2026-04-25
 **Target source**: [`6502_functional_test.a65`](https://github.com/Klaus2m5/6502_65C02_functional_tests/blob/master/6502_functional_test.a65)
 **Target assembler dialect**: AS65 by Frank A. Kingswood (the suite was authored against AS65)
 
 ## Goal
 
-Determine whether Casso65's built-in two-pass assembler can assemble Klaus Dormann's
+Determine whether Casso's built-in two-pass assembler can assemble Klaus Dormann's
 6502 functional test suite as a precondition for issue #7. If gaps exist, list each
 missing assembler feature as a separate, file-ready GitHub issue with a clear scope,
 evidence drawn from the suite source, and acceptance criteria.
@@ -17,14 +17,14 @@ evidence drawn from the suite source, and acceptance criteria.
 1. Reviewed currently implemented features in `My6502Core/Assembler.cpp`,
    `My6502Core/Parser.cpp`, and the feature spec at `specs/001-assembler/spec.md`.
 2. Read `6502_functional_test.a65` from the upstream repository and catalogued every
-   distinct syntactic construct that Casso65 does not currently accept.
+   distinct syntactic construct that Casso does not currently accept.
 3. Cross-checked the "Out of Scope" section of the existing feature spec — items
    listed there (macros, conditional assembly, includes) are deliberately deferred
    and need to be re-scoped if we want to run Dormann's suite directly.
 
 ## Summary of current vs. required syntax
 
-| Capability                              | Casso65 today                                          | Dormann's suite needs                                                  | Gap |
+| Capability                              | Casso today                                          | Dormann's suite needs                                                  | Gap |
 |-----------------------------------------|--------------------------------------------------------|------------------------------------------------------------------------|:---:|
 | Mnemonics + addressing modes (NMOS)     | All 56 standard mnemonics, all modes                   | Same                                                                   |  —  |
 | Number literals                         | `$hex`, `%bin`, decimal                                | Same                                                                   |  —  |
@@ -97,7 +97,7 @@ All quotes are verbatim from `6502_functional_test.a65`:
 
 ## Conclusion
 
-**Casso65 cannot assemble Klaus Dormann's 6502 functional test suite as-is.** The
+**Casso cannot assemble Klaus Dormann's 6502 functional test suite as-is.** The
 core mnemonic/addressing-mode coverage is sufficient, but the surrounding meta-syntax
 (constant definitions, expressions, conditionals, and macros) is not. Closing #7 by
 running the suite from source therefore requires either:

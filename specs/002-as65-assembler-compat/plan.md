@@ -16,7 +16,7 @@ Extend the existing two-pass `Assembler` class (from spec 001) into a full AS65-
 **Storage**: N/A (in-memory processing; CLI does file I/O for input/output)  
 **Testing**: Microsoft Native CppUnitTest (CppUnitTestFramework)  
 **Target Platform**: Windows 10/11, x64 and ARM64  
-**Project Type**: Library (Casso65Core) + CLI (Casso65) + Test DLL (UnitTest)  
+**Project Type**: Library (CassoCore) + CLI (Casso) + Test DLL (UnitTest)  
 **Performance Goals**: Assemble the Dormann suite (~6100 lines, heavy macro expansion) in under 1 second  
 **Constraints**: Max 64 KB output image (6502 address space), no external dependencies  
 **Scale/Scope**: Full AS65 v1.42 feature set (6502 mode), ~96 functional requirements, 19 user stories
@@ -26,7 +26,7 @@ Extend the existing two-pass `Assembler` class (from spec 001) into a full AS65-
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 ### I. Code Quality — PASS
-- Formatting: Will follow existing Casso65 style (spaces, column alignment, 80-char comment delimiters)
+- Formatting: Will follow existing Casso style (spaces, column alignment, 80-char comment delimiters)
 - EHM macros: The assembler core is pure (string → result struct); EHM patterns used in CLI file I/O layer
 - Smart pointers: Used for macro storage and include file handles
 - Precompiled headers: All new `.cpp` files will include `"Pch.h"` first
@@ -55,7 +55,7 @@ Extend the existing two-pass `Assembler` class (from spec 001) into a full AS65-
 ### V. Simplicity & Maintainability — PASS
 - New expression evaluator is a single new file (~600 lines); recursive descent is the simplest correct approach
 - Macro/conditional/include processing added to existing `Assembler` class as private methods
-- No new projects added — all code fits in existing Casso65Core/Casso65/UnitTest
+- No new projects added — all code fits in existing CassoCore/Casso/UnitTest
 - Struct/cmap are self-contained features with no coupling to the main assembler loop beyond directive dispatch
 - **CPU extensibility**: The assembler engine (expressions, macros, conditionals, directives, segments, listing, CLI) is fully CPU-independent. The instruction set is injected via `OpcodeTable` at construction. Adding 65C02 or other architectures requires only a new instruction table and any new addressing mode patterns — no changes to core assembler logic.
 
@@ -85,7 +85,7 @@ specs/002-as65-assembler-compat/
 ### Source Code (repository root)
 
 ```text
-Casso65Core/
+CassoCore/
 ├── Assembler.h/.cpp         # Extended: conditionals, macros, includes, segments, struct, cmap
 ├── ExpressionEvaluator.h/.cpp  # NEW: recursive descent expression parser
 ├── Parser.h/.cpp            # Extended: colon-less labels, AS65 directives, constant syntax
@@ -95,9 +95,9 @@ Casso65Core/
 ├── Pch.h/.cpp               # Unchanged
 └── (existing files)         # Unchanged
 
-Casso65/
+Casso/
 ├── CommandLine.h/.cpp       # Extended: AS65-compatible flags
-└── Casso65.cpp              # Extended: new flags dispatched
+└── Casso.cpp              # Extended: new flags dispatched
 
 UnitTest/
 ├── ExpressionEvaluatorTests.cpp  # NEW
@@ -116,7 +116,7 @@ UnitTest/
 └── (existing files)              # Unchanged
 ```
 
-**Structure Decision**: No new projects. All assembler enhancements go into Casso65Core. New test files per feature area in UnitTest/ plus a data-driven ConformanceTests runner. Two new source files in Casso65Core (`ExpressionEvaluator`, `OutputFormats`). CLI extensions in existing Casso65 project. No external executables downloaded or run.
+**Structure Decision**: No new projects. All assembler enhancements go into CassoCore. New test files per feature area in UnitTest/ plus a data-driven ConformanceTests runner. Two new source files in CassoCore (`ExpressionEvaluator`, `OutputFormats`). CLI extensions in existing Casso project. No external executables downloaded or run.
 
 ## Complexity Tracking
 
@@ -140,7 +140,7 @@ UnitTest/
 - Existing tests unchanged — backward compatibility verified
 
 ### III. User Experience Consistency — PASS
-- CLI supports both AS65-style (`-l -m -s2`) and Casso65-style (`assemble`, `run`) invocation
+- CLI supports both AS65-style (`-l -m -s2`) and Casso-style (`assemble`, `run`) invocation
 - Error messages include file:line for included files
 - `--help` documents all new flags
 

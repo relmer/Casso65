@@ -1,8 +1,8 @@
-# Copilot Instructions for Casso65
+# Copilot Instructions for Casso
 
 ## Project Overview
 
-Casso65 is a 6502 CPU emulator, assembler, and Apple II platform emulator in C++.
+Casso is a 6502 CPU emulator, assembler, and Apple II platform emulator in C++.
 The solution has five projects:
 
 - **CassoCore** — Static library containing CPU logic, assembler, parser, opcode table

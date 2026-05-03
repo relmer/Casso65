@@ -10,7 +10,7 @@ assignees: ''
 A clear description of the problem.  "I'm always frustrated when..."
 
 **Describe the solution you'd like**
-What you want to happen.  "It'd be great if Casso65 ..."
+What you want to happen.  "It'd be great if Casso ..."
 
 **Describe alternatives you've considered**
 Any alternative solutions or workarounds you've tried.

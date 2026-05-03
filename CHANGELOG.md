@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Casso65 are documented in this file.
+All notable changes to Casso are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
@@ -89,7 +89,7 @@ Entries before versioning was introduced use dates only.
 ## 2026-04-25
 
 ### Changed
-- Project renamed from **My6502** to **Casso65**
+- Project renamed from **My6502** to **Casso**
 
 ## 2026-04-24
 

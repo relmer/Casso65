@@ -187,7 +187,7 @@ A developer uses an `ERROR` directive inside a conditional block to produce a fa
 
 ### User Story 10 - End-to-End Dormann Suite Assembly (Priority: P1)
 
-A developer assembles the complete Klaus Dormann 6502 functional test suite (`6502_functional_test.a65`) using the Casso65 assembler and the output binary matches a reference binary produced by an external AS65/CA65 assembler. The binary can then be loaded and executed by the CPU emulator.
+A developer assembles the complete Klaus Dormann 6502 functional test suite (`6502_functional_test.a65`) using the Casso assembler and the output binary matches a reference binary produced by an external AS65/CA65 assembler. The binary can then be loaded and executed by the CPU emulator.
 
 **Why this priority**: This is the ultimate validation goal — all individual features (US1–US9) exist to enable this. If this user story passes, the assembler is confirmed capable of handling a real-world, non-trivial 6502 program.
 
@@ -308,9 +308,9 @@ A developer controls listing output with `list`/`nolist` directives, page breaks
 
 ### User Story 17 - CLI Parity with AS65 (Priority: P2)
 
-A developer uses all AS65 command-line options with the Casso65 executable, including symbol pre-definition, quiet mode, verbose mode, case insensitivity, and optimization control.
+A developer uses all AS65 command-line options with the Casso executable, including symbol pre-definition, quiet mode, verbose mode, case insensitivity, and optimization control.
 
-**Why this priority**: Full command-line parity ensures Casso65 can be used as a drop-in replacement for AS65.
+**Why this priority**: Full command-line parity ensures Casso can be used as a drop-in replacement for AS65.
 
 **Independent Test**: Can be fully tested by running the executable with each flag combination and verifying the expected behavior.
 
@@ -326,7 +326,7 @@ A developer uses all AS65 command-line options with the Casso65 executable, incl
 8. **Given** `-g`, **When** assembled, **Then** a source-level debug information file is generated
 9. **Given** `-tlmylist`, **When** assembled, **Then** both `-t` (symbol table) and `-l mylist` (listing to `mylist.lst`) are applied (flag concatenation)
 10. **Given** `-h80t`, **When** assembled, **Then** page height is 80 lines and symbol table is generated (numeric parameter followed by flag)
-11. **Given** `casso65 -l -s2 -w myfile`, **When** run, **Then** AS65 mode is assumed (no subcommand), with pass-2 listing, Intel HEX output, and 133-column width
+11. **Given** `Casso -l -s2 -w myfile`, **When** run, **Then** AS65 mode is assumed (no subcommand), with pass-2 listing, Intel HEX output, and 133-column width
 12. **Given** a source file `test` (no extension), **When** `test` is not found but `test.a65` exists, **Then** `test.a65` is assembled
 13. **Given** `-onul`, **When** assembled, **Then** assembly proceeds but no output file is written
 
@@ -460,7 +460,7 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - **FR-059a**: The CLI MUST support `-v` for verbose mode, displaying additional information (pass progress, symbol resolution details, byte counts) on stdout
 - **FR-060**: The CLI MUST support `-n` to globally disable optimizations regardless of `opt` in source
 - **FR-061**: The CLI MUST support `-g` to generate a source-level debug information file
-- **FR-062**: The CLI MUST support `-i` for case-insensitive opcodes (Casso65 already defaults to case-insensitive; flag accepted for AS65 compatibility)
+- **FR-062**: The CLI MUST support `-i` for case-insensitive opcodes (Casso already defaults to case-insensitive; flag accepted for AS65 compatibility)
 - **FR-063**: The CLI MUST support `-o<filename>` to specify the output file name; the assembler MUST auto-add `.bin`, `.s19`, or `.hex` extension when no extension is given
 - **FR-064**: The CLI MUST support `-h<lines>` to set listing page height; `-h0` means infinite page (no page breaks between code)
 - **FR-065**: The CLI MUST support `-w<width>` to set listing column width (default 79, `-w` alone means 133)
@@ -469,7 +469,7 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - **FR-065c**: The CLI MUST support AS65 flag concatenation rules: flags may be concatenated (e.g., `-tlfile` = `-t -lfile`, `-h80t` = `-h80 -t`), but no other flag may follow one that has a string parameter
 - **FR-065d**: When the source file is not found, the CLI MUST try appending `.a65`, `.asm`, and `.s` extensions before reporting an error
 - **FR-065e**: The CLI MUST accept `nul` as an output filename to discard the output file
-- **FR-065f**: The CLI MUST support AS65 invocation syntax (`casso65 [-flags] file` with a single positional file argument) in addition to the existing Casso65 subcommand syntax (`casso65 assemble ...`, `casso65 run ...`). When invoked without a subcommand keyword, AS65 mode is assumed
+- **FR-065f**: The CLI MUST support AS65 invocation syntax (`Casso [-flags] file` with a single positional file argument) in addition to the existing Casso subcommand syntax (`Casso assemble ...`, `Casso run ...`). When invoked without a subcommand keyword, AS65 mode is assumed
 - **FR-065g**: The CLI MUST return AS65-compatible exit codes: 0 (success), 1 (bad command-line parameter), 2 (unable to open file), 3 (assembly errors), 4 (memory allocation failure)
 - **FR-066**: The expression evaluator MUST support `!` (logical NOT: evaluates to 0 if nonzero, 1 if zero) as distinct from `~` (binary NOT)
 - **FR-067**: The expression evaluator MUST support `&&` (logical AND) and `||` (logical OR), both evaluating to 0 or 1
@@ -501,7 +501,7 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 
 ### Measurable Outcomes
 
-- **SC-001**: The Klaus Dormann `6502_functional_test.a65` assembles with zero errors using the Casso65 assembler
+- **SC-001**: The Klaus Dormann `6502_functional_test.a65` assembles with zero errors using the Casso assembler
 - **SC-002**: The assembled Dormann binary is byte-identical to the pre-built reference binary from the Klaus2m5 `bin_files/` directory
 - **SC-003**: The assembled Dormann binary executes in the CPU emulator and reaches the success trap without hitting any failure trap
 - **SC-004**: All existing assembler unit tests from spec 001 continue to pass without modification (backward compatibility)
@@ -544,7 +544,7 @@ The assembler MUST be designed so that adding support for a new CPU architecture
 - The existing two-pass architecture is sufficient — `=` constants are evaluated eagerly when encountered, `equ` constants and labels resolve in pass 2
 - Macro expansion is textual substitution (AS65-style), not semantic — parameter values are spliced as raw text before parsing
 - The `*` operator disambiguation (current-PC vs. multiplication) follows AS65 convention: `*` is current-PC when it appears as a primary, multiplication when it appears as a binary operator
-- AS65 is case-sensitive by default (opcodes must be lowercase). Casso65 defaults to case-insensitive. The `-i` flag is accepted for compatibility but is effectively a no-op since Casso65 is already insensitive
+- AS65 is case-sensitive by default (opcodes must be lowercase). Casso defaults to case-insensitive. The `-i` flag is accepted for compatibility but is effectively a no-op since Casso is already insensitive
 - The debug information file format (`-g`) will match AS65's format as documented; the `READDBG` sample code from the AS65 distribution is the reference
 
 ## Clarifications
@@ -556,5 +556,5 @@ The assembler MUST be designed so that adding support for a new CPU architecture
 - Q: How should `=` vs `equ` constants be evaluated across passes? → A: Follow AS65 conventions. `=` assignments evaluated eagerly when encountered (in both passes); `equ` and labels deferred to pass 2. Two passes remain sufficient.
 - Q: Should the spec cover the full AS65 feature set or only what's needed for Dormann? → A: Full, exact AS65 clone (6502 mode). All syntax, directives, macro features, expression operators, output formats, and CLI options. 65C02/65SC02 support is deferred to a separate spec.
 - Q: Should the default case-sensitivity match AS65 (lowercase opcodes required)? → A: No. Keeping case-insensitive default is a non-breaking change — any valid AS65 source (lowercase) works fine. Users who write uppercase (which AS65 would reject) also work. `-i` flag accepted for compatibility.
-- Q: Should the default origin address match AS65 (0) or keep Casso65's $8000? → A: Match AS65 — default origin is 0 when no `.org` is given.
+- Q: Should the default origin address match AS65 (0) or keep Casso's $8000? → A: Match AS65 — default origin is 0 when no `.org` is given.
 - Q: How do we handle licensing and security for test assets? → A: Nothing GPL or proprietary is committed. The AS65 binary is closed-source and MUST NOT be downloaded or executed (security risk). Conformance is validated via hand-computed expected outputs derived from the AS65 manual. Dormann source is downloaded on demand and compared against pre-built reference binaries from `bin_files/` (data, not executables). CPU validation uses Tom Harte's MIT-licensed SingleStepTests (separate spec).- Q: Should the assembler be designed for CPU extensibility? → A: Yes. The core engine (expressions, macros, conditionals, directives, segments, listing, CLI) must be CPU-independent. Adding a new architecture (65C02, 65816, Z80, etc.) should require only a new instruction table and any new addressing mode patterns — no changes to the assembler core.

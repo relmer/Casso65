@@ -1765,7 +1765,7 @@ void EmulatorShell::OnHelpCommand (int id)
                 L"Version 0.9.0\n\n"
                 L"An Apple II platform emulator built on the\n"
                 L"Casso 6502 assembler/emulator project.\n\n"
-                L"https://github.com/relmer/Casso65",
+                L"https://github.com/relmer/Casso",
                 L"About Casso", MB_ICONINFORMATION | MB_OK);
             break;
         }

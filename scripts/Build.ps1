@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds the Casso65 solution using MSBuild.
+    Builds the Casso solution using MSBuild.
 
 .PARAMETER Configuration
     The build configuration. Valid values are 'Debug' or 'Release'.
@@ -56,7 +56,7 @@ if ($Platform -eq 'Auto') {
 $ErrorActionPreference = 'Stop'
 
 $repoRoot     = Split-Path $PSScriptRoot -Parent
-$solutionPath = Join-Path $repoRoot 'Casso65.sln'
+$solutionPath = Join-Path $repoRoot 'Casso.sln'
 
 $toolsScript = Join-Path $PSScriptRoot 'VSTools.ps1'
 if (-not (Test-Path $toolsScript)) {

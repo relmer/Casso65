@@ -31,14 +31,14 @@ Ctrl+Shift+B → Build + Test Release  (builds all projects, runs tests)
 ### Via MSBuild Directly
 
 ```powershell
-msbuild Casso65.sln /p:Configuration=Debug /p:Platform=x64
+msbuild Casso.sln /p:Configuration=Debug /p:Platform=x64
 ```
 
 The solution builds five projects:
 1. **CassoCore** — static library (existing, unchanged)
 2. **CassoEmuCore** — static library (NEW — emulator core: devices, video, audio, config)
 3. **Casso** — Win32 GUI emulator (NEW — links CassoCore and CassoEmuCore)
-4. **Casso65** — console assembler CLI (existing, unchanged)
+4. **Casso** — console assembler CLI (existing, unchanged)
 5. **UnitTest** — test DLL (existing, with new emulator tests — links CassoCore and CassoEmuCore)
 
 ## ROM Setup

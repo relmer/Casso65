@@ -1,4 +1,4 @@
-# Contributing to Casso65
+# Contributing to Casso
 
 ## Commit Messages
 

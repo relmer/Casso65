@@ -69,7 +69,7 @@ Casso.exe --machine apple2
 
 | Property | Value |
 |----------|-------|
-| Title | `Casso65 — {machine name} [{state}]` (e.g., `Casso65 — Apple II+ [Running]`) |
+| Title | `Casso — {machine name} [{state}]` (e.g., `Casso — Apple II+ [Running]`) |
 | Client area | 560 × 384 pixels (fixed, no resize) |
 | Style | `WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX` |
 | Menu bar | File, Machine, Disk, View, Help |
