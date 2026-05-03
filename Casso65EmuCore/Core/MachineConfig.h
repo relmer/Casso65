@@ -17,8 +17,8 @@
 struct MemoryRegion
 {
     string type;           // "ram" or "rom"
-    Word        start = 0;
-    Word        end   = 0;
+    Word   start = 0;
+    Word   end   = 0;
     string file;           // Required for ROM (from JSON)
     string resolvedPath;   // Fully resolved ROM path after search
     string bank;           // Optional: "aux"
@@ -81,6 +81,10 @@ struct VideoConfig
 static constexpr uint32_t kAppleCpuClock       = 1022727;
 static constexpr uint32_t kAppleCyclesPerFrame = 17030;
 
+
+
+
+
 struct MachineConfig
 {
     string                 name;
@@ -112,19 +116,32 @@ public:
                          string                 & outError);
 
 private:
-    static HRESULT ParseHexAddress (const string & str, Word & outAddr, string & outError);
+    struct Field 
+    { 
+        const char           * key; 
+        bool                   fRequired;
+        string MemoryRegion::* strDest;
+        Word   MemoryRegion::* wDest;
+    };
 
-    static HRESULT LoadMemoryRegions (
-        const JsonValue        & memArray,
-        const vector<fs::path> & searchPaths,
-        MachineConfig          & outConfig,
-        string                 & outError);
 
-    static HRESULT LoadDevices (
-        const JsonValue & devArray,
-        MachineConfig   & outConfig,
-        string          & outError);
 
-    static void LoadVideoConfig (const JsonValue & video, MachineConfig & outConfig);
-    static void LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
+    static HRESULT ParseHexAddress    (const string & str, Word & outAddr, string & outError);
+
+    static HRESULT LoadMemoryRegions  (const JsonValue        & memArray,
+                                       const vector<fs::path> & searchPaths,
+                                       MachineConfig          & outConfig,
+                                       string                 & outError);
+
+    static HRESULT GetValue           (const JsonValue & entry, 
+                                       const Field     & f, 
+                                       MemoryRegion    & region, 
+                                       string          & outError);
+
+    static HRESULT LoadDevices        (const JsonValue & devArray,
+                                       MachineConfig   & outConfig,
+                                       string          & outError);
+
+    static void    LoadVideoConfig    (const JsonValue & video,    MachineConfig & outConfig);
+    static void    LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
 };

@@ -183,9 +183,13 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
         CBRF (region.end >= region.start,
               outError = format ("memory[{}]: end (${:04X}) < start (${:04X})",
-                                 idxRegion, region.end, region.start));
-        CBRF (!(region.type == "rom" && region.file.empty () && region.target.empty ()),
-              outError = format ("memory[{}]: ROM region requires 'file' field", idxRegion));
+                                 idxRegion, 
+                                 region.end, 
+                                 region.start));
+
+        CBRF (!(region.type == "rom" && region.file.empty() && region.target.empty()),
+              outError = format ("memory[{}]: ROM region requires 'file' field", 
+                                 idxRegion));
 
         // Resolve ROM file path
         if (!region.file.empty())
@@ -193,7 +197,7 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
             romRelPath = fs::path ("roms") / region.file;
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
-            CBRF (!found.empty (),
+            CBRF (!found.empty(),
                   outError = format ("ROM file not found: roms/{}. "
                                      "Run scripts/FetchRoms.ps1 to download ROM images.",
                                      region.file));
@@ -253,7 +257,7 @@ HRESULT MachineConfigLoader::GetValue (
     {
         string addrStr;
 
-        
+
 
         hr = entry.GetString (f.key, addrStr);
         CHR (hr);
@@ -292,7 +296,9 @@ HRESULT MachineConfigLoader::LoadDevices (
         DeviceConfig      device;
         string            addrStr;
 
-        CBR (entry.IsObject());
+
+        
+
 
         hr = entry.GetString ("type", device.type);
         CHRF (hr, outError = format ("devices[{}]: missing 'type' field", i));
@@ -369,7 +375,7 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
     {
         for (size_t i = 0; i < pModes->ArraySize(); i++)
         {
-            if (pModes->ArrayAt (i).IsString())
+            if (pModes->ArrayAt (i).GetType () == JsonType::String)
             {
                 outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
             }

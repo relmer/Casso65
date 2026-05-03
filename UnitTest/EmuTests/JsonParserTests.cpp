@@ -27,7 +27,7 @@ public:
         HRESULT hr = JsonParser::Parse ("\"hello\"", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsString ());
+        Assert::IsTrue (value.GetType () == JsonType::String);
         Assert::AreEqual (std::string ("hello"), value.GetString ());
     }
 
@@ -38,7 +38,7 @@ public:
         HRESULT hr = JsonParser::Parse ("42", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsNumber ());
+        Assert::IsTrue (value.GetType () == JsonType::Number);
         Assert::AreEqual (42, value.GetInt ());
     }
 
@@ -59,7 +59,7 @@ public:
         HRESULT hr = JsonParser::Parse ("true", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsBool ());
+        Assert::IsTrue (value.GetType () == JsonType::Bool);
         Assert::IsTrue (value.GetBool ());
     }
 
@@ -80,7 +80,7 @@ public:
         HRESULT hr = JsonParser::Parse ("null", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsNull ());
+        Assert::IsTrue (value.GetType () == JsonType::Null);
     }
 
     TEST_METHOD (Parse_EmptyObject)
@@ -90,7 +90,7 @@ public:
         HRESULT hr = JsonParser::Parse ("{}", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsObject ());
+        Assert::IsTrue (value.GetType () == JsonType::Object);
     }
 
     TEST_METHOD (Parse_EmptyArray)
@@ -100,7 +100,7 @@ public:
         HRESULT hr = JsonParser::Parse ("[]", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsArray ());
+        Assert::IsTrue (value.GetType () == JsonType::Array);
         Assert::AreEqual (size_t (0), value.ArraySize ());
     }
 
@@ -120,7 +120,7 @@ public:
             "{\"name\": \"test\", \"count\": 5, \"nested\": {\"a\": 1}}", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.IsObject ());
+        Assert::IsTrue (value.GetType () == JsonType::Object);
 
         Assert::IsTrue (SUCCEEDED (value.GetString ("name", name)));
         Assert::AreEqual (std::string ("test"), name);

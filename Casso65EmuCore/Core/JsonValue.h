@@ -67,14 +67,6 @@ public:
     size_t             ArraySize  () const;
     const JsonValue &  ArrayAt    (size_t index) const;
 
-    // Convenience
-    bool IsNull   () const { return m_type == JsonType::Null; }
-    bool IsString () const { return m_type == JsonType::String; }
-    bool IsNumber () const { return m_type == JsonType::Number; }
-    bool IsArray  () const { return m_type == JsonType::Array; }
-    bool IsObject () const { return m_type == JsonType::Object; }
-    bool IsBool   () const { return m_type == JsonType::Bool; }
-
     // Typed object accessors — key lookup + type check + value extraction
     HRESULT GetString (const string & key, string &              outValue) const;
     HRESULT GetNumber (const string & key, double &              outValue) const;
@@ -90,6 +82,13 @@ private:
     // Internal helpers used by typed accessors
     bool               HasKey    (const string & key) const;
     const JsonValue &  Get       (const string & key) const;
+
+    bool IsNull   () const { return m_type == JsonType::Null; }
+    bool IsString () const { return m_type == JsonType::String; }
+    bool IsNumber () const { return m_type == JsonType::Number; }
+    bool IsArray  () const { return m_type == JsonType::Array; }
+    bool IsObject () const { return m_type == JsonType::Object; }
+    bool IsBool   () const { return m_type == JsonType::Bool; }
 
     JsonType                                             m_type   = JsonType::Null;
     bool                                                 m_bool   = false;
