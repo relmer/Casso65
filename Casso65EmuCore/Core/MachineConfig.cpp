@@ -86,37 +86,37 @@ HRESULT MachineConfigLoader::Load (
     CHR (hr);
 
     // Required fields
-    CHRF (root.GetString ("name", outConfig.name),
-                  outError = "Missing or invalid field: 'name'");
+    hr = root.GetString ("name", outConfig.name);
+    CHRF (hr, outError = "Missing or invalid field: 'name'");
 
-    CHRF (root.GetString ("cpu", outConfig.cpu),
-                  outError = "Missing or invalid field: 'cpu'");
+    hr = root.GetString ("cpu", outConfig.cpu);
+    CHRF (hr, outError = "Missing or invalid field: 'cpu'");
 
     CBRF (outConfig.cpu == "6502",
-                  outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
+          outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
 
-    CHRF (root.GetUint32 ("clockSpeed", outConfig.clockSpeed),
-                  outError = "Missing or invalid field: 'clockSpeed'");
+    hr = root.GetUint32 ("clockSpeed", outConfig.clockSpeed);
+    CHRF (hr, outError = "Missing or invalid field: 'clockSpeed'");
 
     // Required sub-structures
-    CHRF (root.GetArray ("memory", pMemArray),
-                  outError = "Missing required field: 'memory'");
+    hr = root.GetArray ("memory", pMemArray);
+    CHRF (hr, outError = "Missing required field: 'memory'");
 
     hr = LoadMemoryRegions (*pMemArray, searchPaths, outConfig, outError);
     CHR (hr);
 
-    CHRF (root.GetArray ("devices", pDevArray),
-                  outError = "Missing required field: 'devices'");
+    hr = root.GetArray ("devices", pDevArray);
+    CHRF (hr, outError = "Missing required field: 'devices'");
 
     hr = LoadDevices (*pDevArray, outConfig, outError);
     CHR (hr);
 
-    CHRF (root.GetObject ("video", pVideo),
-                  outError = "Missing required field: 'video'");
+    hr = root.GetObject ("video", pVideo);
+    CHRF (hr, outError = "Missing required field: 'video'");
     LoadVideoConfig (*pVideo, outConfig);
 
-    CHRF (root.GetObject ("keyboard", pKeyboard),
-                  outError = "Missing required field: 'keyboard'");
+    hr = root.GetObject ("keyboard", pKeyboard);
+    CHRF (hr, outError = "Missing required field: 'keyboard'");
     LoadKeyboardConfig (*pKeyboard, outConfig);
 
 Error:
@@ -143,6 +143,15 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
 
 
+    struct OptionalField { const char * key; string MemoryRegion::* member; };
+
+    static const OptionalField kOptionalFields[] =
+    {
+        { "file",   &MemoryRegion::file   },
+        { "bank",   &MemoryRegion::bank   },
+        { "target", &MemoryRegion::target },
+    };
+
     for (size_t i = 0; i < memArray.ArraySize(); i++)
     {
         const JsonValue & entry = memArray.ArrayAt (i);
@@ -153,30 +162,32 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
         CBR (entry.IsObject());
 
-        CHRF (entry.GetString ("type", region.type),
-              outError = format ("memory[{}]: missing 'type' field", i));
+        hr = entry.GetString ("type", region.type);
+        CHRF (hr, outError = format ("memory[{}]: missing 'type' field", i));
 
-        CHRF (entry.GetString ("start", addrStr),
-              outError = format ("memory[{}]: missing 'start' field", i));
-        
+        hr = entry.GetString ("start", addrStr);
+        CHRF (hr, outError = format ("memory[{}]: missing 'start' field", i));
+
         hr = ParseHexAddress (addrStr, region.start, outError);
         CHR (hr);
 
-        CHRF (entry.GetString ("end", addrStr),
-              outError = format ("memory[{}]: missing 'end' field", i));
+        hr = entry.GetString ("end", addrStr);
+        CHRF (hr, outError = format ("memory[{}]: missing 'end' field", i));
+
         hr = ParseHexAddress (addrStr, region.end, outError);
         CHR (hr);
 
         CBRF (region.end >= region.start,
-                      outError = format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})",
-                                         i, region.end, region.start));
+              outError = format ("memory[{}]: end (0x{:04X}) < start (0x{:04X})",
+                                 i, region.end, region.start));
 
-        entry.GetString ("file", region.file);
-        entry.GetString ("bank", region.bank);
-        entry.GetString ("target", region.target);
+        for (const auto & f : kOptionalFields)
+        {
+            entry.GetString (f.key, region.*(f.member));
+        }
 
         CBRF (!(region.type == "rom" && region.file.empty() && region.target.empty()),
-                      outError = format ("memory[{}]: ROM region requires 'file' field", i));
+              outError = format ("memory[{}]: ROM region requires 'file' field", i));
 
         if (!region.file.empty())
         {
@@ -184,9 +195,9 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
             CBRF (!found.empty(),
-                          outError = format ("ROM file not found: roms/{}. "
-                                            "Run scripts/FetchRoms.ps1 to download ROM images.",
-                                            region.file));
+                  outError = format ("ROM file not found: roms/{}. "
+                                    "Run scripts/FetchRoms.ps1 to download ROM images.",
+                                    region.file));
 
             region.resolvedPath = found.string();
         }
@@ -225,10 +236,12 @@ HRESULT MachineConfigLoader::LoadDevices (
 
         CBR (entry.IsObject());
 
-        CHRF (entry.GetString ("type", device.type),
-              outError = format ("devices[{}]: missing 'type' field", i));
+        hr = entry.GetString ("type", device.type);
+        CHRF (hr, outError = format ("devices[{}]: missing 'type' field", i));
 
-        if (SUCCEEDED (entry.GetString ("address", addrStr)))
+        hr = entry.GetString ("address", addrStr);
+
+        if (SUCCEEDED (hr))
         {
             hr = ParseHexAddress (addrStr, device.address, outError);
             CHR (hr);
@@ -238,26 +251,31 @@ HRESULT MachineConfigLoader::LoadDevices (
             device.hasAddress = true;
         }
 
-        if (SUCCEEDED (entry.GetString ("start", addrStr)))
+        hr = entry.GetString ("start", addrStr);
+
+        if (SUCCEEDED (hr))
         {
             hr = ParseHexAddress (addrStr, device.start, outError);
             CHR (hr);
 
-            CHRF (entry.GetString ("end", addrStr),
-                  outError = format ("devices[{}]: missing 'end' field", i));
+            hr = entry.GetString ("end", addrStr);
+            CHRF (hr, outError = format ("devices[{}]: missing 'end' field", i));
+
             hr = ParseHexAddress (addrStr, device.end, outError);
             CHR (hr);
 
             device.hasRange = true;
         }
 
-        if (SUCCEEDED (entry.GetInt ("slot", device.slot)))
+        hr = entry.GetInt ("slot", device.slot);
+
+        if (SUCCEEDED (hr))
         {
             device.hasSlot = true;
 
             CBRF (device.slot >= 1 && device.slot <= 7,
-                          outError = format ("devices[{}]: slot must be 1-7, got {}",
-                                            i, device.slot));
+                  outError = format ("devices[{}]: slot must be 1-7, got {}",
+                                    i, device.slot));
 
             device.start = static_cast<Word> (0xC080 + device.slot * 16);
             device.end   = static_cast<Word> (0xC08F + device.slot * 16);
@@ -282,11 +300,14 @@ Error:
 
 void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfig & outConfig)
 {
+    HRESULT           hr     = S_OK;
     const JsonValue * pModes = nullptr;
 
 
 
-    if (SUCCEEDED (video.GetArray ("modes", pModes)))
+    hr = video.GetArray ("modes", pModes);
+
+    if (SUCCEEDED (hr))
     {
         for (size_t i = 0; i < pModes->ArraySize (); i++)
         {

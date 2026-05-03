@@ -152,7 +152,6 @@ HRESULT JsonValue::GetString (const string & key, string & outValue) const
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsString (),     JSON_E_TYPE_MISMATCH);
 
@@ -178,7 +177,6 @@ HRESULT JsonValue::GetNumber (const string & key, double & outValue) const
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
 
@@ -204,7 +202,6 @@ HRESULT JsonValue::GetInt (const string & key, int & outValue) const
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
 
@@ -230,7 +227,6 @@ HRESULT JsonValue::GetUint32 (const string & key, uint32_t & outValue) const
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsNumber (),     JSON_E_TYPE_MISMATCH);
 
@@ -256,7 +252,6 @@ HRESULT JsonValue::GetBool (const string & key, bool & outValue) const
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsBool (),       JSON_E_TYPE_MISMATCH);
 
@@ -282,7 +277,6 @@ HRESULT JsonValue::GetObject (const string & key, const JsonValue *& outValue) c
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsObject (),     JSON_E_TYPE_MISMATCH);
 
@@ -308,7 +302,6 @@ HRESULT JsonValue::GetArray (const string & key, const JsonValue *& outValue) co
 
 
 
-    BAIL_OUT_IF (m_type != JsonType::Object, JSON_E_NOT_OBJECT);
     BAIL_OUT_IF (!HasKey (key),              JSON_E_KEY_MISSING);
     BAIL_OUT_IF (!Get (key).IsArray (),      JSON_E_TYPE_MISMATCH);
 

@@ -12,8 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const HRESULT JSON_E_NOT_OBJECT   = E_NOT_SET;
-static const HRESULT JSON_E_KEY_MISSING  = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+static const HRESULT JSON_E_KEY_MISSING   = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
 static const HRESULT JSON_E_TYPE_MISMATCH = HRESULT_FROM_WIN32 (ERROR_DATATYPE_MISMATCH);
 
 
