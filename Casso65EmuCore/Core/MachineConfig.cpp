@@ -276,9 +276,6 @@ Error:
     return hr;
 }
 
-// Explicit template instantiations
-template HRESULT MachineConfigLoader::GetValue<MemoryRegion> (const JsonValue &, const Field<MemoryRegion> &, MemoryRegion &, string &);
-template HRESULT MachineConfigLoader::GetValue<DeviceConfig> (const JsonValue &, const Field<DeviceConfig> &, DeviceConfig &, string &);
 
 
 
@@ -297,11 +294,11 @@ HRESULT MachineConfigLoader::LoadDevices (
 {
     static const Field<DeviceConfig> krgFields[] =
     {
-        { "type",    true,  &DeviceConfig::type, nullptr,             nullptr            },
-        { "address", false, nullptr,             &DeviceConfig::address, nullptr          },
-        { "start",   false, nullptr,             &DeviceConfig::start, nullptr            },
-        { "end",     false, nullptr,             &DeviceConfig::end,   nullptr            },
-        { "slot",    false, nullptr,             nullptr,              &DeviceConfig::slot },
+        { "type",    true,  &DeviceConfig::type, nullptr,                nullptr             },
+        { "address", false, nullptr,             &DeviceConfig::address, nullptr             },
+        { "start",   false, nullptr,             &DeviceConfig::start,   nullptr             },
+        { "end",     false, nullptr,             &DeviceConfig::end,     nullptr             },
+        { "slot",    false, nullptr,             nullptr,                &DeviceConfig::slot },
     };
 
     HRESULT hr       = S_OK;
@@ -312,7 +309,7 @@ HRESULT MachineConfigLoader::LoadDevices (
 
     for (idxDev = 0; idxDev < devArray.ArraySize (); idxDev++)
     {
-        const JsonValue & entry = devArray.ArrayAt (idxDev);
+        const JsonValue & entry  = devArray.ArrayAt (idxDev);
         DeviceConfig      device;
 
 
