@@ -62,7 +62,7 @@ public:
 
     TEST_METHOD (SingleToggle_MidFrame_ProducesStep)
     {
-        std::vector<uint32_t> toggles = { 8525 };
+        std::vector<uint32_t> toggles = { 8515 };
         float samples[1000];
 
 
@@ -88,7 +88,7 @@ public:
 
     TEST_METHOD (SquareWave_EvenToggles_ProducesSymmetricWave)
     {
-        std::vector<uint32_t> toggles = { 0, 4262, 8525, 12787 };
+        std::vector<uint32_t> toggles = { 0, 4258, 8515, 12773 };
         float samples[1000];
 
 
@@ -143,8 +143,9 @@ public:
             }
         }
 
-        // 18 toggles = 18 sign changes
-        Assert::AreEqual (static_cast<int> (toggles.size ()), crossings);
+        // 18 toggles, but the first fires at sample 0 (no prior sample
+        // to compare), so we observe 17 sign changes between adjacent samples.
+        Assert::AreEqual (static_cast<int> (toggles.size ()) - 1, crossings);
     }
 
     ////////////////////////////////////////////////////////////////////////////
