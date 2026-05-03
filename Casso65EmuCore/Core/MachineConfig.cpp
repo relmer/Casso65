@@ -139,86 +139,66 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    HRESULT hr = S_OK;
-
-    // Required string fields — loaded in order, index identifies which failed
-    struct RequiredField { const char * key; string MemoryRegion::* dest; };
-
-    static const RequiredField kRequiredFields[] =
+    static const Field krgFields[] =
     {
-        { "type",  &MemoryRegion::type },
-        { "start", nullptr },
-        { "end",   nullptr },
+        { "type",   true,  &MemoryRegion::type,   nullptr              },
+        { "start",  true,  nullptr,               &MemoryRegion::start },
+        { "end",    true,  nullptr,               &MemoryRegion::end   },
+        { "file",   false, &MemoryRegion::file,   nullptr              },
+        { "bank",   false, &MemoryRegion::bank,   nullptr              },
+        { "target", false, &MemoryRegion::target, nullptr              },
     };
 
-    // Optional string fields
-    struct OptionalField { const char * key; string MemoryRegion::* dest; };
-
-    static const OptionalField kOptionalFields[] =
-    {
-        { "file",   &MemoryRegion::file   },
-        { "bank",   &MemoryRegion::bank   },
-        { "target", &MemoryRegion::target },
-    };
-
-    size_t    regionIdx = 0;
-    size_t    fieldIdx  = 0;
-    string    addrStr;
+    HRESULT   hr        = S_OK;
+    size_t    idxRegion = 0;
+    size_t    idxField  = 0;
     fs::path  romRelPath;
     fs::path  found;
 
 
 
-    for (regionIdx = 0; regionIdx < memArray.ArraySize (); regionIdx++)
+    for (idxRegion = 0; idxRegion < memArray.ArraySize(); idxRegion++)
     {
-        const JsonValue & entry = memArray.ArrayAt (regionIdx);
+        const JsonValue & entry = memArray.ArrayAt (idxRegion);
         MemoryRegion      region;
 
-        // Load required string fields
-        for (fieldIdx = 0; fieldIdx < _countof (kRequiredFields); fieldIdx++)
+
+
+        for (idxField = 0; idxField < _countof (krgFields); idxField++)
         {
-            const RequiredField & f = kRequiredFields[fieldIdx];
+            const Field & f = krgFields[idxField];
 
-            if (f.dest != nullptr)
+
+
+            hr = GetValue (entry, f, region, outError);
+            if (f.fRequired)
             {
-                hr = entry.GetString (f.key, region.*(f.dest));
-            }
-            else
-            {
-                hr = entry.GetString (f.key, addrStr);
-            }
-
-            CHR (hr);
-
-            // Parse hex addresses for start/end
-            if (f.dest == nullptr)
-            {
-                Word * pAddr = (fieldIdx == 1) ? &region.start : &region.end;
-
-                hr = ParseHexAddress (addrStr, *pAddr, outError);
                 CHR (hr);
             }
+            else 
+            {
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
         }
 
-        CBR (region.end >= region.start);
-
-        // Load optional string fields
-        for (const auto & f : kOptionalFields)
-        {
-            entry.GetString (f.key, region.*(f.dest));
-        }
-
-        CBR (!(region.type == "rom" && region.file.empty () && region.target.empty ()));
+        CBRF (region.end >= region.start,
+              outError = format ("memory[{}]: end (${:04X}) < start (${:04X})",
+                                 idxRegion, region.end, region.start));
+        CBRF (!(region.type == "rom" && region.file.empty () && region.target.empty ()),
+              outError = format ("memory[{}]: ROM region requires 'file' field", idxRegion));
 
         // Resolve ROM file path
-        if (!region.file.empty ())
+        if (!region.file.empty())
         {
             romRelPath = fs::path ("roms") / region.file;
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
-            CBR (!found.empty ());
+            CBRF (!found.empty (),
+                  outError = format ("ROM file not found: roms/{}. "
+                                     "Run scripts/FetchRoms.ps1 to download ROM images.",
+                                     region.file));
 
-            region.resolvedPath = found.string ();
+            region.resolvedPath = found.string();
         }
 
         outConfig.memoryRegions.push_back (region);
@@ -226,19 +206,65 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
 Error:
     // Populate error message from indices if we bailed out
-    if (FAILED (hr) && outError.empty ())
+    if (FAILED (hr) && outError.empty())
     {
-        if (fieldIdx < _countof (kRequiredFields))
+        if (idxField < _countof (krgFields))
         {
             outError = format ("memory[{}]: missing or invalid '{}' field",
-                               regionIdx, kRequiredFields[fieldIdx].key);
+                               idxRegion, 
+                               krgFields[idxField].key);
         }
         else
         {
-            outError = format ("memory[{}]: invalid configuration", regionIdx);
+            outError = format ("memory[{}]: invalid configuration", 
+                               idxRegion);
         }
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigLoader::GetValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::GetValue (
+    const JsonValue & entry, 
+    const Field     & f, 
+    MemoryRegion    & region,
+    string          & outError)
+{
+    HRESULT hr = S_OK;
+
+
+
+    if (f.strDest != nullptr)
+    {
+        hr = entry.GetString (f.key, region.*(f.strDest));
+        CHR (hr);
+    }
+    else if (f.wDest != nullptr)
+    {
+        string addrStr;
+
+        
+
+        hr = entry.GetString (f.key, addrStr);
+        CHR (hr);
+
+        hr = ParseHexAddress (addrStr, region.*(f.wDest), outError);
+        CHR (hr);
+    }
+
+
+
+Error:
     return hr;
 }
 
@@ -341,11 +367,11 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
 
     if (SUCCEEDED (hr))
     {
-        for (size_t i = 0; i < pModes->ArraySize (); i++)
+        for (size_t i = 0; i < pModes->ArraySize(); i++)
         {
-            if (pModes->ArrayAt (i).IsString ())
+            if (pModes->ArrayAt (i).IsString())
             {
-                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString ());
+                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
             }
         }
     }
