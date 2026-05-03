@@ -74,12 +74,14 @@ struct VideoConfig
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// Apple II NTSC timing derived from the 14.31818 MHz crystal:
-//   CPU clock  = 14,318,180 / 14        = 1,022,727 Hz
-//   Cycles/frame = 65 cycles/line * 262 lines = 17,030
-//   Frame rate = 1,022,727 / 17,030     = 60.05 Hz
-static constexpr uint32_t kAppleCpuClock       = 1022727;
-static constexpr uint32_t kAppleCyclesPerFrame = 17030;
+// Apple II NTSC timing — all values derived from the 14.31818 MHz crystal
+static constexpr uint32_t kNtscCrystalHz       = 14318180;  // 4x NTSC color burst (3,579,545 Hz)
+static constexpr uint32_t kCrystalDivisor      = 14;        // 7 pixels/char * 2 phases
+static constexpr uint32_t kCyclesPerScanline   = 65;        // 40 visible + 25 blanking
+static constexpr uint32_t kScanlinesPerFrame   = 262;       // 192 visible + 70 blanking
+
+static constexpr uint32_t kAppleCpuClock       = kNtscCrystalHz / kCrystalDivisor;
+static constexpr uint32_t kAppleCyclesPerFrame = kCyclesPerScanline * kScanlinesPerFrame;
 
 
 

@@ -28,6 +28,35 @@ The solution has five projects:
 - Braces always required, even for single-statement `if`/`while`/`for`/`switch`
 - No comma-separated variable declarations
 - Prefer in-class member initialization (`.h`) over constructor initializer lists (`.cpp`)
+- **No magic numbers** — all numeric literals must be named constants with clear intent.
+  Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
+
+### EHM (Error Handling Macros)
+- Every function that calls a failable API must use the EHM pattern:
+  `HRESULT hr = S_OK;` at top, `Error:` label before cleanup, single exit via `return hr;`
+- **NEVER** use bare `goto Error` — always use EHM macros (CHR, CBR, CWRA, CHRF, etc.)
+- EHM macros must only contain **trivial expressions** — no function calls with side effects
+  or out params. Store the result first, then pass it to the macro:
+  ```cpp
+  // WRONG:
+  CHRF (root.GetString ("name", outConfig.name), outError = "...");
+
+  // RIGHT:
+  hr = root.GetString ("name", outConfig.name);
+  CHRF (hr, outError = "...");
+  ```
+- The same rule applies to **all** macros (not just EHM): never call non-trivial functions
+  inside macro arguments. Trivial: `.size()`, `.empty()`, `.load()`, member access.
+  Non-trivial: anything with side effects, allocations, or out params.
+- When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE` macro:
+  ```cpp
+  IGNORE_RETURN_VALUE (hr, m_wasapiAudio.Initialize ());
+  ```
+- Use `CHRA`/`CWRA` (assert variant) for API failures that indicate bugs
+- Use `CHR`/`CWR` for expected failures
+- Use `CHRN`/`CBRN` for user-facing notification errors (auto-detects GUI/console)
+- Use `CHRF`/`CBRF` for failures with a custom action (e.g., setting an error string)
+- Use `BAIL_OUT_IF` for early-exit guard checks with a specific HRESULT
 
 ### Variable Declarations
 - **ALL** local variables declared at the **top** of the function (or top of a necessary local block)

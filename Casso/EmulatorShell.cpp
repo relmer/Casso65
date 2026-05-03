@@ -28,6 +28,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr LONGLONG kHundredNsPerSecond = 10000000LL;
+
 static constexpr int    kFramebufferWidth  = 560;
 static constexpr int    kFramebufferHeight = 384;
 static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
@@ -382,12 +384,12 @@ void EmulatorShell::ShowDevicePopup()
     // Memory regions from config
     for (const auto & region : m_config.memoryRegions)
     {
-        wstring typeName = fs::path (region.type).wstring ();
-        wstring fileName = fs::path (region.file).wstring ();
+        wstring typeName = fs::path (region.type).wstring();
+        wstring fileName = fs::path (region.file).wstring();
 
         typeName[0] = towupper (typeName[0]);
 
-        if (fileName.empty ())
+        if (fileName.empty())
         {
             label = format (L"${:04X}-${:04X}  {}", region.start, region.end, typeName);
         }
@@ -396,7 +398,7 @@ void EmulatorShell::ShowDevicePopup()
             label = format (L"${:04X}-${:04X}  {} ({})", region.start, region.end, typeName, fileName);
         }
 
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
         CWRA (fSuccess);
     }
 
@@ -879,7 +881,7 @@ int EmulatorShell::RunMessageLoop()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CpuThreadProc ()
+void EmulatorShell::CpuThreadProc()
 {
     HRESULT       hr              = S_OK;
     HANDLE        hTimer          = nullptr;
@@ -897,32 +899,37 @@ void EmulatorShell::CpuThreadProc ()
     fComInitialized = true;
 
     // Initialize WASAPI audio (non-fatal if it fails)
-    m_wasapiAudio.Initialize ();
-
+    hr = m_wasapiAudio.Initialize();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    
     // Create a high-resolution waitable timer for 60fps frame pacing
-    hTimer = CreateWaitableTimerEx (nullptr, nullptr,
+    hTimer = CreateWaitableTimerEx (nullptr, 
+                                    nullptr,
                                     CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
                                     TIMER_ALL_ACCESS);
     CWRA (hTimer);
 
     while (m_running.load (memory_order_acquire))
     {
-        if (m_paused.load (memory_order_acquire))
         {
-            Sleep (10);
-            continue;
+            unique_lock<mutex> lock (m_pauseMutex);
+            m_pauseCV.wait (lock, 
+                [&] 
+                { 
+                    return !m_paused.load (memory_order_acquire) || !m_running.load (memory_order_acquire); 
+                });
         }
 
         // Process deferred commands from the UI thread
-        ProcessCommands ();
+        ProcessCommands();
 
         // Arm the timer for this frame
-        dueTime.QuadPart = -166667;  // 16.6667ms
+        dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
         fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
         CWRA (fSuccess);
 
         // Execute one frame of CPU + audio + video
-        RunOneFrame ();
+        RunOneFrame();
 
         // Publish the completed framebuffer for the UI thread
         {
@@ -946,11 +953,11 @@ Error:
         CloseHandle (hTimer);
     }
 
-    m_wasapiAudio.Shutdown ();
+    m_wasapiAudio.Shutdown();
 
     if (fComInitialized)
     {
-        CoUninitialize ();
+        CoUninitialize();
     }
 }
 
@@ -995,15 +1002,15 @@ void EmulatorShell::ProcessCommands()
                 // Clear all RAM in the CPU's memory array (cold boot)
                 if (m_cpu)
                 {
-                    Byte * mem = const_cast<Byte *> (m_cpu->GetMemory ());
+                    Byte * mem = const_cast<Byte *> (m_cpu->GetMemory());
                     memset (mem, 0, 0xC000);  // Clear - (RAM)
                 }
 
-                m_memoryBus.Reset ();
+                m_memoryBus.Reset();
 
                 if (m_cpu)
                 {
-                    m_cpu->InitForEmulation ();
+                    m_cpu->InitForEmulation();
                 }
                 break;
             }
@@ -1085,7 +1092,7 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PasteFromClipboard ()
+void EmulatorShell::PasteFromClipboard()
 {
     if (!OpenClipboard (m_hwnd))
     {
@@ -1126,7 +1133,7 @@ void EmulatorShell::PasteFromClipboard ()
         }
     }
 
-    CloseClipboard ();
+    CloseClipboard();
 }
 
 
@@ -1139,7 +1146,7 @@ void EmulatorShell::PasteFromClipboard ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::DrainPasteBuffer ()
+void EmulatorShell::DrainPasteBuffer()
 {
     Byte ch = 0;
 
@@ -1151,7 +1158,7 @@ void EmulatorShell::DrainPasteBuffer ()
     }
 
     // Wait until the CPU has consumed the previous key (strobe clear)
-    if (!m_keyboard->IsStrobeClear ())
+    if (!m_keyboard->IsStrobeClear())
     {
         return;
     }
@@ -1159,13 +1166,13 @@ void EmulatorShell::DrainPasteBuffer ()
     {
         lock_guard<mutex> lock (m_cmdMutex);
 
-        if (m_pasteBuffer.empty ())
+        if (m_pasteBuffer.empty())
         {
             return;
         }
 
         ch = static_cast<Byte> (m_pasteBuffer[0]);
-        m_pasteBuffer.erase (m_pasteBuffer.begin ());
+        m_pasteBuffer.erase (m_pasteBuffer.begin());
     }
 
     m_keyboard->KeyPress (ch);
@@ -1311,7 +1318,7 @@ void EmulatorShell::RenderFramebuffer()
         static constexpr int kMixedScaleY = 2;
         int mixedFbY = 20 * kMixedCharH * kMixedScaleY;
 
-        fill (m_textOverlay.begin (), m_textOverlay.end (), 0);
+        fill (m_textOverlay.begin(), m_textOverlay.end(), 0);
 
         m_videoModes[0]->Render (m_cpu->GetMemory(),
                                  m_textOverlay.data(),
@@ -1427,6 +1434,7 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
     m_running.store (false, memory_order_release);
+    m_pauseCV.notify_one ();
     PostQuitMessage (0);
     
     return false;
@@ -1456,7 +1464,7 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // Ctrl+V — paste from clipboard
     if (vk == 'V' && (GetKeyState (VK_CONTROL) & 0x8000))
     {
-        PasteFromClipboard ();
+        PasteFromClipboard();
         return false;
     }
 
@@ -1621,19 +1629,19 @@ void EmulatorShell::OnEditCommand (int id)
     {
         case IDM_EDIT_COPY_TEXT:
         {
-            CopyScreenText ();
+            CopyScreenText();
             break;
         }
 
         case IDM_EDIT_COPY_SCREENSHOT:
         {
-            CopyScreenshot ();
+            CopyScreenshot();
             break;
         }
 
         case IDM_EDIT_PASTE:
         {
-            PasteFromClipboard ();
+            PasteFromClipboard();
             break;
         }
     }
@@ -1649,7 +1657,7 @@ void EmulatorShell::OnEditCommand (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CopyScreenText ()
+void EmulatorShell::CopyScreenText()
 {
     HGLOBAL hMem    = nullptr;
     wchar_t * pDest = nullptr;
@@ -1664,7 +1672,7 @@ void EmulatorShell::CopyScreenText ()
     }
 
     // Read the 40x24 text screen from Apple II memory (-)
-    pMem = m_cpu->GetMemory ();
+    pMem = m_cpu->GetMemory();
 
     for (int row = 0; row < 24; row++)
     {
@@ -1697,9 +1705,9 @@ void EmulatorShell::CopyScreenText ()
         }
 
         // Trim trailing spaces on each row
-        while (!text.empty () && text.back () == L' ')
+        while (!text.empty() && text.back() == L' ')
         {
-            text.pop_back ();
+            text.pop_back();
         }
 
         text += L"\r\n";
@@ -1711,9 +1719,9 @@ void EmulatorShell::CopyScreenText ()
         return;
     }
 
-    EmptyClipboard ();
+    EmptyClipboard();
 
-    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size () + 1) * sizeof (wchar_t));
+    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
 
     if (hMem != nullptr)
     {
@@ -1721,13 +1729,13 @@ void EmulatorShell::CopyScreenText ()
 
         if (pDest != nullptr)
         {
-            memcpy (pDest, text.c_str (), (text.size () + 1) * sizeof (wchar_t));
+            memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
             GlobalUnlock (hMem);
             SetClipboardData (CF_UNICODETEXT, hMem);
         }
     }
 
-    CloseClipboard ();
+    CloseClipboard();
 }
 
 
@@ -1740,7 +1748,7 @@ void EmulatorShell::CopyScreenText ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CopyScreenshot ()
+void EmulatorShell::CopyScreenshot()
 {
     HGLOBAL         hMem    = nullptr;
     BITMAPINFOHEADER bih     = {};
@@ -1764,13 +1772,13 @@ void EmulatorShell::CopyScreenshot ()
             return;
         }
 
-        EmptyClipboard ();
+        EmptyClipboard();
 
         hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
 
         if (hMem == nullptr)
         {
-            CloseClipboard ();
+            CloseClipboard();
             return;
         }
 
@@ -1778,7 +1786,7 @@ void EmulatorShell::CopyScreenshot ()
 
         if (pDest == nullptr)
         {
-            CloseClipboard ();
+            CloseClipboard();
             return;
         }
 
@@ -1807,7 +1815,7 @@ void EmulatorShell::CopyScreenshot ()
         SetClipboardData (CF_DIB, hMem);
     }
 
-    CloseClipboard ();
+    CloseClipboard();
 }
 
 
@@ -1837,6 +1845,7 @@ void EmulatorShell::OnMachineCommand (int id)
         {
             paused = !m_paused.load (memory_order_acquire);
             m_paused.store (paused, memory_order_release);
+            m_pauseCV.notify_one ();
             m_menuSystem.SetPaused (paused);
             UpdateWindowTitle();
             break;

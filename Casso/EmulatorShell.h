@@ -151,6 +151,10 @@ private:
     // -- Threading --
     thread     m_cpuThread;
 
+    // Pause synchronization
+    mutex              m_pauseMutex;
+    condition_variable m_pauseCV;
+
     // Atomic flags (UI writes, CPU reads)
     atomic<bool>       m_running{true};
     atomic<bool>       m_paused{false};
