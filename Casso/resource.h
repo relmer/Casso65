@@ -7,6 +7,10 @@
 #define IDM_FILE_RECENT             40002
 #define IDM_FILE_EXIT               40003
 
+#define IDM_EDIT_COPY_TEXT          40005
+#define IDM_EDIT_COPY_SCREENSHOT    40006
+#define IDM_EDIT_PASTE              40007
+
 #define IDM_MACHINE_RESET           40010
 #define IDM_MACHINE_POWERCYCLE      40011
 #define IDM_MACHINE_PAUSE           40012

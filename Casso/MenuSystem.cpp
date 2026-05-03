@@ -43,6 +43,14 @@ static const MenuItem kFileMenuItems[] =
     { MF_STRING,             IDM_FILE_EXIT,   L"E&xit" },
 };
 
+static const MenuItem kEditMenuItems[] =
+{
+    { MF_STRING, IDM_EDIT_COPY_TEXT,       L"Copy &Text\tCtrl+Shift+C" },
+    { MF_STRING, IDM_EDIT_COPY_SCREENSHOT, L"Copy &Screenshot\tCtrl+Alt+C" },
+    { 0,         kSep,                     nullptr },
+    { MF_STRING, IDM_EDIT_PASTE,           L"&Paste\tCtrl+V" },
+};
+
 static const MenuItem kMachineMenuItems[] =
 {
     { MF_STRING,              IDM_MACHINE_RESET,     L"&Reset\tCtrl+R" },
@@ -162,6 +170,7 @@ HRESULT MenuSystem::CreateMenuBar (HWND hwnd)
     const MenuDef menus[] =
     {
         { &m_fileMenu,    L"&File",    kFileMenuItems,    _countof (kFileMenuItems) },
+        { &m_editMenu,    L"&Edit",    kEditMenuItems,    _countof (kEditMenuItems) },
         { &m_machineMenu, L"&Machine", kMachineMenuItems, _countof (kMachineMenuItems) },
         { &m_diskMenu,    L"&Disk",    kDiskMenuItems,    _countof (kDiskMenuItems) },
         { &m_viewMenu,    L"&View",    kViewMenuItems,    _countof (kViewMenuItems) },

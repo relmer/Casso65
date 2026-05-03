@@ -64,6 +64,7 @@ public:
 private:
     HMENU       m_menuBar     = nullptr;
     HMENU       m_fileMenu    = nullptr;
+    HMENU       m_editMenu    = nullptr;
     HMENU       m_machineMenu = nullptr;
     HMENU       m_diskMenu    = nullptr;
     HMENU       m_viewMenu    = nullptr;

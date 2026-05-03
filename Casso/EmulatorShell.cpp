@@ -1591,6 +1591,211 @@ void EmulatorShell::OnFileCommand (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnEditCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnEditCommand (int id)
+{
+    switch (id)
+    {
+        case IDM_EDIT_COPY_TEXT:
+        {
+            CopyScreenText ();
+            break;
+        }
+
+        case IDM_EDIT_COPY_SCREENSHOT:
+        {
+            CopyScreenshot ();
+            break;
+        }
+
+        case IDM_EDIT_PASTE:
+        {
+            PasteFromClipboard ();
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopyScreenText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CopyScreenText ()
+{
+    HGLOBAL hMem    = nullptr;
+    wchar_t * pDest = nullptr;
+    const Byte * pMem  = nullptr;
+    wstring   text;
+
+
+
+    if (m_cpu == nullptr)
+    {
+        return;
+    }
+
+    // Read the 40x24 text screen from Apple II memory (-)
+    pMem = m_cpu->GetMemory ();
+
+    for (int row = 0; row < 24; row++)
+    {
+        // Apple II text screen uses a non-linear address mapping
+        Word base = static_cast<Word> (0x0400 + (row / 8) * 0x28 + (row % 8) * 0x80);
+
+        for (int col = 0; col < 40; col++)
+        {
+            Byte ch = pMem[base + col];
+
+            // Convert Apple II screen code to ASCII
+            // Normal: - = ASCII -
+            // Inverse/flash: - = ASCII -
+            if (ch >= 0xA0)
+            {
+                ch -= 0x80;
+            }
+            else if (ch >= 0x80)
+            {
+                ch -= 0x80;
+            }
+
+            // Clamp to printable ASCII
+            if (ch < 0x20 || ch > 0x7E)
+            {
+                ch = ' ';
+            }
+
+            text += static_cast<wchar_t> (ch);
+        }
+
+        // Trim trailing spaces on each row
+        while (!text.empty () && text.back () == L' ')
+        {
+            text.pop_back ();
+        }
+
+        text += L"\r\n";
+    }
+
+    // Copy to clipboard
+    if (!OpenClipboard (m_hwnd))
+    {
+        return;
+    }
+
+    EmptyClipboard ();
+
+    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size () + 1) * sizeof (wchar_t));
+
+    if (hMem != nullptr)
+    {
+        pDest = static_cast<wchar_t *> (GlobalLock (hMem));
+
+        if (pDest != nullptr)
+        {
+            memcpy (pDest, text.c_str (), (text.size () + 1) * sizeof (wchar_t));
+            GlobalUnlock (hMem);
+            SetClipboardData (CF_UNICODETEXT, hMem);
+        }
+    }
+
+    CloseClipboard ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopyScreenshot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CopyScreenshot ()
+{
+    HGLOBAL         hMem    = nullptr;
+    BITMAPINFOHEADER bih     = {};
+    size_t          dataSize = 0;
+    size_t          totalSize= 0;
+    Byte          * pDest    = nullptr;
+    int             w        = kFramebufferWidth;
+    int             h        = kFramebufferHeight;
+
+
+
+    // Copy the UI framebuffer as a DIB to the clipboard
+    {
+        lock_guard<mutex> lock (m_fbMutex);
+
+        dataSize  = static_cast<size_t> (w) * h * 4;
+        totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
+
+        if (!OpenClipboard (m_hwnd))
+        {
+            return;
+        }
+
+        EmptyClipboard ();
+
+        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
+
+        if (hMem == nullptr)
+        {
+            CloseClipboard ();
+            return;
+        }
+
+        pDest = static_cast<Byte *> (GlobalLock (hMem));
+
+        if (pDest == nullptr)
+        {
+            CloseClipboard ();
+            return;
+        }
+
+        // Fill BITMAPINFOHEADER (bottom-up DIB)
+        bih.biSize        = sizeof (bih);
+        bih.biWidth       = w;
+        bih.biHeight      = h;      // positive = bottom-up
+        bih.biPlanes      = 1;
+        bih.biBitCount    = 32;
+        bih.biCompression = BI_RGB;
+        bih.biSizeImage   = static_cast<DWORD> (dataSize);
+
+        memcpy (pDest, &bih, sizeof (bih));
+        pDest += sizeof (bih);
+
+        // Copy framebuffer rows bottom-up (DIB is flipped)
+        for (int y = h - 1; y >= 0; y--)
+        {
+            memcpy (pDest,
+                    &m_uiFramebuffer[static_cast<size_t> (y) * w],
+                    static_cast<size_t> (w) * 4);
+            pDest += static_cast<size_t> (w) * 4;
+        }
+
+        GlobalUnlock (hMem);
+        SetClipboardData (CF_DIB, hMem);
+    }
+
+    CloseClipboard ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMachineCommand
 //
 ////////////////////////////////////////////////////////////////////////////////

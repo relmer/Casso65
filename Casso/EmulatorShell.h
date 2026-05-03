@@ -76,6 +76,7 @@ private:
 
     // Command group handlers
     void OnFileCommand    (int id);
+    void OnEditCommand    (int id);
     void OnMachineCommand (int id);
     void OnViewCommand    (int id);
     void OnDiskCommand    (int id);
@@ -98,6 +99,8 @@ private:
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);
 
+    void CopyScreenText     ();
+    void CopyScreenshot     ();
     void PasteFromClipboard ();
     void DrainPasteBuffer   ();
 
