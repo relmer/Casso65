@@ -194,11 +194,11 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
         // Resolve ROM file path
         if (!region.file.empty())
         {
-            romRelPath = fs::path ("roms") / region.file;
+            romRelPath = fs::path ("ROMs") / region.file;
             found      = PathResolver::FindFile (searchPaths, romRelPath);
 
             CBRF (!found.empty(),
-                  outError = format ("ROM file not found: roms/{}. "
+                  outError = format ("ROM file not found: ROMs/{}. "
                                      "Run scripts/FetchRoms.ps1 to download ROM images.",
                                      region.file));
 

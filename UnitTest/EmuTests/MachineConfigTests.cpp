@@ -146,7 +146,7 @@ public:
         }
 
         // Load the actual apple2plus.json config
-        std::string configPath = (fs::path (repoRoot) / "machines" / "apple2plus.json").string ();
+        std::string configPath = (fs::path (repoRoot) / "Machines" / "apple2plus.json").string ();
         std::ifstream file (configPath);
 
         if (!file.good ())

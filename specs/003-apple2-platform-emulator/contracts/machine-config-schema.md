@@ -5,7 +5,7 @@
 
 ## File Location
 
-Machine configs are stored in `Casso/machines/` as `.json` files. The `--machine <name>` CLI argument resolves to `machines/<name>.json`.
+Machine configs are stored in `Casso/Machines/` as `.json` files. The `--machine <name>` CLI argument resolves to `Machines/<name>.json`.
 
 ## Schema
 
@@ -65,7 +65,7 @@ Machine configs are stored in `Casso/machines/` as `.json` files. The `--machine
 | `type` | string | Yes | `"ram"` or `"rom"` | Memory region type |
 | `start` | string | Yes | Hex address `"0xNNNN"` | Start address (inclusive) |
 | `end` | string | Yes | Hex ≥ start | End address (inclusive) |
-| `file` | string | rom only | Relative to `roms/` dir | ROM image filename |
+| `file` | string | rom only | Relative to `ROMs/` dir | ROM image filename |
 | `bank` | string | No | `"aux"` | Bank identifier (IIe auxiliary RAM) |
 | `target` | string | No | `"chargen"` | Target subsystem (character generator ROM) |
 

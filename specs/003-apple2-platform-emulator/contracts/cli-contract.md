@@ -17,7 +17,7 @@ Casso.exe --machine <name> [--disk1 <path>] [--disk2 <path>]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `--machine <name>` | string | Machine configuration name. Resolves to `Casso/machines/<name>.json`. |
+| `--machine <name>` | string | Machine configuration name. Resolves to `Casso/Machines/<name>.json`. |
 
 ### Optional Arguments
 
@@ -30,9 +30,9 @@ Casso.exe --machine <name> [--disk1 <path>] [--disk2 <path>]
 
 | Name | Config File | Description |
 |------|-------------|-------------|
-| `apple2` | `machines/apple2.json` | Apple II (original) with Integer BASIC ROM |
-| `apple2plus` | `machines/apple2plus.json` | Apple II+ with Applesoft BASIC ROM |
-| `apple2e` | `machines/apple2e.json` | Apple IIe with 128KB RAM, 65C02, 80-column |
+| `apple2` | `Machines/apple2.json` | Apple II (original) with Integer BASIC ROM |
+| `apple2plus` | `Machines/apple2plus.json` | Apple II+ with Applesoft BASIC ROM |
+| `apple2e` | `Machines/apple2e.json` | Apple IIe with 128KB RAM, 65C02, 80-column |
 
 ### Examples
 
@@ -56,8 +56,8 @@ Casso.exe --machine apple2
 |-----------|-----------|----------------|
 | Missing `--machine` argument | 1 | `Error: --machine argument is required. Available machines: apple2, apple2plus, apple2e` |
 | Unknown machine name | 1 | `Error: Unknown machine 'foo'. Available machines: apple2, apple2plus, apple2e` |
-| Machine config JSON parse error | 1 | `Error: Failed to parse machines/<name>.json at line N, column M: <detail>` |
-| Missing ROM file | 1 | `Error: ROM file not found: roms/<filename>. Place Apple II ROM images in the roms/ directory.` |
+| Machine config JSON parse error | 1 | `Error: Failed to parse Machines/<name>.json at line N, column M: <detail>` |
+| Missing ROM file | 1 | `Error: ROM file not found: ROMs/<filename>. Place Apple II ROM images in the ROMs/ directory.` |
 | Missing .dsk file (--disk1/--disk2) | 1 | `Error: Disk image not found: <path>` |
 | Invalid .dsk file size | 1 | `Error: Disk image '<path>' is not a valid .dsk file (expected 143360 bytes, got N bytes)` |
 | Overlapping device addresses | 1 | `Error: Address conflict in machine config: <device1> ($XXXX-$XXXX) overlaps <device2> ($XXXX-$XXXX)` |

@@ -410,7 +410,7 @@ Each byte encodes two vertically-stacked 4-bit color blocks: low nybble (bits 0�
 
 ## Machine Configuration File Schema
 
-Machine configs are JSON files stored in `Casso/machines/`. Each file defines the complete hardware configuration for one computer model. The emulator loads the config at startup based on the `--machine` argument.
+Machine configs are JSON files stored in `Casso/Machines/`. Each file defines the complete hardware configuration for one computer model. The emulator loads the config at startup based on the `--machine` argument.
 
 ### Config Fields
 
@@ -558,12 +558,12 @@ void RegisterBuiltinDevices (ComponentRegistry & registry)
 
 1. Write new device classes: `VicII`, `Sid`, `Cia`, `C64Keyboard`
 2. Register them in `RegisterBuiltinDevices`
-3. Create `machines/c64.json` with the C64 memory map, ROM paths, and device wiring
+3. Create `Machines/c64.json` with the C64 memory map, ROM paths, and device wiring
 4. No changes to the emulator shell, MemoryBus, or existing machine configs
 
 ### ROM sourcing
 
-ROM images are copyrighted and not distributed with the project. The `roms/` directory is gitignored. A helper script `scripts/FetchRoms.ps1` can download ROMs from the AppleWin project's repository (https://github.com/AppleWin/AppleWin) for convenience, following the same pattern as `scripts/RunDormannTest.ps1`.
+ROM images are copyrighted and not distributed with the project. The `ROMs/` directory is gitignored. A helper script `scripts/FetchRoms.ps1` can download ROMs from the AppleWin project's repository (https://github.com/AppleWin/AppleWin) for convenience, following the same pattern as `scripts/RunDormannTest.ps1`.
 
 ## Apple II Model Differences
 
@@ -690,11 +690,11 @@ Casso.sln
 ├── UnitTest/          Test DLL (existing, unchanged)
 └── Casso/        NEW — Win32 GUI application
     ├── Casso.vcxproj
-    ├── machines/      JSON machine config files
+    ├── Machines/      JSON machine config files
     │   ├── apple2.json
     │   ├── apple2plus.json
     │   └── apple2e.json
-    ├── roms/          ROM images (gitignored)
+    ├── ROMs/          ROM images (gitignored)
     └── (source files)
 ```
 

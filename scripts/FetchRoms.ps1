@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Downloads ROM files from AppleWin's GitHub repository and places them in
-    the Casso/roms/ directory.  The roms/ directory is gitignored — ROM
+    the Casso/ROMs/ directory.  The ROMs/ directory is gitignored — ROM
     images are copyrighted by Apple and not distributed with this project.
 
     Files downloaded:
@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $repoRoot  = Split-Path -Parent $scriptDir
-$romsDir   = Join-Path $repoRoot 'roms'
+$romsDir   = Join-Path $repoRoot 'ROMs'
 
 $baseUrl = 'https://raw.githubusercontent.com/AppleWin/AppleWin/master/resource'
 

@@ -46,7 +46,7 @@ The solution builds five projects:
 ROM images are copyrighted and not distributed with the project. Place them in:
 
 ```
-Casso/roms/
+Casso/ROMs/
 ├── apple2.rom           # Apple II (Integer BASIC) — 12KB
 ├── apple2plus.rom       # Apple II+ (Applesoft BASIC) — 12KB
 ├── apple2e.rom          # Apple IIe system ROM
@@ -59,7 +59,7 @@ A helper script can fetch ROMs from the AppleWin project:
 & scripts/FetchRoms.ps1
 ```
 
-The `roms/` directory is gitignored.
+The `ROMs/` directory is gitignored.
 
 ## Run
 
@@ -156,8 +156,8 @@ Casso/                  # Win32 GUI application (flat structure)
 ├── WasapiAudio.h/.cpp       # WASAPI shared-mode audio (4 ComPtr members)
 ├── MenuSystem.h/.cpp        # Table-driven Win32 menu creation
 ├── DebugConsole.h/.cpp      # Debug log (derives from Window, lazy-init, Show/Hide)
-├── machines/    # apple2.json, apple2plus.json, apple2e.json
-├── roms/        # (gitignored) user-supplied ROM images
+├── Machines/    # apple2.json, apple2plus.json, apple2e.json
+├── ROMs/        # (gitignored) user-supplied ROM images
 └── shaders/     # VertexShader.hlsl, PixelShader.hlsl (compiled at build time)
 ```
 
@@ -165,7 +165,7 @@ Casso/                  # Win32 GUI application (flat structure)
 
 | Problem | Solution |
 |---------|----------|
-| "ROM file not found" | Place ROM files in `Casso/roms/` or run `scripts/FetchRoms.ps1` |
+| "ROM file not found" | Place ROM files in `Casso/ROMs/` or run `scripts/FetchRoms.ps1` |
 | "Unknown machine" | Check spelling. Valid names: `apple2`, `apple2plus`, `apple2e` |
 | No audio | Check Windows audio output device. WASAPI failure is non-fatal (warning in debug console). |
 | Black screen | Verify ROM file is correct size and not corrupted. Check debug console (Ctrl+D). |

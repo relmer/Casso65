@@ -93,17 +93,17 @@ distributed with this project. A script is included to download them from the
 [AppleWin](https://github.com/AppleWin/AppleWin) project:
 
 ```powershell
-# Download ROM images to the roms/ directory
+# Download ROM images to the ROMs/ directory
 .\scripts\FetchRoms.ps1
 
 # Run the emulator (defaults to Apple II+)
 .\ARM64\Debug\Casso.exe
 
 # Run with a specific machine config
-.\ARM64\Debug\Casso.exe --machine machines\apple2e.json
+.\ARM64\Debug\Casso.exe --machine Machines\apple2e.json
 ```
 
-The `roms/` directory is gitignored. Available machine configs are in `machines/`.
+The `ROMs/` directory is gitignored. Available machine configs are in `Machines/`.
 
 ## Assembler Features
 

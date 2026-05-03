@@ -87,7 +87,7 @@ static HRESULT LoadMachineConfig (
     // Build search paths and find machine config
     searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                      PathResolver::GetWorkingDirectory());
-    configRelPath  = fs::path ("machines") / (fs::path (machineName).string() + ".json");
+    configRelPath  = fs::path ("Machines") / (fs::path (machineName).string() + ".json");
     configPath     = PathResolver::FindFile (searchPaths, configRelPath);
 
     CBRN (!configPath.empty(),

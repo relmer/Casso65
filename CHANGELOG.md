@@ -28,7 +28,7 @@ Entries before versioning was introduced use dates only.
   sent CTRL_CLOSE_EVENT which terminated the entire process; added a console control
   handler that intercepts the event and calls FreeConsole instead
 - ROM search path bug: ROM files are now searched independently across all search paths,
-  fixing failures when `machines/` and `roms/` are at different base directories
+  fixing failures when `Machines/` and `ROMs/` are at different base directories
 - **Black screen in Casso** — D3D11 shaders were never compiled, so the textured
   quad draw call was skipped and only the black clear color was displayed; implemented
   runtime shader compilation via D3DCompile

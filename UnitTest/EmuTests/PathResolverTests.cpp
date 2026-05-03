@@ -132,7 +132,7 @@ public:
 
     TEST_METHOD (FindFile_IndependentSearch_MachinesAndRoms)
     {
-        // Verify that machines/ and roms/ can be searched independently —
+        // Verify that machines/ and ROMs/ can be searched independently —
         // both should resolve from the same search paths
         fs::path repoRoot = FindRepoRoot ();
 
@@ -146,9 +146,9 @@ public:
         fs::path configFound = PathResolver::FindFile (paths, "machines/apple2plus.json");
         Assert::IsFalse (configFound.empty ());
 
-        // roms/ may or may not exist in the test environment,
+        // ROMs/ may or may not exist in the test environment,
         // but the search itself should not crash
-        PathResolver::FindFile (paths, "roms/apple2plus.rom");
+        PathResolver::FindFile (paths, "ROMs/apple2plus.rom");
     }
 
 private:
