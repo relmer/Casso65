@@ -3,8 +3,8 @@
 // Version information for Casso
 // The build number and year are automatically updated by the pre-build script
 
-#define VERSION_MAJOR 0
-#define VERSION_MINOR 9
+#define VERSION_MAJOR 1
+#define VERSION_MINOR 0
 #define VERSION_BUILD 244
 #define VERSION_YEAR 2026
 

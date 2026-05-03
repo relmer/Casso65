@@ -17,23 +17,9 @@ Entries before versioning was introduced use dates only.
   clicking devices shows a popup listing all bus-mapped devices with address ranges
 - **Edit menu** — Copy Text (reads 40×24 text screen as ASCII), Copy Screenshot
   (framebuffer as DIB bitmap), Paste (Ctrl+V feeds clipboard into keyboard)
-- **Window base class** — ported from Mandelbrot repo, virtual On* message handlers;
-  EmulatorShell and DebugConsole derive from it
-- **ComPtr\<T\>** — Microsoft::WRL::ComPtr alias replaces all raw COM pointer management
-  in D3DRenderer and WasapiAudio; eliminates manual Release() chains
-- **Table-driven menus** — MenuSystem uses static MenuItem arrays and BuildPopupMenu loop
-- **Apple II key constants** — kAppleKeyLeft/Right/Up/Down/Escape/Delete in AppleKeyboard.h
-- **JsonValue typed accessors** — GetString/GetInt/GetUint32/GetBool/GetObject/GetArray
-  with HRESULT + out param; specific error codes (JSON_E_KEY_MISSING, JSON_E_TYPE_MISMATCH)
-- **EHM unified architecture** — single \_\_EHM\_Base macro; F suffix for failure actions
-  (CHRF, CBRF, CWRF); N suffix implemented as F + EhmNotifyUser; legacy \_SetError removed
 - **Cycle-accurate instruction timing** — baseCycles in Microcode with runtime page-cross
   and branch-taken penalties
-- **1ms execution slicing** — CPU runs in ~1023-cycle slices with per-slice audio submission,
-  inspired by AppleWin's architecture
 - **Pending audio buffer** — decouples PCM generation from WASAPI drain to prevent stutter
-- **PathResolver with std::filesystem::path** — replaces manual string concatenation and
-  WideToNarrow/NarrowToWide conversion functions
 - **DPI-scaled debug console font** — uses GetDpiForWindow + MulDiv
 
 ### Changed
