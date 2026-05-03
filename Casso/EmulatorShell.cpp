@@ -884,11 +884,12 @@ void EmulatorShell::CpuThreadProc()
     HANDLE        hTimer  = nullptr;
     LARGE_INTEGER dueTime = {};
     SpeedMode     speed   = SpeedMode::Authentic;
+    bool          comInited = false;
 
 
 
     // Initialize COM on this thread for WASAPI
-    CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+    comInited = SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED));
 
     // Initialize WASAPI audio (non-fatal if it fails)
     m_wasapiAudio.Initialize();
@@ -946,7 +947,10 @@ void EmulatorShell::CpuThreadProc()
     }
 
     m_wasapiAudio.Shutdown();
-    CoUninitialize();
+    if (comInited)
+    {
+        CoUninitialize ();
+    }
 }
 
 
