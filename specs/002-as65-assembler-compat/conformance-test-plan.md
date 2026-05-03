@@ -8,7 +8,7 @@
 
 Every test case is a `.a65` source file assembled by BOTH:
 1. The real AS65 v1.42 binary (to produce reference output)
-2. Casso65 (to produce test output)
+2. Casso (to produce test output)
 
 Comparison modes:
 - **Binary**: byte-for-byte comparison of output `.bin` files
@@ -334,8 +334,8 @@ Expected outputs are derived by:
 `scripts/RunDormannTest.ps1` — Self-contained script that:
 1. Downloads `6502_functional_test.a65` from the Klaus2m5 GitHub repo (GPL-3.0)
 2. Downloads the pre-built reference binary from `bin_files/` (data file, safe)
-3. Assembles the source with Casso65
-4. Compares Casso65 binary output against the reference binary byte-for-byte
+3. Assembles the source with Casso
+4. Compares Casso binary output against the reference binary byte-for-byte
 5. Deletes all downloaded files on completion
 6. No GPL code or external binaries persist in the repo
 
@@ -359,7 +359,7 @@ The listing format is validated against the AS65 manual documentation (column la
 
 Each conformance test in `UnitTest/ConformanceTests.cpp`:
 1. Reads the `.a65` source from `testdata/conformance/`
-2. Assembles it with Casso65
+2. Assembles it with Casso
 3. Compares output against the hand-computed `.expected.bin` file
 4. For negative tests, verifies expected error messages match
 5. Reports any byte differences with exact offset

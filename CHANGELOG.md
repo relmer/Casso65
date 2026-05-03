@@ -1,10 +1,56 @@
 # Changelog
 
-All notable changes to Casso65 are documented in this file.
+All notable changes to Casso are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
-Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](Casso65Core/Version.h).
+Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
+
+## [1.0.244] — 2026-05-03
+
+### Added
+- **Apple II platform emulator (Casso.exe)** — GUI-based Apple II, II+, and IIe emulator
+  with D3D11 rendering, WASAPI audio, data-driven JSON machine configs, and keyboard input
+- **CPU thread architecture** — dedicated CPU thread for 6502 execution and audio,
+  UI thread for Win32 messages and D3D Present with vsync
+- **Status bar** — shows CPU type, clock speed (MHz), machine name, and device count;
+  clicking devices shows a popup listing all bus-mapped devices with address ranges
+- **Edit menu** — Copy Text (reads 40×24 text screen as ASCII), Copy Screenshot
+  (framebuffer as DIB bitmap), Paste (Ctrl+V feeds clipboard into keyboard)
+- **Cycle-accurate instruction timing** — baseCycles in Microcode with runtime page-cross
+  and branch-taken penalties
+- **Pending audio buffer** — decouples PCM generation from WASAPI drain to prevent stutter
+- **DPI-scaled debug console font** — uses GetDpiForWindow + MulDiv
+
+### Changed
+- **Project rename** — Casso65Core → CassoCore, Casso65EmuCore → CassoEmuCore,
+  Casso65Emu → Casso, Casso65 → CassoCli; repo renamed to relmer/Casso
+- **Exact NTSC timing** — CPU clock 1,022,727 Hz (was 1,023,000), cycles/frame 17,030
+  (was 17,050); derived from 14.31818 MHz crystal
+- **Speaker amplitude** — ±0.25f (was ±1.0f) to match reference audio levels
+- **WASAPI buffer** — 100ms (was 33ms) for jitter headroom
+- **D3D vsync** — Present(1) on UI thread, Present(0) was double-gating with frame timer
+- **using namespace std** + **namespace fs** in both Emu Pch.h files
+- **In-class member initialization** preferred over constructor initializer lists
+- **Casso65Emu flattened** — removed Audio/, Shell/, Resources/, shaders/ subdirectories
+- **machines/ → Machines/, roms/ → ROMs/** — directory casing standardized
+
+### Fixed
+- **Mixed-mode text flicker** — framebuffer race condition; CPU thread now copies completed
+  framebuffer to UI buffer under mutex
+- **Hi-res NTSC colors** — two-pass renderer correctly handles cross-byte-boundary adjacent
+  pixels; HCOLOR=3 renders as solid white
+- **Power cycle** — now clears RAM ($0000-$BFFF) for cold boot with APPLE ][ banner
+- **Paste drops characters** — DrainPasteBuffer now checks keyboard strobe before feeding
+  next character
+- **Duplicate AddDevice** — every device was registered twice on the memory bus
+- **Bus overlap detection** — Validate() uses CBRN with specific conflicting address ranges
+- **Title bar garbage** — em-dash encoded as UTF-8 in source, replaced with \\u2014 escape
+- **Debug console newlines** — bare LF converted to CRLF for Win32 EDIT control
+- **Audio buzz during boot** — capped submission to one frame, pre-filled silence
+- **Green screen** — CPU opcode fetch now uses virtual ReadByte through MemoryBus
+- **Black screen** — D3D11 shaders implemented via runtime D3DCompile
+- **ParseHexAddress** — overflow and invalid-char validation added
 
 ## [0.9.32] — 2026-04-28
 
@@ -46,7 +92,7 @@ Entries before versioning was introduced use dates only.
 ## 2026-04-25
 
 ### Changed
-- Project renamed from **My6502** to **Casso65**
+- Project renamed from **My6502** to **Casso**
 
 ## 2026-04-24
 
@@ -64,7 +110,7 @@ Entries before versioning was introduced use dates only.
 ## 2026-04-23
 
 ### Added
-- Extracted `Casso65Core` static library from monolithic project
+- Extracted `CassoCore` static library from monolithic project
 - `UnitTest` project with 66 initial tests (Microsoft Native CppUnitTest)
 - Build/test automation scripts and VS Code tasks
 

@@ -1,12 +1,15 @@
-# Copilot Instructions for Casso65
+# Copilot Instructions for Casso
 
 ## Project Overview
 
-Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
+Casso is a 6502 CPU emulator, assembler, and Apple II platform emulator in C++.
+The solution has five projects:
 
-- **Casso65Core** — Static library containing all CPU logic (Cpu, CpuOperations, Microcode, instruction groups)
-- **Casso65** — Console application (just `main()`, links Casso65Core)
-- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links Casso65Core)
+- **CassoCore** — Static library containing CPU logic, assembler, parser, opcode table
+- **CassoEmuCore** — Static library containing Apple II devices, video modes, audio generator
+- **Casso** — Win32 GUI application (Apple II emulator, links CassoCore and CassoEmuCore)
+- **CassoCli** — Console application (AS65-compatible assembler CLI, links CassoCore)
+- **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links CassoCore and CassoEmuCore)
 
 ## C++ Specific Guidelines
 
@@ -22,6 +25,42 @@ Casso65 is a 6502 CPU emulator in C++. The solution has three projects:
 - **ALWAYS** preserve exact indentation when replacing code
 - Keep functions focused and short — ideally under ~50 lines
 - Each function should have a single clear purpose
+- Braces always required, even for single-statement `if`/`while`/`for`/`switch`
+- No comma-separated variable declarations
+- Prefer in-class member initialization (`.h`) over constructor initializer lists (`.cpp`)
+
+### Variable Declarations
+- **ALL** local variables declared at the **top** of the function (or top of a necessary local block)
+- Do **NOT** declare variables at point of first use
+- Column-align sequential declarations: type, pointer/reference symbol, name, `=`, value
+- If **any** line in a declaration block has a pointer `*` or reference `&`, **all** lines must include a column for that symbol — non-pointer lines use a space placeholder so subsequent columns stay aligned
+- Remove unnecessary scoping braces — hoist the variable to function top instead
+
+Example with pointer column:
+```cpp
+HRESULT          hr             = S_OK;
+WAVEFORMATEX   * mixFormat      = nullptr;
+WAVEFORMATEX     desiredFormat  = {};
+REFERENCE_TIME   bufferDuration = 1000000;
+BYTE           * buffer         = nullptr;
+```
+
+### Wrapped Function Parameters
+- When a function call is too long for one line, wrap and align parameters to the opening `(`
+```cpp
+hr = D3D11CreateDeviceAndSwapChain (nullptr,
+                                    D3D_DRIVER_TYPE_HARDWARE,
+                                    nullptr,
+                                    createFlags);
+```
+- When a function **definition** wraps its parameter list, the **first** parameter must wrap to the next line (indented one level), with one parameter per line, column-aligned like variable declarations (type, pointer/ref column, name)
+```cpp
+HRESULT EmulatorShell::Initialize (
+    HINSTANCE              hInstance,
+    const MachineConfig  & config,
+    const std::string    & disk1Path,
+    const std::string    & disk2Path)
+```
 
 ### Code Formatting — CRITICAL RULES
 
@@ -138,7 +177,7 @@ void Function2()
 - Use `TestCpu::WriteBytes()` to set up instruction sequences in memory
 - Use `TestCpu::Step()` / `StepN()` to execute instructions
 - Call `CpuOperations` static methods directly for unit-level tests
-- No test may run the real `Casso65` binary
+- No test may run the real `CassoCli` binary
 
 ## Build System
 
@@ -152,6 +191,7 @@ void Function2()
 - **ALL** tests MUST pass before committing
 - Build MUST succeed with no errors before committing
 - Each commit must leave the codebase in a compilable, tests-passing state
+- **Code analysis MUST pass** before committing: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **ALWAYS** update `README.md` when features, test counts, or roadmap items change
 
@@ -182,6 +222,7 @@ void Function2()
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
+at specs/003-apple2-platform-emulator/plan.md
 <!-- SPECKIT END -->
 
 ## Security Rules

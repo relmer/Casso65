@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. Downloads 6502_functional_test.a65 and reference binary from GitHub
-    2. Assembles with Casso65.exe in AS65-compatible mode
+    2. Assembles with CassoCli.exe in AS65-compatible mode
     3. Verifies assembly succeeds and produces a 64KB flat binary
     4. Reports byte differences vs reference (informational — reference binary
        is from an older source version missing zps data added Jan 2020)
@@ -27,29 +27,29 @@ $tempDir    = Join-Path $repoRoot 'dormann_temp'
 $sourceUrl  = 'https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/master/6502_functional_test.a65'
 $refBinUrl  = 'https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/master/bin_files/6502_functional_test.bin'
 
-# Auto-detect Casso65.exe — prefer Debug x64
+# Auto-detect CassoCli.exe — prefer Debug x64
 $exeCandidates = @(
-    (Join-Path $repoRoot 'x64\Debug\Casso65.exe'),
-    (Join-Path $repoRoot 'x64\Release\Casso65.exe'),
-    (Join-Path $repoRoot 'ARM64\Debug\Casso65.exe'),
-    (Join-Path $repoRoot 'ARM64\Release\Casso65.exe')
+    (Join-Path $repoRoot 'x64\Debug\CassoCli.exe'),
+    (Join-Path $repoRoot 'x64\Release\CassoCli.exe'),
+    (Join-Path $repoRoot 'ARM64\Debug\CassoCli.exe'),
+    (Join-Path $repoRoot 'ARM64\Release\CassoCli.exe')
 )
 
-$casso65 = $null
+$cassoCli = $null
 
 foreach ($candidate in $exeCandidates) {
     if (Test-Path $candidate) {
-        $casso65 = $candidate
+        $cassoCli = $candidate
         break
     }
 }
 
-if (-not $casso65) {
-    Write-Error "Casso65.exe not found. Build the project first."
+if (-not $cassoCli) {
+    Write-Error "CassoCli.exe not found. Build the project first."
     exit 1
 }
 
-Write-Host "Using: $casso65"
+Write-Host "Using: $cassoCli"
 
 try {
     # Create temp directory
@@ -62,12 +62,13 @@ try {
     $outputFile = Join-Path $tempDir '6502_functional_test.out.bin'
     $stderrFile = Join-Path $tempDir 'stderr.txt'
 
-    # Download source and reference
+    # Download source and reference using curl.exe (avoids Defender ClickFix false positive
+    # triggered by the cmd.exe -> powershell -> Invoke-WebRequest pattern)
     Write-Host "Downloading source..."
-    Invoke-WebRequest -Uri $sourceUrl -OutFile $sourceFile -UseBasicParsing
+    curl.exe -sL -o $sourceFile $sourceUrl
 
     Write-Host "Downloading reference binary..."
-    Invoke-WebRequest -Uri $refBinUrl -OutFile $refBinFile -UseBasicParsing
+    curl.exe -sL -o $refBinFile $refBinUrl
 
     Write-Host "Source size:    $((Get-Item $sourceFile).Length) bytes"
     Write-Host "Reference size: $((Get-Item $refBinFile).Length) bytes"
@@ -75,7 +76,7 @@ try {
     # Assemble with -z (zero fill) to match AS65 default behavior
     Write-Host "Assembling..."
     $assembleArgs = @($sourceFile, '-z', '-o', $outputFile)
-    $proc = Start-Process -FilePath $casso65 -ArgumentList $assembleArgs -NoNewWindow -Wait -PassThru -RedirectStandardError $stderrFile
+    $proc = Start-Process -FilePath $cassoCli -ArgumentList $assembleArgs -NoNewWindow -Wait -PassThru -RedirectStandardError $stderrFile
 
     $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
     if ($stderrContent) {

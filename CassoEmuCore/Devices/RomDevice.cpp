@@ -1,0 +1,119 @@
+#include "Pch.h"
+
+#include "RomDevice.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RomDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RomDevice::RomDevice (Word start, Word end, vector<Byte> && data)
+    : m_start (start),
+      m_end   (end),
+      m_data  (move (data))
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Read
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte RomDevice::Read (Word address)
+{
+    size_t offset = address - m_start;
+
+    if (offset < m_data.size ())
+    {
+        return m_data[offset];
+    }
+
+    return 0xFF;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Write (ignored — ROM is read-only)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RomDevice::Write (Word address, Byte value)
+{
+    UNREFERENCED_PARAMETER (address);
+    UNREFERENCED_PARAMETER (value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset (no-op — ROM contents are immutable)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RomDevice::Reset ()
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateFromFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unique_ptr<MemoryDevice> RomDevice::CreateFromFile (
+    Word start, Word end, const string & filePath, string & outError)
+{
+    ifstream file (filePath, ios::binary | ios::ate);
+
+    if (!file.good ())
+    {
+        outError = format ("Cannot open ROM file: {}", filePath);
+        return nullptr;
+    }
+
+    auto fileSize = file.tellg ();
+    file.seekg (0, ios::beg);
+
+    vector<Byte> data (static_cast<size_t> (fileSize));
+    file.read (reinterpret_cast<char *> (data.data ()), fileSize);
+
+    return make_unique<RomDevice> (start, end, move (data));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateFromData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unique_ptr<MemoryDevice> RomDevice::CreateFromData (
+    Word start, Word end, const Byte * data, size_t size)
+{
+    vector<Byte> romData (data, data + size);
+    return make_unique<RomDevice> (start, end, move (romData));
+}

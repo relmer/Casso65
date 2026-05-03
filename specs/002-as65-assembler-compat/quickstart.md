@@ -18,10 +18,10 @@ Use VS Code build tasks (Ctrl+Shift+B):
 
 ## New Files to Create
 
-1. `Casso65Core/ExpressionEvaluator.h` — expression evaluator header
-2. `Casso65Core/ExpressionEvaluator.cpp` — recursive descent parser
-3. `Casso65Core/OutputFormats.h` — S-record and Intel HEX writer header
-4. `Casso65Core/OutputFormats.cpp` — output format implementations
+1. `CassoCore/ExpressionEvaluator.h` — expression evaluator header
+2. `CassoCore/ExpressionEvaluator.cpp` — recursive descent parser
+3. `CassoCore/OutputFormats.h` — S-record and Intel HEX writer header
+4. `CassoCore/OutputFormats.cpp` — output format implementations
 5. `UnitTest/ExpressionEvaluatorTests.cpp` — expression tests
 6. `UnitTest/ConditionalAssemblyTests.cpp` — if/else/endif tests
 7. `UnitTest/MacroTests.cpp` — macro definition and expansion tests
@@ -33,14 +33,14 @@ Use VS Code build tasks (Ctrl+Shift+B):
 
 ## Files to Modify
 
-1. `Casso65Core/Assembler.h` — add macro/conditional/include/struct/cmap state
-2. `Casso65Core/Assembler.cpp` — main two-pass loop rewrite with all new features
-3. `Casso65Core/AssemblerTypes.h` — new types (MacroDefinition, StructDefinition, etc.)
-4. `Casso65Core/Parser.h/.cpp` — colon-less labels, AS65 directive recognition
-5. `Casso65Core/OpcodeTable.h/.cpp` — instruction synonyms, cycle count data
-6. `Casso65Core/Casso65Core.vcxproj` — add new .cpp/.h files
-7. `Casso65/CommandLine.h/.cpp` — AS65-compatible flags
-8. `Casso65/Casso65.cpp` — dispatch new flags
+1. `CassoCore/Assembler.h` — add macro/conditional/include/struct/cmap state
+2. `CassoCore/Assembler.cpp` — main two-pass loop rewrite with all new features
+3. `CassoCore/AssemblerTypes.h` — new types (MacroDefinition, StructDefinition, etc.)
+4. `CassoCore/Parser.h/.cpp` — colon-less labels, AS65 directive recognition
+5. `CassoCore/OpcodeTable.h/.cpp` — instruction synonyms, cycle count data
+6. `CassoCore/CassoCore.vcxproj` — add new .cpp/.h files
+7. `Casso/CommandLine.h/.cpp` — AS65-compatible flags
+8. `Casso/Casso.cpp` — dispatch new flags
 9. `UnitTest/UnitTest.vcxproj` — add new test files
 
 ## Validation Steps

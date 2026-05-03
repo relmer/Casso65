@@ -2,7 +2,7 @@
 # Automatically increments the build number and updates the year in Version.h before each build
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
-$versionFile = "$repoRoot\Casso65Core\Version.h"
+$versionFile = "$repoRoot\CassoCore\Version.h"
 $tempFile = "$versionFile.tmp"
 $backupFile = "$versionFile.bak"
 
@@ -26,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($content) -or $content -notmatch '#define VERSI
 
     try {
         Push-Location $repoRoot
-        git checkout HEAD -- "Casso65Core/Version.h" 2>&1 | Out-Null
+        git checkout HEAD -- "CassoCore/Version.h" 2>&1 | Out-Null
         Pop-Location
 
         # Re-read after restore
