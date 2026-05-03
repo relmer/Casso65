@@ -987,11 +987,18 @@ void EmulatorShell::ProcessCommands()
 
             case IDM_MACHINE_POWERCYCLE:
             {
-                m_memoryBus.Reset();
+                // Clear all RAM in the CPU's memory array (cold boot)
+                if (m_cpu)
+                {
+                    Byte * mem = const_cast<Byte *> (m_cpu->GetMemory ());
+                    memset (mem, 0, 0xC000);  // Clear - (RAM)
+                }
+
+                m_memoryBus.Reset ();
 
                 if (m_cpu)
                 {
-                    m_cpu->InitForEmulation();
+                    m_cpu->InitForEmulation ();
                 }
                 break;
             }

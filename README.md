@@ -5,6 +5,8 @@
 
 ## About
 
+![Casso Apple II Emulator](Assets/Apple%20%5D%5B%20GR%20Color%20Bands.png)
+
 Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS Technology 6502 microprocessor — the chip behind the Apple II, Commodore 64, NES, and Atari 2600.
 
 The project includes:
