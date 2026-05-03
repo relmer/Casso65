@@ -116,13 +116,22 @@ public:
                          string                 & outError);
 
 private:
-    struct Field 
-    { 
-        const char           * key; 
-        bool                   fRequired;
-        string MemoryRegion::* strDest;
-        Word   MemoryRegion::* wDest;
+    template <typename T>
+    struct Field
+    {
+        const char  * key;
+        bool          fRequired;
+        string T::  * strDest;
+        Word   T::  * wDest;
+        int    T::  * intDest;
     };
+
+    template <typename T>
+    static HRESULT GetValue (
+        const JsonValue  & entry,
+        const Field<T>   & f,
+        T                & dest,
+        string           & outError);
 
 
 
@@ -132,11 +141,6 @@ private:
                                        const vector<fs::path> & searchPaths,
                                        MachineConfig          & outConfig,
                                        string                 & outError);
-
-    static HRESULT GetValue           (const JsonValue & entry, 
-                                       const Field     & f, 
-                                       MemoryRegion    & region, 
-                                       string          & outError);
 
     static HRESULT LoadDevices        (const JsonValue & devArray,
                                        MachineConfig   & outConfig,

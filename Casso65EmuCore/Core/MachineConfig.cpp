@@ -139,14 +139,14 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    static const Field krgFields[] =
+    static const Field<MemoryRegion> krgFields[] =
     {
-        { "type",   true,  &MemoryRegion::type,   nullptr              },
-        { "start",  true,  nullptr,               &MemoryRegion::start },
-        { "end",    true,  nullptr,               &MemoryRegion::end   },
-        { "file",   false, &MemoryRegion::file,   nullptr              },
-        { "bank",   false, &MemoryRegion::bank,   nullptr              },
-        { "target", false, &MemoryRegion::target, nullptr              },
+        { "type",   true,  &MemoryRegion::type, nullptr, nullptr },
+        { "start",  true,  nullptr,               &MemoryRegion::start, nullptr },
+        { "end",    true,  nullptr,               &MemoryRegion::end, nullptr },
+        { "file",   false, &MemoryRegion::file, nullptr, nullptr },
+        { "bank",   false, &MemoryRegion::bank, nullptr, nullptr },
+        { "target", false, &MemoryRegion::target, nullptr, nullptr },
     };
 
     HRESULT   hr        = S_OK;
@@ -166,7 +166,7 @@ HRESULT MachineConfigLoader::LoadMemoryRegions (
 
         for (idxField = 0; idxField < _countof (krgFields); idxField++)
         {
-            const Field & f = krgFields[idxField];
+            const Field<MemoryRegion> & f = krgFields[idxField];
 
 
 
@@ -238,11 +238,12 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
 HRESULT MachineConfigLoader::GetValue (
-    const JsonValue & entry, 
-    const Field     & f, 
-    MemoryRegion    & region,
-    string          & outError)
+    const JsonValue  & entry,
+    const Field<T>   & f,
+    T                & dest,
+    string           & outError)
 {
     HRESULT hr = S_OK;
 
@@ -250,7 +251,7 @@ HRESULT MachineConfigLoader::GetValue (
 
     if (f.strDest != nullptr)
     {
-        hr = entry.GetString (f.key, region.*(f.strDest));
+        hr = entry.GetString (f.key, dest.*(f.strDest));
         CHR (hr);
     }
     else if (f.wDest != nullptr)
@@ -262,22 +263,30 @@ HRESULT MachineConfigLoader::GetValue (
         hr = entry.GetString (f.key, addrStr);
         CHR (hr);
 
-        hr = ParseHexAddress (addrStr, region.*(f.wDest), outError);
+        hr = ParseHexAddress (addrStr, dest.*(f.wDest), outError);
         CHR (hr);
     }
-
-
+    else if (f.intDest != nullptr)
+    {
+        hr = entry.GetInt (f.key, dest.*(f.intDest));
+        CHR (hr);
+    }
 
 Error:
     return hr;
 }
+
+// Explicit template instantiations
+template HRESULT MachineConfigLoader::GetValue<MemoryRegion> (const JsonValue &, const Field<MemoryRegion> &, MemoryRegion &, string &);
+template HRESULT MachineConfigLoader::GetValue<DeviceConfig> (const JsonValue &, const Field<DeviceConfig> &, DeviceConfig &, string &);
+
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadDevices
+//  MachineConfigLoader::LoadDevices
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,60 +295,64 @@ HRESULT MachineConfigLoader::LoadDevices (
     MachineConfig   & outConfig,
     string          & outError)
 {
-    HRESULT hr = S_OK;
-
-
-
-    for (size_t i = 0; i < devArray.ArraySize(); i++)
+    static const Field<DeviceConfig> krgFields[] =
     {
-        const JsonValue & entry = devArray.ArrayAt (i);
+        { "type",    true,  &DeviceConfig::type, nullptr,             nullptr            },
+        { "address", false, nullptr,             &DeviceConfig::address, nullptr          },
+        { "start",   false, nullptr,             &DeviceConfig::start, nullptr            },
+        { "end",     false, nullptr,             &DeviceConfig::end,   nullptr            },
+        { "slot",    false, nullptr,             nullptr,              &DeviceConfig::slot },
+    };
+
+    HRESULT hr       = S_OK;
+    size_t  idxDev   = 0;
+    size_t  idxField = 0;
+
+
+
+    for (idxDev = 0; idxDev < devArray.ArraySize (); idxDev++)
+    {
+        const JsonValue & entry = devArray.ArrayAt (idxDev);
         DeviceConfig      device;
-        string            addrStr;
 
 
-        
 
-
-        hr = entry.GetString ("type", device.type);
-        CHRF (hr, outError = format ("devices[{}]: missing 'type' field", i));
-
-        hr = entry.GetString ("address", addrStr);
-
-        if (SUCCEEDED (hr))
+        for (idxField = 0; idxField < _countof (krgFields); idxField++)
         {
-            hr = ParseHexAddress (addrStr, device.address, outError);
-            CHR (hr);
+            const Field<DeviceConfig> & f = krgFields[idxField];
 
+            hr = GetValue (entry, f, device, outError);
+
+            if (f.fRequired)
+            {
+                CHR (hr);
+            }
+            else
+            {
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+        }
+
+        // Post-process address mapping flags
+        if (device.address != 0)
+        {
             device.start      = device.address;
             device.end        = device.address;
             device.hasAddress = true;
         }
 
-        hr = entry.GetString ("start", addrStr);
-
-        if (SUCCEEDED (hr))
+        if (device.start != 0 && device.end != 0 && !device.hasAddress)
         {
-            hr = ParseHexAddress (addrStr, device.start, outError);
-            CHR (hr);
-
-            hr = entry.GetString ("end", addrStr);
-            CHRF (hr, outError = format ("devices[{}]: missing 'end' field", i));
-
-            hr = ParseHexAddress (addrStr, device.end, outError);
-            CHR (hr);
-
             device.hasRange = true;
         }
 
-        hr = entry.GetInt ("slot", device.slot);
-
-        if (SUCCEEDED (hr))
+        if (device.slot != 0)
         {
             device.hasSlot = true;
 
             CBRF (device.slot >= 1 && device.slot <= 7,
                   outError = format ("devices[{}]: slot must be 1-7, got {}",
-                                    i, device.slot));
+                                     idxDev, device.slot));
 
             device.start = static_cast<Word> (0xC080 + device.slot * 16);
             device.end   = static_cast<Word> (0xC08F + device.slot * 16);
@@ -349,6 +362,19 @@ HRESULT MachineConfigLoader::LoadDevices (
     }
 
 Error:
+    if (FAILED (hr) && outError.empty ())
+    {
+        if (idxField < _countof (krgFields))
+        {
+            outError = format ("devices[{}]: missing or invalid '{}' field",
+                               idxDev, krgFields[idxField].key);
+        }
+        else
+        {
+            outError = format ("devices[{}]: invalid configuration", idxDev);
+        }
+    }
+
     return hr;
 }
 
