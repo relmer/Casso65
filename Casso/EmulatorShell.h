@@ -10,6 +10,7 @@
 #include "MenuSystem.h"
 #include "DebugConsole.h"
 #include "Video/VideoOutput.h"
+#include "Video/CharacterRomData.h"
 #include "WasapiAudio.h"
 
 
@@ -135,6 +136,7 @@ private:
     // Video
     vector<unique_ptr<VideoOutput>> m_videoModes;
     VideoOutput *       m_activeVideoMode = nullptr;
+    CharacterRomData    m_charRom;
 
     // Soft switch state (read by video mode selection)
     bool    m_graphicsMode = false;

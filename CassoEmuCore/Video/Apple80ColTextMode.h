@@ -4,6 +4,8 @@
 #include "Video/VideoOutput.h"
 #include "Core/MemoryBus.h"
 
+class CharacterRomData;
+
 
 
 
@@ -20,6 +22,7 @@ class Apple80ColTextMode : public VideoOutput
 {
 public:
     explicit Apple80ColTextMode (MemoryBus & bus);
+    Apple80ColTextMode (MemoryBus & bus, const CharacterRomData & charRom);
 
     void Render (
         const Byte * videoRam,
@@ -32,5 +35,6 @@ public:
     const char * GetModeName () const override { return "apple2-text80"; }
 
 private:
-    MemoryBus & m_bus;
+    MemoryBus              & m_bus;
+    const CharacterRomData & m_charRom;
 };

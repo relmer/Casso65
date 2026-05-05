@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.2.315] — 2026-05-04
+
+### Added
+- **Character generator ROM loading** — text mode renderers now load the real
+  Apple character ROM file (`apple2-video.rom` for II/II+, `apple2e-enhanced-video.rom`
+  for the //e) instead of the embedded 96-character fallback. Fixes:
+  - **//e cursor** is now visible (the cursor character was outside our embedded
+    range)
+  - **//e boot logo** "Apple ][" displays fully (the missing characters were also
+    outside our embedded range)
+  - All 256 character codes render correctly across inverse, flash, and normal regions
+- **CharacterRomData** loader (`CassoEmuCore/Video/CharacterRomData.h/.cpp`)
+  decodes both 2KB (II/II+) and 4KB (//e enhanced) ROM formats including the
+  bit-reversed 2KB layout and the //e's primary + alt char set arrangement.
+  Falls back to embedded $20-$5F glyphs if no ROM file is configured.
+
 ## [1.1.311] — 2026-05-04
 
 ### Changed

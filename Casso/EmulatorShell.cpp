@@ -571,6 +571,23 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 
 
 
+    // Load character generator ROM (used by video renderers, not on bus)
+    if (!config.characterRom.resolvedPath.empty ())
+    {
+        HRESULT hrChar = m_charRom.LoadFromFile (config.characterRom.resolvedPath);
+
+        if (FAILED (hrChar))
+        {
+            DEBUGMSG (L"Failed to load character ROM '%hs', using fallback\n",
+                      config.characterRom.resolvedPath.c_str ());
+            m_charRom.LoadEmbeddedFallback ();
+        }
+    }
+    else
+    {
+        m_charRom.LoadEmbeddedFallback ();
+    }
+
     // RAM regions (skip aux-bank entries; AuxRamCard handles aux memory)
     for (const auto & region : config.ram)
     {
@@ -836,7 +853,7 @@ void EmulatorShell::MountCommandLineDisks (
 
 void EmulatorShell::CreateVideoModes()
 {
-    auto textMode = make_unique<AppleTextMode> (m_memoryBus);
+    auto textMode = make_unique<AppleTextMode> (m_memoryBus, m_charRom);
     m_activeVideoMode = textMode.get();
     m_videoModes.push_back (move (textMode));
 

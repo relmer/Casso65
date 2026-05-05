@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "AppleTextMode.h"
-#include "CharacterRom.h"
+#include "CharacterRomData.h"
 
 
 
@@ -34,8 +34,22 @@ static constexpr uint32_t kColorWhite  = 0xFFFFFFFF;   // ARGB white
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Singleton default char ROM (embedded fallback) for legacy single-arg constructor
+static const CharacterRomData & GetDefaultCharRom()
+{
+    static CharacterRomData s_defaultRom;
+    return s_defaultRom;
+}
+
 AppleTextMode::AppleTextMode (MemoryBus & bus)
-    : m_bus (bus)
+    : m_bus     (bus),
+      m_charRom (GetDefaultCharRom())
+{
+}
+
+AppleTextMode::AppleTextMode (MemoryBus & bus, const CharacterRomData & charRom)
+    : m_bus     (bus),
+      m_charRom (charRom)
 {
 }
 
@@ -114,47 +128,25 @@ void AppleTextMode::Render (
             // $80-$FF: Normal
             bool inverse = false;
             bool flash   = false;
-            Byte glyphIndex;
 
             if (charCode < 0x40)
             {
-                inverse    = true;
-                glyphIndex = charCode;
+                inverse = true;
             }
             else if (charCode < 0x80)
             {
-                flash      = true;
-                glyphIndex = static_cast<Byte> (charCode - 0x40);
-            }
-            else
-            {
-                glyphIndex = static_cast<Byte> (charCode - 0x80);
-            }
-
-            // Map glyph index to character ROM offset
-            // Our ROM covers $20-$5F (space through underscore)
-            int romOffset;
-
-            if (glyphIndex >= 0x20 && glyphIndex <= 0x5F)
-            {
-                romOffset = (glyphIndex - 0x20) * kCharHeight;
-            }
-            else
-            {
-                romOffset = 0;
+                flash = true;
             }
 
             bool showInverse = inverse || (flash && m_flashOn);
             int  fbColOrigin = fbRowOrigin + col * charStride;
 
             // Render the 7x8 glyph scaled 2x to 14x16 in the framebuffer.
-            // Uses pointer arithmetic and unrolled 2x2 writes instead of
-            // per-pixel index calculation.
             for (int py = 0; py < kCharHeight; py++)
             {
-                Byte      glyphRow = kApple2CharRom[romOffset + py];
-                uint32_t * row0    = framebuffer + fbColOrigin;
-                uint32_t * row1    = row0 + fbWidth;
+                Byte       glyphRow = m_charRom.GetGlyphRow (charCode, py, m_altCharSet);
+                uint32_t * row0     = framebuffer + fbColOrigin;
+                uint32_t * row1     = row0 + fbWidth;
 
                 if (showInverse)
                 {

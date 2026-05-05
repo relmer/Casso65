@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Apple80ColTextMode.h"
-#include "CharacterRom.h"
+#include "CharacterRomData.h"
 
 
 
@@ -13,8 +13,22 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Singleton default char ROM (embedded fallback) for legacy single-arg constructor
+static const CharacterRomData & GetDefaultCharRom()
+{
+    static CharacterRomData s_defaultRom;
+    return s_defaultRom;
+}
+
 Apple80ColTextMode::Apple80ColTextMode (MemoryBus & bus)
-    : m_bus (bus)
+    : m_bus     (bus),
+      m_charRom (GetDefaultCharRom())
+{
+}
+
+Apple80ColTextMode::Apple80ColTextMode (MemoryBus & bus, const CharacterRomData & charRom)
+    : m_bus     (bus),
+      m_charRom (charRom)
 {
 }
 
@@ -74,28 +88,10 @@ void Apple80ColTextMode::Render (
         {
             Byte charCode = (videoRam ? videoRam[static_cast<Word> (rowAddr + col)] : m_bus.ReadByte (static_cast<Word> (rowAddr + col)));
 
-            Byte glyphIndex;
-
-            if (charCode < 0x40)
-            {
-                glyphIndex = charCode;
-            }
-            else if (charCode < 0x80)
-            {
-                glyphIndex = static_cast<Byte> (charCode - 0x40);
-            }
-            else
-            {
-                glyphIndex = static_cast<Byte> (charCode - 0x80);
-            }
-
-            int romOffset = (glyphIndex >= 0x20 && glyphIndex <= 0x5F) ?
-                (glyphIndex - 0x20) * 8 : 0;
-
             // Render at half-width (7 pixels per char, no 2x scaling)
             for (int py = 0; py < kCharHeight; py++)
             {
-                Byte glyphRow = kApple2CharRom[romOffset + py];
+                Byte glyphRow = m_charRom.GetGlyphRow (charCode, py);
 
                 for (int px = 0; px < kCharWidth; px++)
                 {

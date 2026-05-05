@@ -206,6 +206,7 @@
     <ClCompile Include="Devices\AuxRamCard.cpp" />
     <ClCompile Include="Devices\AppleIIeSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
+    <ClCompile Include="Video\CharacterRomData.cpp" />
     <ClCompile Include="Video\AppleLoResMode.cpp" />
     <ClCompile Include="Video\AppleHiResMode.cpp" />
     <ClCompile Include="Video\Apple80ColTextMode.cpp" />
@@ -234,6 +235,7 @@
     <ClInclude Include="Devices\AppleIIeSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />
+    <ClInclude Include="Video\CharacterRomData.h" />
     <ClInclude Include="Video\AppleLoResMode.h" />
     <ClInclude Include="Video\AppleHiResMode.h" />
     <ClInclude Include="Video\Apple80ColTextMode.h" />
