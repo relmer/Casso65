@@ -10,19 +10,73 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryRegion
+//  RamRegion
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct MemoryRegion
+struct RamRegion
 {
-    string type;           // "ram" or "rom"
-    Word   start = 0;
-    Word   end   = 0;
-    string file;           // Required for ROM (from JSON)
-    string resolvedPath;   // Fully resolved ROM path after search
-    string bank;           // Optional: "aux"
-    string target;         // Optional: "chargen"
+    Word    address = 0;
+    Word    size    = 0;       // 1..0x10000 (full 64K)
+    string  bank;              // Optional: "aux"
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RomReference
+//
+//  Describes a ROM chip mapped on the CPU bus (system ROM, slot ROM).
+//  The end address is implicit from the file size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct RomReference
+{
+    Word    address      = 0;
+    string  file;
+    string  resolvedPath;
+    size_t  fileSize     = 0;  // Populated after resolution
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CharacterRomReference
+//
+//  Character generator ROM is not mapped on the CPU bus -- it's read by the
+//  video circuitry. Only the file matters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CharacterRomReference
+{
+    string  file;
+    string  resolvedPath;
+    size_t  fileSize     = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InternalDevice
+//
+//  Motherboard device with hardcoded address mapping. Just a type name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct InternalDevice
+{
+    string  type;
 };
 
 
@@ -33,18 +87,38 @@ struct MemoryRegion
 //
 //  DeviceConfig
 //
+//  Lightweight container passed to ComponentRegistry factory functions.
+//  Used to communicate per-instance configuration like slot number.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DeviceConfig
 {
-    string type;
-    Word   address    = 0;
-    Word   start      = 0;
-    Word   end        = 0;
-    int    slot       = 0;
-    bool   hasAddress = false;
-    bool   hasRange   = false;
-    bool   hasSlot    = false;
+    string  type;
+    int     slot      = 0;
+    bool    hasSlot   = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SlotConfig
+//
+//  A slot 1-7 with an optional device implementation and an optional slot ROM.
+//  At least one of `device` or `rom` must be specified.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SlotConfig
+{
+    int     slot         = 0;     // 1..7
+    string  device;               // Optional: registered device type
+    string  rom;                  // Optional: slot ROM filename
+    string  resolvedRomPath;
+    size_t  romSize      = 0;
 };
 
 
@@ -108,20 +182,23 @@ static constexpr uint32_t kAppleCyclesPerFrame = kCyclesPerScanline * kScanlines
 
 struct MachineConfig
 {
-    string                 name;
-    string                 cpu;
+    string                      name;
+    string                      cpu;
 
     // Timing (parsed from "timing" section)
-    VideoStandard          videoStandard     = VideoStandard::NTSC;
-    uint32_t               clockSpeed        = kAppleCpuClock;
-    uint32_t               cyclesPerScanline = kCyclesPerScanline;
-    uint32_t               scanlinesPerFrame = kNtscScanlines;
-    uint32_t               cyclesPerFrame    = kAppleCyclesPerFrame;
+    VideoStandard               videoStandard     = VideoStandard::NTSC;
+    uint32_t                    clockSpeed        = kAppleCpuClock;
+    uint32_t                    cyclesPerScanline = kCyclesPerScanline;
+    uint32_t                    scanlinesPerFrame = kNtscScanlines;
+    uint32_t                    cyclesPerFrame    = kAppleCyclesPerFrame;
 
-    vector<MemoryRegion>   memoryRegions;
-    vector<DeviceConfig>   devices;
-    VideoConfig            videoConfig;
-    string                 keyboardType;
+    vector<RamRegion>           ram;
+    RomReference                systemRom;
+    CharacterRomReference       characterRom;
+    vector<InternalDevice>      internalDevices;
+    vector<SlotConfig>          slots;
+    VideoConfig                 videoConfig;
+    string                      keyboardType;
 };
 
 
@@ -174,20 +251,37 @@ private:
 
 
     static HRESULT ParseHexAddress    (const string & str, Word & outAddr, string & outError);
+    static HRESULT ParseHexSize       (const string & str, uint32_t & outSize, string & outError);
 
-    static HRESULT LoadTiming        (const JsonValue & timing,
+    static HRESULT LoadTiming         (const JsonValue & timing,
                                        MachineConfig   & outConfig,
                                        string          & outError);
 
-    static HRESULT LoadMemoryRegions  (const JsonValue        & memArray,
-                                        const vector<fs::path> & searchPaths,
-                                        const FileResolver     & resolver,
-                                        MachineConfig          & outConfig,
-                                        string                 & outError);
-
-    static HRESULT LoadDevices        (const JsonValue & devArray,
+    static HRESULT LoadRam            (const JsonValue & ramArray,
                                        MachineConfig   & outConfig,
                                        string          & outError);
+
+    static HRESULT LoadSystemRom      (const JsonValue        & sysRomObj,
+                                       const vector<fs::path> & searchPaths,
+                                       const FileResolver     & resolver,
+                                       MachineConfig          & outConfig,
+                                       string                 & outError);
+
+    static HRESULT LoadCharacterRom   (const JsonValue        & charRomObj,
+                                       const vector<fs::path> & searchPaths,
+                                       const FileResolver     & resolver,
+                                       MachineConfig          & outConfig,
+                                       string                 & outError);
+
+    static HRESULT LoadInternalDevices (const JsonValue & devArray,
+                                        MachineConfig   & outConfig,
+                                        string          & outError);
+
+    static HRESULT LoadSlots          (const JsonValue        & slotsArray,
+                                       const vector<fs::path> & searchPaths,
+                                       const FileResolver     & resolver,
+                                       MachineConfig          & outConfig,
+                                       string                 & outError);
 
     static void    LoadVideoConfig    (const JsonValue & video,    MachineConfig & outConfig);
     static void    LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);

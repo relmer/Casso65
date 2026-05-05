@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.1.311] — 2026-05-04
+
+### Changed
+- **Machine config schema v2** — breaking change. Refactored from a single `memory[]`
+  array with conditional fields into clear sections:
+  - `ram[]` — RAM regions with `address` + `size` (and optional `bank`)
+  - `systemRom` — singular system ROM (`address` + `file`; size derived from file)
+  - `characterRom` — character generator ROM (file only)
+  - `internalDevices[]` — motherboard I/O (just `type`)
+  - `slots[]` — expansion cards (`slot`, optional `device`, optional `rom`)
+  All three machine configs (`apple2.json`, `apple2plus.json`, `apple2e.json`)
+  migrated to the new schema.
+- **ROM size validation** — system ROM file size now determines the end address
+  automatically (no more start/end mismatch bugs)
+- **Slot ROM auto-mapping** — slot ROMs auto-map to `$C000 + slot * 0x100`,
+  required to be exactly 256 bytes
+
+### Added
+- **FetchRoms.ps1** — expanded to download all peripheral card ROMs from AppleWin:
+  Disk II 13-sector, Mockingboard, Mouse Interface, Parallel printer, Super Serial
+  Card, ThunderClock Plus, HDC SmartPort, Hard Disk drivers, Apple //e Enhanced
+  system ROM
+- **Apple //e Disk II slot ROM** — `disk2.rom` now loads at $C600-$C6FF (slot 6)
+  via the new schema, satisfying the //e autostart scan
+
 ## [1.0.307] — 2026-05-04
 
 ### Added

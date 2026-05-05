@@ -76,6 +76,9 @@ void RamDevice::Reset ()
 
 unique_ptr<MemoryDevice> RamDevice::Create (const DeviceConfig & config, MemoryBus & bus)
 {
+    // RamDevice instances are created directly by EmulatorShell from RAM regions
+    // in the machine config. The DeviceConfig path is not used.
+    UNREFERENCED_PARAMETER (config);
     UNREFERENCED_PARAMETER (bus);
-    return make_unique<RamDevice> (config.start, config.end);
+    return nullptr;
 }

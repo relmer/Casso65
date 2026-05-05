@@ -6,37 +6,29 @@
         "clockSpeed": 1022727,
         "cyclesPerScanline": 65
     },
-    "memory": [
-        {
-            "type": "ram",
-            "start": "0x0000",
-            "end": "0xBFFF"
-        },
-        {
-            "type": "ram",
-            "start": "0x0000",
-            "end": "0xBFFF",
-            "bank": "aux"
-        },
-        {
-            "type": "rom",
-            "start": "0xC000",
-            "end": "0xFFFF",
-            "file": "apple2e.rom"
-        }
+    "ram": [
+        { "address": "0x0000", "size": "0xC000" },
+        { "address": "0x0000", "size": "0xC000", "bank": "aux" }
     ],
-    "devices": [
+    "systemRom": {
+        "address": "0xC000",
+        "file": "apple2e.rom"
+    },
+    "characterRom": {
+        "file": "apple2e-enhanced-video.rom"
+    },
+    "internalDevices": [
         { "type": "apple2e-keyboard" },
         { "type": "apple2-speaker" },
         { "type": "apple2e-softswitches" },
         { "type": "aux-ram-card" },
-        { "type": "language-card" },
-        { "type": "disk-ii", "slot": 6 }
+        { "type": "language-card" }
+    ],
+    "slots": [
+        { "slot": 6, "device": "disk-ii", "rom": "disk2.rom" }
     ],
     "video": {
-        "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"],
-        "width": 560,
-        "height": 384
+        "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]
     },
     "keyboard": {
         "type": "apple2e-full"

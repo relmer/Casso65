@@ -14,8 +14,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  MachineConfigTests
 //
-//  Adversarial tests proving config loading catches real problems:
-//  missing fields, invalid CPUs, missing ROMs, and correct device mapping.
+//  Validates the v2 machine config schema:
+//    ram[], systemRom, characterRom, internalDevices[], slots[]
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,26 +29,30 @@ public:
         MachineConfig config;
         std::string   error;
 
-        std::vector<fs::path> paths;
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
-            L"Load should succeed for valid minimal JSON");
+            std::format (L"Load should succeed: {}",
+                std::wstring (error.begin (), error.end ())).c_str ());
         Assert::AreEqual (std::string ("TestMachine"), config.name,
             L"Name must be 'TestMachine'");
         Assert::AreEqual (std::string ("6502"), config.cpu,
             L"CPU must be '6502'");
         Assert::AreEqual (1023000u, config.clockSpeed,
             L"Clock speed must be 1023000");
-        Assert::AreEqual (size_t (1), config.memoryRegions.size (),
-            L"Should have 1 memory region");
-        Assert::AreEqual (std::string ("ram"), config.memoryRegions[0].type,
-            L"First region type must be 'ram'");
+        Assert::AreEqual (size_t (1), config.ram.size (),
+            L"Should have 1 RAM region");
+        Assert::AreEqual (Word (0x0000), config.ram[0].address,
+            L"First RAM address must be 0x0000");
+        Assert::AreEqual (Word (0xC000), config.ram[0].size,
+            L"First RAM size must be 0xC000");
     }
 
-    TEST_METHOD (Load_RomResolvedPath_Populated)
+    TEST_METHOD (Load_SystemRomResolved)
     {
-        std::string   json = JsonWithRom ();
+        std::string   json = MinimalJson ();
         MachineConfig config;
         std::string   error;
 
@@ -59,25 +63,15 @@ public:
         Assert::IsTrue (SUCCEEDED (hr),
             L"Load should succeed with valid ROM");
 
-        bool foundRom = false;
-
-        for (const auto & region : config.memoryRegions)
-        {
-            if (region.type == "rom" && !region.file.empty ())
-            {
-                Assert::IsFalse (region.resolvedPath.empty (),
-                    L"resolvedPath must be populated for ROM regions");
-                foundRom = true;
-            }
-        }
-
-        Assert::IsTrue (foundRom,
-            L"Should have at least one ROM region");
+        Assert::IsFalse (config.systemRom.resolvedPath.empty (),
+            L"systemRom resolvedPath must be populated");
+        Assert::AreEqual (Word (0xD000), config.systemRom.address,
+            L"systemRom address must be 0xD000");
     }
 
     TEST_METHOD (Load_MissingRom_ReturnsClearError)
     {
-        std::string   json = JsonWithRom ();
+        std::string   json = MinimalJson ();
         MachineConfig config;
         std::string   error;
 
@@ -93,7 +87,7 @@ public:
 
     TEST_METHOD (Load_MissingName_ReturnsError)
     {
-        std::string json = R"({ "cpu": "6502", "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 } })";
+        std::string json = R"({ "cpu": "6502" })";
         MachineConfig config;
         std::string   error;
 
@@ -116,8 +110,9 @@ public:
                 "clockSpeed": 1023000,
                 "cyclesPerScanline": 65
             },
-            "memory": [],
-            "devices": [],
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "internalDevices": [],
             "video": { "modes": [] },
             "keyboard": { "type": "test" }
         })";
@@ -134,9 +129,9 @@ public:
             L"Error should mention the invalid CPU type");
     }
 
-    TEST_METHOD (Load_Apple2PlusConfig_ResolvesAllRegions)
+    TEST_METHOD (Load_AuxRamRegion_Preserved)
     {
-        std::string   json = Apple2PlusJson ();
+        std::string   json = JsonWithAuxRam ();
         MachineConfig config;
         std::string   error;
 
@@ -145,22 +140,94 @@ public:
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
-            std::format (L"apple2plus config should load: {}",
+            std::format (L"aux ram config should load: {}",
                 std::wstring (error.begin (), error.end ())).c_str ());
 
-        Assert::AreEqual (std::string ("6502"), config.cpu,
-            L"Apple II+ must use 6502 CPU");
+        Assert::AreEqual (size_t (2), config.ram.size (),
+            L"Should have 2 RAM regions");
+        Assert::AreEqual (std::string ("aux"), config.ram[1].bank,
+            L"Second RAM bank must be 'aux'");
+    }
 
-        // Verify all ROM regions have resolved paths
-        for (const auto & region : config.memoryRegions)
-        {
-            if (region.type == "rom" && !region.file.empty ())
-            {
-                Assert::IsFalse (region.resolvedPath.empty (),
-                    std::format (L"ROM '{}' must have resolvedPath",
-                        std::wstring (region.file.begin (), region.file.end ())).c_str ());
-            }
-        }
+    TEST_METHOD (Load_InternalDevices_Parsed)
+    {
+        std::string   json = MinimalJson ();
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (size_t (3), config.internalDevices.size (),
+            L"Should have 3 internal devices");
+        Assert::AreEqual (std::string ("apple2-keyboard"), config.internalDevices[0].type,
+            L"First internal device should be apple2-keyboard");
+    }
+
+    TEST_METHOD (Load_Slot_RangeValidation)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 8, "device": "disk-ii" }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (FAILED (hr),
+            L"Slot 8 should fail validation (must be 1-7)");
+        Assert::IsTrue (error.find ("slot must be") != std::string::npos,
+            L"Error should mention slot range constraint");
+    }
+
+    TEST_METHOD (Load_Slot_MissingDeviceAndRom_Fails)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6 }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (FAILED (hr),
+            L"Slot with neither device nor rom should fail");
     }
 
     TEST_METHOD (Load_KeyboardType_Parsed)
@@ -169,8 +236,9 @@ public:
         MachineConfig config;
         std::string   error;
 
-        std::vector<fs::path> paths;
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
@@ -183,28 +251,38 @@ public:
         MachineConfig config;
         std::string   error;
 
-        std::vector<fs::path> paths;
-        HRESULT hr = MachineConfigLoader::Load (json, paths, config, error);
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, paths, MockResolveAll,
+                                                config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (560, config.videoConfig.width,
-            L"Video width should be 560");
-        Assert::AreEqual (384, config.videoConfig.height,
-            L"Video height should be 384");
+        Assert::AreEqual (size_t (3), config.videoConfig.modes.size (),
+            L"Should have 3 video modes");
     }
 
 private:
 
-    // Mock resolver that always finds the file
+    // Mock resolver that always finds the file (returns a fake path with a tiny
+    // backing file so size queries work). For tests, we use the actual ROM
+    // files in the searchPaths.
     static fs::path MockResolveAll (
         const std::vector<fs::path> & searchPaths,
         const fs::path              & relativePath)
     {
+        // Return a deterministic synthetic path. The loader needs a path that
+        // exists on disk to call file_size. Fall back to the actual ROM dir.
+        fs::path actualRoms = fs::path (__FILE__).parent_path ().parent_path ().parent_path () / "ROMs";
+        fs::path candidate  = actualRoms / relativePath.filename ();
+
+        if (fs::exists (candidate))
+        {
+            return candidate;
+        }
+
         return searchPaths.empty () ? relativePath
-                                   : searchPaths[0] / relativePath;
+                                    : searchPaths[0] / relativePath;
     }
 
-    // Mock resolver that never finds the file
     static fs::path MockResolveNone (
         const std::vector<fs::path> &,
         const fs::path              &)
@@ -222,63 +300,38 @@ private:
                 "clockSpeed": 1023000,
                 "cyclesPerScanline": 65
             },
-            "memory": [
-                { "type": "ram", "start": "0x0000", "end": "0xBFFF" }
+            "ram": [
+                { "address": "0x0000", "size": "0xC000" }
             ],
-            "devices": [],
-            "video": { "modes": ["apple2-text40"], "width": 560, "height": 384 },
+            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "internalDevices": [
+                { "type": "apple2-keyboard" },
+                { "type": "apple2-speaker" },
+                { "type": "apple2-softswitches" }
+            ],
+            "video": { "modes": ["apple2-text40", "apple2-lores", "apple2-hires"] },
             "keyboard": { "type": "apple2-uppercase" }
         })";
     }
 
-    static std::string JsonWithRom ()
+    static std::string JsonWithAuxRam ()
     {
         return R"({
-            "name": "TestWithRom",
+            "name": "TestIIe",
             "cpu": "6502",
             "timing": {
                 "videoStandard": "ntsc",
                 "clockSpeed": 1023000,
                 "cyclesPerScanline": 65
             },
-            "memory": [
-                { "type": "ram", "start": "0x0000", "end": "0xBFFF" },
-                { "type": "rom", "start": "0xD000", "end": "0xFFFF", "file": "apple2plus.rom" }
+            "ram": [
+                { "address": "0x0000", "size": "0xC000" },
+                { "address": "0x0000", "size": "0xC000", "bank": "aux" }
             ],
-            "devices": [],
-            "video": { "modes": ["apple2-text40"], "width": 560, "height": 384 },
-            "keyboard": { "type": "apple2-uppercase" }
-        })";
-    }
-
-    // Inline copy of apple2plus.json — no file I/O needed
-    static std::string Apple2PlusJson ()
-    {
-        return R"({
-            "name": "Apple II+",
-            "cpu": "6502",
-            "timing": {
-                "videoStandard": "ntsc",
-                "clockSpeed": 1022727,
-                "cyclesPerScanline": 65
-            },
-            "memory": [
-                { "type": "ram", "start": "0x0000", "end": "0xBFFF" },
-                { "type": "rom", "start": "0xD000", "end": "0xFFFF", "file": "apple2plus.rom" }
-            ],
-            "devices": [
-                { "type": "apple2-keyboard" },
-                { "type": "apple2-speaker" },
-                { "type": "apple2-softswitches" }
-            ],
-            "video": {
-                "modes": ["apple2-text40", "apple2-lores", "apple2-hires"],
-                "width": 560,
-                "height": 384
-            },
-            "keyboard": {
-                "type": "apple2-uppercase"
-            }
+            "systemRom": { "address": "0xC000", "file": "apple2e.rom" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "apple2e-full" }
         })";
     }
 };

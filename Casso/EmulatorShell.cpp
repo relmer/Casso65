@@ -313,7 +313,7 @@ void EmulatorShell::UpdateStatusBar()
         format (L"CPU: {}",           fs::path (m_config.cpu).wstring()),
         format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0),
         format (L"Machine: {}",       fs::path (m_config.name).wstring()),
-        format (L"{} devices",        m_config.devices.size()),
+        format (L"{} devices",        (m_config.internalDevices.size() + m_config.slots.size())),
     };
 
 
@@ -388,71 +388,80 @@ void EmulatorShell::ShowDevicePopup()
     hMenu = CreatePopupMenu();
     CPRA (hMenu);
 
-    // Memory regions from config (skip aux-bank entries)
-    for (const auto & region : m_config.memoryRegions)
+    // RAM regions (skip aux-bank entries -- shown via aux-ram-card device)
+    for (const auto & region : m_config.ram)
     {
-        if (!region.bank.empty())
+        if (!region.bank.empty ())
         {
             continue;
         }
 
-        wstring typeName = fs::path (region.type).wstring();
-        wstring fileName = fs::path (region.file).wstring();
+        Word ramEnd = static_cast<Word> (region.address + region.size - 1);
+        label = format (L"${:04X}-${:04X}  Ram", region.address, ramEnd);
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        CWRA (fSuccess);
+    }
 
-        typeName[0] = towupper (typeName[0]);
+    // System ROM
+    {
+        Word romEnd  = static_cast<Word> (m_config.systemRom.address + m_config.systemRom.fileSize - 1);
+        wstring file = fs::path (m_config.systemRom.file).wstring ();
+        label = format (L"${:04X}-${:04X}  Rom ({})", m_config.systemRom.address, romEnd, file);
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        CWRA (fSuccess);
+    }
 
-        if (fileName.empty())
+    // Slot ROMs
+    for (const auto & slot : m_config.slots)
+    {
+        if (slot.rom.empty ())
         {
-            label = format (L"${:04X}-${:04X}  {}", region.start, region.end, typeName);
-        }
-        else
-        {
-            label = format (L"${:04X}-${:04X}  {} ({})", region.start, region.end, typeName, fileName);
+            continue;
         }
 
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
+        Word    romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
+        Word    romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
+        wstring file     = fs::path (slot.rom).wstring ();
+        label = format (L"${:04X}-${:04X}  Slot {} Rom ({})", romStart, romEnd, slot.slot, file);
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
         CWRA (fSuccess);
     }
 
     fSuccess = AppendMenuW (hMenu, MF_SEPARATOR, 0, nullptr);
     CWRA (fSuccess);
 
-    // Named devices -- show address range from each owned device
-    for (const auto & devCfg : m_config.devices)
+    // Internal devices
+    for (const auto & idev : m_config.internalDevices)
     {
-        wstring name  = fs::path (devCfg.type).wstring();
+        wstring name  = fs::path (idev.type).wstring ();
         bool    found = false;
 
         for (const auto & dev : m_ownedDevices)
         {
-            Word devStart = dev->GetStart();
-            Word devEnd   = dev->GetEnd();
+            Word devStart = dev->GetStart ();
+            Word devEnd   = dev->GetEnd ();
             bool match    = false;
 
-            if ((devCfg.type == "apple2-keyboard" || devCfg.type == "apple2e-keyboard") &&
-                m_keyboard != nullptr && dev.get() == static_cast<MemoryDevice *> (m_keyboard))
+            if ((idev.type == "apple2-keyboard" || idev.type == "apple2e-keyboard") &&
+                m_keyboard != nullptr && dev.get () == static_cast<MemoryDevice *> (m_keyboard))
             {
                 match = true;
             }
-            else if (devCfg.type == "apple2-speaker" &&
-                     m_speaker != nullptr && dev.get() == static_cast<MemoryDevice *> (m_speaker))
+            else if (idev.type == "apple2-speaker" &&
+                     m_speaker != nullptr && dev.get () == static_cast<MemoryDevice *> (m_speaker))
             {
                 match = true;
             }
-            else if ((devCfg.type == "apple2-softswitches" || devCfg.type == "apple2e-softswitches") &&
-                     m_softSwitches != nullptr && dev.get() == static_cast<MemoryDevice *> (m_softSwitches))
+            else if ((idev.type == "apple2-softswitches" || idev.type == "apple2e-softswitches") &&
+                     m_softSwitches != nullptr && dev.get () == static_cast<MemoryDevice *> (m_softSwitches))
             {
                 match = true;
             }
-            else if (devCfg.type == "aux-ram-card" && devStart == 0xC003 && devEnd == 0xC006)
+            else if (idev.type == "aux-ram-card" && devStart == 0xC003 && devEnd == 0xC006)
             {
                 match = true;
             }
-            else if (devCfg.type == "language-card" && devStart == 0xC080 && devEnd == 0xC08F)
-            {
-                match = true;
-            }
-            else if (devCfg.type == "disk-ii" && devStart >= 0xC0E0 && devEnd <= 0xC0EF)
+            else if (idev.type == "language-card" && devStart == 0xC080 && devEnd == 0xC08F)
             {
                 match = true;
             }
@@ -470,7 +479,23 @@ void EmulatorShell::ShowDevicePopup()
             label = name;
         }
 
-        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str());
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
+        CWRA (fSuccess);
+    }
+
+    // Slot devices
+    for (const auto & slot : m_config.slots)
+    {
+        if (slot.device.empty ())
+        {
+            continue;
+        }
+
+        wstring name = fs::path (slot.device).wstring ();
+        Word    ioStart = static_cast<Word> (0xC080 + slot.slot * 16);
+        Word    ioEnd   = static_cast<Word> (ioStart + 15);
+        label = format (L"${:04X}-${:04X}  Slot {} ({})", ioStart, ioEnd, slot.slot, name);
+        fSuccess = AppendMenuW (hMenu, MF_STRING, itemId++, label.c_str ());
         CWRA (fSuccess);
     }
 
@@ -538,72 +563,130 @@ bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
 {
-    HRESULT hr    = S_OK;
-    bool    romOk = false;
+    HRESULT  hr      = S_OK;
+    bool     romOk   = false;
 
-    wstring wideError;
+    wstring  wideError;
+    string   error;
 
 
 
-    // Create memory-mapped regions (RAM and ROM)
-    for (const auto & region : config.memoryRegions)
+    // RAM regions (skip aux-bank entries; AuxRamCard handles aux memory)
+    for (const auto & region : config.ram)
     {
-        if (region.type == "ram" && region.bank.empty())
+        if (!region.bank.empty ())
         {
-            auto device = make_unique<RamDevice> (region.start, region.end);
-            m_memoryBus.AddDevice (device.get());
-            m_ownedDevices.push_back (move (device));
+            continue;
         }
-        else if (region.type == "rom" && !region.file.empty())
-        {
-            string romPath = region.resolvedPath;
-            string error;
 
-            auto device = RomDevice::CreateFromFile (region.start, region.end, romPath, error);
+        Word start = region.address;
+        Word end   = static_cast<Word> (region.address + region.size - 1);
 
-            romOk = (device != nullptr);
-
-            if (!romOk)
-            {
-                wideError.assign (error.begin(), error.end());
-                CBRN (false, wideError.c_str());
-            }
-
-            m_memoryBus.AddDevice (device.get());
-            m_ownedDevices.push_back (move (device));
-        }
+        auto device = make_unique<RamDevice> (start, end);
+        m_memoryBus.AddDevice (device.get ());
+        m_ownedDevices.push_back (move (device));
     }
 
-    // Create named devices from config (keyboard, speaker, soft switches, etc.)
-    for (const auto & devConfig : config.devices)
+    // System ROM (single, file size determines end address)
     {
-        auto device = m_registry.Create (devConfig.type, devConfig, m_memoryBus);
+        Word romStart = config.systemRom.address;
+        Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.fileSize - 1);
+
+        auto device = RomDevice::CreateFromFile (romStart,
+                                                 romEnd,
+                                                 config.systemRom.resolvedPath,
+                                                 error);
+
+        romOk = (device != nullptr);
+
+        if (!romOk)
+        {
+            wideError.assign (error.begin (), error.end ());
+            CBRN (false, wideError.c_str ());
+        }
+
+        m_memoryBus.AddDevice (device.get ());
+        m_ownedDevices.push_back (move (device));
+    }
+
+    // Internal motherboard devices
+    for (const auto & idev : config.internalDevices)
+    {
+        DeviceConfig devCfg;
+        devCfg.type = idev.type;
+
+        auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
 
         if (!device)
         {
-            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devConfig.type.c_str());
+            DEBUGMSG (L"Warning: Unknown device type '%hs'\n", devCfg.type.c_str ());
             continue;
         }
 
         // Track specific device pointers for quick access
-        if (devConfig.type == "apple2-keyboard" ||
-            devConfig.type == "apple2e-keyboard")
+        if (devCfg.type == "apple2-keyboard" ||
+            devCfg.type == "apple2e-keyboard")
         {
-            m_keyboard = static_cast<AppleKeyboard *> (device.get());
+            m_keyboard = static_cast<AppleKeyboard *> (device.get ());
         }
-        else if (devConfig.type == "apple2-softswitches" ||
-                 devConfig.type == "apple2e-softswitches")
+        else if (devCfg.type == "apple2-softswitches" ||
+                 devCfg.type == "apple2e-softswitches")
         {
-            m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
+            m_softSwitches = static_cast<AppleSoftSwitchBank *> (device.get ());
         }
-        else if (devConfig.type == "apple2-speaker")
+        else if (devCfg.type == "apple2-speaker")
         {
-            m_speaker = static_cast<AppleSpeaker *> (device.get());
+            m_speaker = static_cast<AppleSpeaker *> (device.get ());
         }
 
-
-        m_memoryBus.AddDevice (device.get());
+        m_memoryBus.AddDevice (device.get ());
         m_ownedDevices.push_back (move (device));
+    }
+
+    // Slot devices and slot ROMs
+    for (const auto & slot : config.slots)
+    {
+        // Slot device (e.g., disk-ii)
+        if (!slot.device.empty ())
+        {
+            DeviceConfig devCfg;
+            devCfg.type    = slot.device;
+            devCfg.slot    = slot.slot;
+            devCfg.hasSlot = true;
+
+            auto device = m_registry.Create (devCfg.type, devCfg, m_memoryBus);
+
+            if (!device)
+            {
+                DEBUGMSG (L"Warning: Unknown slot device type '%hs'\n", devCfg.type.c_str ());
+            }
+            else
+            {
+                m_memoryBus.AddDevice (device.get ());
+                m_ownedDevices.push_back (move (device));
+            }
+        }
+
+        // Slot ROM at $Cs00-$CsFF
+        if (!slot.rom.empty ())
+        {
+            Word romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
+            Word romEnd   = static_cast<Word> (romStart + slot.romSize - 1);
+
+            auto device = RomDevice::CreateFromFile (romStart,
+                                                     romEnd,
+                                                     slot.resolvedRomPath,
+                                                     error);
+
+            if (device == nullptr)
+            {
+                wideError.assign (error.begin (), error.end ());
+                CBRN (false, wideError.c_str ());
+            }
+
+            m_memoryBus.AddDevice (device.get ());
+            m_ownedDevices.push_back (move (device));
+        }
     }
 
 Error:
@@ -788,35 +871,63 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
     m_cpu = make_unique<EmuCpu> (m_memoryBus);
 
-    // The base Cpu class uses an internal memory[] array for opcode fetch
-    // and instruction execution. Copy ROM data into that array.
-    for (const auto & region : config.memoryRegions)
+    // The base Cpu class uses an internal memory[] array. Copy system ROM
+    // and slot ROMs into that array so PeekByte/disassembly can see them.
     {
-        if (region.type != "rom" || region.resolvedPath.empty())
+        // System ROM
+        if (!config.systemRom.resolvedPath.empty ())
         {
-            continue;
-        }
+            romFile.open (config.systemRom.resolvedPath, ios::binary);
 
-        romFile.open (region.resolvedPath, ios::binary);
-        if (!romFile.good())
-        {
-            continue;
-        }
-
-        addr = region.start;
-        
-        while (romFile.good() && addr <= region.end)
-        {
-            romFile.read (&byte, 1);
-
-            if (romFile.gcount() == 1)
+            if (romFile.good ())
             {
-                m_cpu->PokeByte (addr, static_cast<Byte> (byte));
-                addr++;
+                addr = config.systemRom.address;
+
+                while (romFile.good () && addr < config.systemRom.address + config.systemRom.fileSize)
+                {
+                    romFile.read (&byte, 1);
+
+                    if (romFile.gcount () == 1)
+                    {
+                        m_cpu->PokeByte (addr, static_cast<Byte> (byte));
+                        addr++;
+                    }
+                }
+
+                romFile.close ();
             }
         }
 
-        romFile.close();
+        // Slot ROMs
+        for (const auto & slot : config.slots)
+        {
+            if (slot.rom.empty () || slot.resolvedRomPath.empty ())
+            {
+                continue;
+            }
+
+            romFile.open (slot.resolvedRomPath, ios::binary);
+
+            if (!romFile.good ())
+            {
+                continue;
+            }
+
+            addr = static_cast<Word> (0xC000 + slot.slot * 0x100);
+
+            while (romFile.good () && addr < 0xC000 + slot.slot * 0x100 + slot.romSize)
+            {
+                romFile.read (&byte, 1);
+
+                if (romFile.gcount () == 1)
+                {
+                    m_cpu->PokeByte (addr, static_cast<Byte> (byte));
+                    addr++;
+                }
+            }
+
+            romFile.close ();
+        }
     }
 
     m_cpu->InitForEmulation();
@@ -2043,8 +2154,8 @@ void EmulatorShell::OnMachineCommand (int id)
                 wstring (m_config.name.begin(), m_config.name.end()),
                 wstring (m_config.cpu.begin(), m_config.cpu.end()),
                 m_config.clockSpeed,
-                m_config.memoryRegions.size(),
-                m_config.devices.size());
+                (m_config.ram.size() + 1 + m_config.slots.size()),
+                (m_config.internalDevices.size() + m_config.slots.size()));
 
             MessageBoxW (m_hwnd, info.c_str(), L"Machine Info", MB_ICONINFORMATION | MB_OK);
             break;
@@ -2215,7 +2326,7 @@ void EmulatorShell::OnHelpCommand (int id)
                     m_debugConsole.LogConfig (
                         format ("Machine: {}\nCPU: {}\nClock: {} Hz\nDevices: {}",
                             m_config.name, m_config.cpu, m_config.clockSpeed,
-                            m_config.devices.size()));
+                            (m_config.internalDevices.size() + m_config.slots.size())));
                 }
             }
             break;

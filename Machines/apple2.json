@@ -6,28 +6,24 @@
         "clockSpeed": 1022727,
         "cyclesPerScanline": 65
     },
-    "memory": [
-        {
-            "type": "ram",
-            "start": "0x0000",
-            "end": "0xBFFF"
-        },
-        {
-            "type": "rom",
-            "start": "0xD000",
-            "end": "0xFFFF",
-            "file": "apple2.rom"
-        }
+    "ram": [
+        { "address": "0x0000", "size": "0xC000" }
     ],
-    "devices": [
+    "systemRom": {
+        "address": "0xD000",
+        "file": "apple2.rom"
+    },
+    "characterRom": {
+        "file": "apple2-video.rom"
+    },
+    "internalDevices": [
         { "type": "apple2-keyboard" },
         { "type": "apple2-speaker" },
         { "type": "apple2-softswitches" }
     ],
+    "slots": [],
     "video": {
-        "modes": ["apple2-text40", "apple2-lores", "apple2-hires"],
-        "width": 560,
-        "height": 384
+        "modes": ["apple2-text40", "apple2-lores", "apple2-hires"]
     },
     "keyboard": {
         "type": "apple2-uppercase"

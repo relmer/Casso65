@@ -1,7 +1,7 @@
 # Machine Configuration JSON Schema
 
 **Feature**: `003-apple2-platform-emulator`
-**Date**: 2025-07-22
+**Schema Version**: 2 (refactored)
 
 ## File Location
 
@@ -13,30 +13,37 @@ Machine configs are stored in `Casso/Machines/` as `.json` files. The `--machine
 {
     "name": "<string>",
     "cpu": "<string>",
-    "clockSpeed": <integer>,
-    "memory": [
+    "timing": {
+        "videoStandard": "<string>",
+        "clockSpeed": <integer>,
+        "cyclesPerScanline": <integer>
+    },
+    "ram": [
         {
-            "type": "<string>",
-            "start": "<hex-string>",
-            "end": "<hex-string>",
-            "file": "<string>",
-            "bank": "<string>",
-            "target": "<string>"
+            "address": "<hex-string>",
+            "size":    "<hex-string>",
+            "bank":    "<string>"
         }
     ],
-    "devices": [
+    "systemRom": {
+        "address": "<hex-string>",
+        "file":    "<string>"
+    },
+    "characterRom": {
+        "file":    "<string>"
+    },
+    "internalDevices": [
+        { "type": "<string>" }
+    ],
+    "slots": [
         {
-            "type": "<string>",
-            "address": "<hex-string>",
-            "start": "<hex-string>",
-            "end": "<hex-string>",
-            "slot": <integer>
+            "slot":   <integer>,
+            "device": "<string>",
+            "rom":    "<string>"
         }
     ],
     "video": {
-        "modes": ["<string>"],
-        "width": <integer>,
-        "height": <integer>
+        "modes": ["<string>"]
     },
     "keyboard": {
         "type": "<string>"
@@ -48,98 +55,171 @@ Machine configs are stored in `Casso/Machines/` as `.json` files. The `--machine
 
 ### Root Object
 
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `name` | string | Yes | Non-empty | Human-readable machine name (displayed in title bar) |
-| `cpu` | string | Yes | `"6502"` or `"65c02"` | CPU variant |
-| `clockSpeed` | integer | Yes | > 0 | CPU clock speed in Hz |
-| `memory` | array | Yes | ≥ 1 entry | RAM and ROM region definitions |
-| `devices` | array | Yes | May be empty | Named device instances wired to the address bus |
-| `video` | object | Yes | — | Video output configuration |
-| `keyboard` | object | Yes | — | Keyboard input configuration |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name (status bar, machine picker) |
+| `cpu` | string | Yes | `"6502"` (only currently supported) |
+| `timing` | object | Yes | NTSC/PAL timing parameters |
+| `ram` | array | Yes | RAM regions (may be empty) |
+| `systemRom` | object | Yes | The main system ROM |
+| `characterRom` | object | No | Character generator ROM (used by video) |
+| `internalDevices` | array | Yes | Motherboard I/O devices |
+| `slots` | array | No | Expansion slots 1-7 |
+| `video` | object | Yes | Video mode list |
+| `keyboard` | object | Yes | Keyboard type |
 
-### memory[] Entry
+### timing Object
 
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `type` | string | Yes | `"ram"` or `"rom"` | Memory region type |
-| `start` | string | Yes | Hex address `"0xNNNN"` | Start address (inclusive) |
-| `end` | string | Yes | Hex ≥ start | End address (inclusive) |
-| `file` | string | rom only | Relative to `ROMs/` dir | ROM image filename |
-| `bank` | string | No | `"aux"` | Bank identifier (IIe auxiliary RAM) |
-| `target` | string | No | `"chargen"` | Target subsystem (character generator ROM) |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `videoStandard` | string | Yes | `"ntsc"` or `"pal"` |
+| `clockSpeed` | integer | Yes | CPU clock in Hz |
+| `cyclesPerScanline` | integer | Yes | CPU cycles per scanline |
 
-### devices[] Entry
+### ram[] Entry
 
-Exactly one of: `address`, `start`/`end` pair, or `slot` must be provided.
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `address` | hex-string | Yes | Start address `"0x0000"` |
+| `size` | hex-string | Yes | Size in bytes `"0xC000"` (1..0x10000) |
+| `bank` | string | No | `"aux"` for IIe auxiliary RAM (created by AuxRamCard, not main bus) |
 
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `type` | string | Yes | Registered in ComponentRegistry | Device type name |
-| `address` | string | No | Hex address | Single-address device mapping |
-| `start` | string | No | Hex address | Range start (used with `end`) |
-| `end` | string | No | Hex ≥ start | Range end (used with `start`) |
-| `slot` | integer | No | 1–7 | Slot number (auto-maps I/O + ROM ranges) |
+### systemRom Object
 
-**Slot auto-mapping**: When `slot` is specified, the device is mapped to:
-- I/O: `$C080 + slot×16` through `$C08F + slot×16`
-- ROM: `$Cs00` through `$CsFF` (where s = slot number)
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `address` | hex-string | Yes | Base address (size determined by file size) |
+| `file` | string | Yes | Filename relative to `ROMs/` directory |
+
+### characterRom Object
+
+Character ROM is not mapped on the CPU bus -- it's read by the video circuitry.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | string | Yes | Filename relative to `ROMs/` directory |
+
+### internalDevices[] Entry
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Registered device type (see below) |
+
+Internal devices have hardcoded address mappings. The `type` is the only field needed.
+
+### slots[] Entry
+
+A slot represents an expansion card. At least one of `device` or `rom` must be provided.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `slot` | integer | Yes | 1..7 |
+| `device` | string | No | Registered slot device type |
+| `rom` | string | No | Slot ROM filename (256 bytes, mapped at $Cs00-$CsFF) |
+
+The slot ROM auto-maps to address `$C000 + slot * 0x100`. Slot device I/O auto-maps to `$C080 + slot * 16`.
 
 ### video Object
 
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `modes` | array\<string\> | Yes | ≥ 1, all registered | Video mode component names |
-| `width` | integer | Yes | > 0 | Framebuffer width in pixels |
-| `height` | integer | Yes | > 0 | Framebuffer height in pixels |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `modes` | string[] | Yes | Video mode names (see below) |
 
 ### keyboard Object
 
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `type` | string | Yes | Registered in ComponentRegistry | Keyboard component name |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Registered keyboard type |
 
 ## Registered Component Types
 
-### Device Types
+### Internal Device Types
 
-| Type String | C++ Class | Description |
-|-------------|-----------|-------------|
-| `apple2-keyboard` | AppleKeyboard | Uppercase-only keyboard, strobe at $C000/$C010 |
-| `apple2e-keyboard` | AppleIIeKeyboard | Full keyboard with lowercase, modifier keys |
-| `apple2-speaker` | AppleSpeaker | Speaker toggle on $C030 read |
-| `apple2-softswitches` | AppleSoftSwitchBank | Video mode toggles $C050–$C057 |
-| `apple2e-softswitches` | AppleIIeSoftSwitchBank | Extended IIe soft switches |
-| `language-card` | LanguageCard | $D000–$FFFF bank switching at $C080–$C08F |
-| `aux-ram-card` | AuxRamCard | IIe auxiliary 64KB RAM at $C003/$C005 |
-| `disk-ii` | DiskIIController | Disk II controller (requires `slot` field) |
+| Type | Class | Address Range | Purpose |
+|------|-------|---------------|---------|
+| `apple2-keyboard` | AppleKeyboard | $C000-$C01F | Uppercase keyboard, strobe |
+| `apple2e-keyboard` | AppleIIeKeyboard | $C000-$C01F | Full keyboard with lowercase, OA/CA |
+| `apple2-speaker` | AppleSpeaker | $C030 | Speaker click |
+| `apple2-softswitches` | AppleSoftSwitchBank | $C050-$C05F | Video toggles |
+| `apple2e-softswitches` | AppleIIeSoftSwitchBank | $C050-$C07F | Extended IIe switches |
+| `language-card` | LanguageCard | $C080-$C08F | $D000-$FFFF bank switching |
+| `aux-ram-card` | AuxRamCard | $C003-$C006 | IIe auxiliary 64K RAM |
 
-### Video Mode Types
+### Slot Device Types
 
-| Type String | C++ Class | Description |
-|-------------|-----------|-------------|
-| `apple2-text40` | AppleTextMode | 40×24 text, interleaved row layout |
-| `apple2-text80` | Apple80ColTextMode | 80×24 text (IIe, main+aux interleaved) |
-| `apple2-lores` | AppleLoResMode | 40×48, 16-color lo-res graphics |
-| `apple2-hires` | AppleHiResMode | 280×192 hi-res with NTSC color artifacts |
-| `apple2-doublehires` | AppleDoubleHiResMode | 560×192 double hi-res (IIe, 16 colors) |
+| Type | Class | Default Slot | Purpose |
+|------|-------|--------------|---------|
+| `disk-ii` | DiskIIController | 6 | Disk II floppy controller |
+
+### Video Modes
+
+| Type | Class | Resolution | Description |
+|------|-------|------------|-------------|
+| `apple2-text40` | AppleTextMode | 40x24 | 40-column text |
+| `apple2-text80` | Apple80ColTextMode | 80x24 | 80-column text (IIe) |
+| `apple2-lores` | AppleLoResMode | 40x48 | 16-color lo-res |
+| `apple2-hires` | AppleHiResMode | 280x192 | NTSC hi-res |
+| `apple2-doublehires` | AppleDoubleHiResMode | 560x192 | Double hi-res (IIe) |
 
 ### Keyboard Types
 
-| Type String | Description |
-|-------------|-------------|
-| `apple2-uppercase` | Apple II/II+ uppercase-only keyboard |
-| `apple2e-full` | Apple IIe full keyboard with lowercase |
+| Type | Description |
+|------|-------------|
+| `apple2-uppercase` | Apple II/II+ uppercase-only |
+| `apple2e-full` | Apple //e full keyboard with lowercase |
 
 ## Validation Rules
 
-1. **JSON syntax**: Must be valid JSON. Parser reports line/column on error.
-2. **Required fields**: All required fields must be present. Missing field → error naming the field.
-3. **CPU type**: Must be `"6502"` or `"65c02"`. Unknown value → error.
-4. **Address format**: Must be `"0x"` prefixed hex string. Invalid format → error.
-5. **Address ordering**: `end` must be ≥ `start` in all ranges. Violation → error.
-6. **ROM file existence**: All `memory[].file` paths must resolve to existing files. Missing → error with expected path.
-7. **Component registry**: All `devices[].type`, `video.modes[]`, and `keyboard.type` values must be registered. Unknown → error listing registered types.
-8. **Address overlap**: No two devices/memory regions may claim the same address. Overlap → error naming both devices and the conflicting range.
-9. **Slot range**: `slot` must be 1–7. Out of range → error.
-10. **Device mapping**: Each device entry must have exactly one of: `address`, `start`+`end`, or `slot`. Multiple or none → error.
+1. **JSON syntax**: Must be valid. Parser reports line/column on error.
+2. **Required fields**: Missing required field produces an error naming the field.
+3. **CPU type**: Must be `"6502"`.
+4. **Address format**: `"0x"` prefix or `"$"` prefix; max value $FFFF.
+5. **Size format**: Same as address; range 1..0x10000.
+6. **RAM range**: `address + size` must not exceed 64K.
+7. **ROM file existence**: All `file` references must resolve through the search paths.
+8. **systemRom file size**: ROM must fit within 64K starting at `address`.
+9. **Slot range**: `slot` must be 1-7.
+10. **Slot ROM size**: Must be exactly 256 bytes.
+11. **Slot must have content**: Each slot entry must specify `device` and/or `rom`.
+12. **Component registry**: All `type` values must be registered.
+
+## Example: Apple //e
+
+```json
+{
+    "name": "Apple //e",
+    "cpu": "6502",
+    "timing": {
+        "videoStandard": "ntsc",
+        "clockSpeed": 1022727,
+        "cyclesPerScanline": 65
+    },
+    "ram": [
+        { "address": "0x0000", "size": "0xC000" },
+        { "address": "0x0000", "size": "0xC000", "bank": "aux" }
+    ],
+    "systemRom": {
+        "address": "0xC000",
+        "file": "apple2e.rom"
+    },
+    "characterRom": {
+        "file": "apple2e-enhanced-video.rom"
+    },
+    "internalDevices": [
+        { "type": "apple2e-keyboard" },
+        { "type": "apple2-speaker" },
+        { "type": "apple2e-softswitches" },
+        { "type": "aux-ram-card" },
+        { "type": "language-card" }
+    ],
+    "slots": [
+        { "slot": 6, "device": "disk-ii", "rom": "disk2.rom" }
+    ],
+    "video": {
+        "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]
+    },
+    "keyboard": {
+        "type": "apple2e-full"
+    }
+}
+```

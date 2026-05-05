@@ -5,6 +5,12 @@
 #include "PathResolver.h"
 
 
+static constexpr int    kMinSlot       = 1;
+static constexpr int    kMaxSlot       = 7;
+static constexpr Word   kRamMaxAddress = 0xFFFF;
+static constexpr size_t kRamMaxSize    = 0x10000;
+
+
 
 
 
@@ -39,9 +45,55 @@ HRESULT MachineConfigLoader::ParseHexAddress (const string & str, Word & outAddr
     val = strtoul (pszHex, &pEnd, 16);
 
     CBRF (pEnd != pszHex && *pEnd == '\0', outError = format ("Invalid hex digits in address: '{}'",    str));
-    CBRF (val <= 0xFFFF,                   outError = format ("Address out of range: '{}' (max $FFFF)", str));
+    CBRF (val <= kRamMaxAddress,           outError = format ("Address out of range: '{}' (max $FFFF)", str));
 
     outAddr = static_cast<Word> (val);
+
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseHexSize
+//
+//  Sizes can be 1..0x10000 (full 64K).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::ParseHexSize (const string & str, uint32_t & outSize, string & outError)
+{
+    HRESULT       hr     = S_OK;
+    LPCSTR        pszHex = str.c_str();
+    char        * pEnd   = nullptr;
+    unsigned long val    = 0;
+
+
+
+    if (str.size() >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+    {
+        pszHex += 2;
+    }
+    else if (str.size() >= 1 && str[0] == '$')
+    {
+        pszHex++;
+    }
+    else
+    {
+        CBRF (false, outError = format ("Invalid size format: '{}' (expected 0xNNNN or $NNNN)", str));
+    }
+
+    val = strtoul (pszHex, &pEnd, 16);
+
+    CBRF (pEnd != pszHex && *pEnd == '\0', outError = format ("Invalid hex digits in size: '{}'", str));
+    CBRF (val > 0 && val <= kRamMaxSize,   outError = format ("Size out of range: '{}' (1..0x10000)", str));
+
+    outSize = static_cast<uint32_t> (val);
 
 
 Error:
@@ -104,6 +156,300 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResolveRomFile
+//
+//  Helper: resolve a relative ROM path through the search paths.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT ResolveRomFile (
+    const string                                                                        & file,
+    const vector<fs::path>                                                              & searchPaths,
+    const MachineConfigLoader::FileResolver                                             & resolver,
+    string                                                                              & outResolvedPath,
+    size_t                                                                              & outFileSize,
+    string                                                                              & outError)
+{
+    HRESULT   hr         = S_OK;
+    fs::path  romRelPath = fs::path ("ROMs") / file;
+    fs::path  found      = resolver (searchPaths, romRelPath);
+    auto      sz         = std::uintmax_t {0};
+
+
+
+    CBRF (!found.empty (),
+          outError = format ("ROM file not found: ROMs/{}. "
+                             "Run scripts/FetchRoms.ps1 to download ROM images.",
+                             file));
+
+    sz = fs::file_size (found);
+    CBRF (sz > 0,
+          outError = format ("ROM file is empty: ROMs/{}", file));
+
+    outResolvedPath = found.string ();
+    outFileSize     = static_cast<size_t> (sz);
+
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadRam
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadRam (
+    const JsonValue & ramArray,
+    MachineConfig   & outConfig,
+    string          & outError)
+{
+    HRESULT   hr     = S_OK;
+    size_t    idx    = 0;
+    string    addrStr;
+    string    sizeStr;
+    uint32_t  size32 = 0;
+
+
+
+    for (idx = 0; idx < ramArray.ArraySize (); idx++)
+    {
+        const JsonValue & entry = ramArray.ArrayAt (idx);
+        RamRegion         region;
+
+
+
+        hr = entry.GetString ("address", addrStr);
+        CHRF (hr, outError = format ("ram[{}]: missing or invalid 'address' field", idx));
+
+        hr = ParseHexAddress (addrStr, region.address, outError);
+        CHR (hr);
+
+        hr = entry.GetString ("size", sizeStr);
+        CHRF (hr, outError = format ("ram[{}]: missing or invalid 'size' field", idx));
+
+        hr = ParseHexSize (sizeStr, size32, outError);
+        CHR (hr);
+
+        CBRF (static_cast<uint32_t> (region.address) + size32 <= kRamMaxSize,
+              outError = format ("ram[{}]: address ${:04X} + size ${:X} exceeds 64K",
+                                 idx, region.address, size32));
+
+        region.size = static_cast<Word> (size32 == kRamMaxSize ? 0 : size32);
+
+        // Optional bank field
+        IGNORE_RETURN_VALUE (hr, entry.GetString ("bank", region.bank));
+
+        outConfig.ram.push_back (region);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadSystemRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadSystemRom (
+    const JsonValue        & sysRomObj,
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    MachineConfig          & outConfig,
+    string                 & outError)
+{
+    HRESULT  hr      = S_OK;
+    string   addrStr;
+
+
+
+    hr = sysRomObj.GetString ("address", addrStr);
+    CHRF (hr, outError = "Missing or invalid field: 'systemRom.address'");
+
+    hr = ParseHexAddress (addrStr, outConfig.systemRom.address, outError);
+    CHR (hr);
+
+    hr = sysRomObj.GetString ("file", outConfig.systemRom.file);
+    CHRF (hr, outError = "Missing or invalid field: 'systemRom.file'");
+
+    hr = ResolveRomFile (outConfig.systemRom.file,
+                         searchPaths,
+                         resolver,
+                         outConfig.systemRom.resolvedPath,
+                         outConfig.systemRom.fileSize,
+                         outError);
+    CHR (hr);
+
+    // Validate ROM fits in 64K starting at address
+    CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.fileSize <= kRamMaxSize,
+          outError = format ("systemRom: address ${:04X} + size ${:X} exceeds 64K",
+                             outConfig.systemRom.address, outConfig.systemRom.fileSize));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadCharacterRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadCharacterRom (
+    const JsonValue        & charRomObj,
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    MachineConfig          & outConfig,
+    string                 & outError)
+{
+    HRESULT hr = S_OK;
+
+
+
+    hr = charRomObj.GetString ("file", outConfig.characterRom.file);
+    CHRF (hr, outError = "Missing or invalid field: 'characterRom.file'");
+
+    hr = ResolveRomFile (outConfig.characterRom.file,
+                         searchPaths,
+                         resolver,
+                         outConfig.characterRom.resolvedPath,
+                         outConfig.characterRom.fileSize,
+                         outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadInternalDevices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadInternalDevices (
+    const JsonValue & devArray,
+    MachineConfig   & outConfig,
+    string          & outError)
+{
+    HRESULT  hr  = S_OK;
+    size_t   idx = 0;
+
+
+
+    for (idx = 0; idx < devArray.ArraySize (); idx++)
+    {
+        const JsonValue & entry = devArray.ArrayAt (idx);
+        InternalDevice    dev;
+
+
+
+        hr = entry.GetString ("type", dev.type);
+        CHRF (hr, outError = format ("internalDevices[{}]: missing or invalid 'type' field", idx));
+
+        outConfig.internalDevices.push_back (dev);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadSlots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadSlots (
+    const JsonValue        & slotsArray,
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    MachineConfig          & outConfig,
+    string                 & outError)
+{
+    HRESULT  hr     = S_OK;
+    size_t   idx    = 0;
+    bool     hasDev = false;
+    bool     hasRom = false;
+
+
+
+    for (idx = 0; idx < slotsArray.ArraySize (); idx++)
+    {
+        const JsonValue & entry = slotsArray.ArrayAt (idx);
+        SlotConfig        slot;
+
+
+
+        hr = entry.GetInt ("slot", slot.slot);
+        CHRF (hr, outError = format ("slots[{}]: missing or invalid 'slot' field", idx));
+
+        CBRF (slot.slot >= kMinSlot && slot.slot <= kMaxSlot,
+              outError = format ("slots[{}]: slot must be {}-{}, got {}",
+                                 idx, kMinSlot, kMaxSlot, slot.slot));
+
+        // Optional: device
+        IGNORE_RETURN_VALUE (hr, entry.GetString ("device", slot.device));
+        hasDev = !slot.device.empty ();
+
+        // Optional: rom
+        IGNORE_RETURN_VALUE (hr, entry.GetString ("rom", slot.rom));
+        hasRom = !slot.rom.empty ();
+
+        CBRF (hasDev || hasRom,
+              outError = format ("slots[{}]: must specify 'device' and/or 'rom'", idx));
+
+        if (hasRom)
+        {
+            hr = ResolveRomFile (slot.rom,
+                                 searchPaths,
+                                 resolver,
+                                 slot.resolvedRomPath,
+                                 slot.romSize,
+                                 outError);
+            CHR (hr);
+
+            CBRF (slot.romSize == 0x100,
+                  outError = format ("slots[{}]: slot ROM '{}' must be 256 bytes, got {}",
+                                     idx, slot.rom, slot.romSize));
+        }
+
+        outConfig.slots.push_back (slot);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Load
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,14 +480,17 @@ HRESULT MachineConfigLoader::Load (
     MachineConfig          & outConfig,
     string                 & outError)
 {
-    HRESULT              hr         = S_OK;
+    HRESULT              hr             = S_OK;
     JsonValue            root;
     JsonParseError       parseError;
-    const JsonValue    * pTiming    = nullptr;
-    const JsonValue    * pMemArray  = nullptr;
-    const JsonValue    * pDevArray  = nullptr;
-    const JsonValue    * pVideo     = nullptr;
-    const JsonValue    * pKeyboard  = nullptr;
+    const JsonValue    * pTiming        = nullptr;
+    const JsonValue    * pRamArray      = nullptr;
+    const JsonValue    * pSystemRom     = nullptr;
+    const JsonValue    * pCharRom       = nullptr;
+    const JsonValue    * pInternalDevs  = nullptr;
+    const JsonValue    * pSlots         = nullptr;
+    const JsonValue    * pVideo         = nullptr;
+    const JsonValue    * pKeyboard      = nullptr;
 
 
 
@@ -156,7 +505,7 @@ HRESULT MachineConfigLoader::Load (
 
     CHR (hr);
 
-    // Required fields
+    // Required: name, cpu
     hr = root.GetString ("name", outConfig.name);
     CHRF (hr, outError = "Missing or invalid field: 'name'");
 
@@ -166,30 +515,56 @@ HRESULT MachineConfigLoader::Load (
     CBRF (outConfig.cpu == "6502",
           outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
 
-    // Required: timing object
+    // Required: timing
     hr = root.GetObject ("timing", pTiming);
     CHRF (hr, outError = "Missing required field: 'timing'");
 
     hr = LoadTiming (*pTiming, outConfig, outError);
     CHR (hr);
 
-    // Required sub-structures
-    hr = root.GetArray ("memory", pMemArray);
-    CHRF (hr, outError = "Missing required field: 'memory'");
+    // Required: ram (array)
+    hr = root.GetArray ("ram", pRamArray);
+    CHRF (hr, outError = "Missing required field: 'ram'");
 
-    hr = LoadMemoryRegions (*pMemArray, searchPaths, resolver, outConfig, outError);
+    hr = LoadRam (*pRamArray, outConfig, outError);
     CHR (hr);
 
-    hr = root.GetArray ("devices", pDevArray);
-    CHRF (hr, outError = "Missing required field: 'devices'");
+    // Required: systemRom (object)
+    hr = root.GetObject ("systemRom", pSystemRom);
+    CHRF (hr, outError = "Missing required field: 'systemRom'");
 
-    hr = LoadDevices (*pDevArray, outConfig, outError);
+    hr = LoadSystemRom (*pSystemRom, searchPaths, resolver, outConfig, outError);
     CHR (hr);
 
+    // Optional: characterRom (object)
+    hr = root.GetObject ("characterRom", pCharRom);
+    if (SUCCEEDED (hr))
+    {
+        hr = LoadCharacterRom (*pCharRom, searchPaths, resolver, outConfig, outError);
+        CHR (hr);
+    }
+
+    // Required: internalDevices (array, may be empty)
+    hr = root.GetArray ("internalDevices", pInternalDevs);
+    CHRF (hr, outError = "Missing required field: 'internalDevices'");
+
+    hr = LoadInternalDevices (*pInternalDevs, outConfig, outError);
+    CHR (hr);
+
+    // Optional: slots (array)
+    hr = root.GetArray ("slots", pSlots);
+    if (SUCCEEDED (hr))
+    {
+        hr = LoadSlots (*pSlots, searchPaths, resolver, outConfig, outError);
+        CHR (hr);
+    }
+
+    // Required: video
     hr = root.GetObject ("video", pVideo);
     CHRF (hr, outError = "Missing required field: 'video'");
     LoadVideoConfig (*pVideo, outConfig);
 
+    // Required: keyboard
     hr = root.GetObject ("keyboard", pKeyboard);
     CHRF (hr, outError = "Missing required field: 'keyboard'");
     LoadKeyboardConfig (*pKeyboard, outConfig);
@@ -204,113 +579,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadMemoryRegions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineConfigLoader::LoadMemoryRegions (
-    const JsonValue        & memArray,
-    const vector<fs::path> & searchPaths,
-    const FileResolver     & resolver,
-    MachineConfig          & outConfig,
-    string                 & outError)
-{
-    static const Field<MemoryRegion> krgFields[] =
-    {
-        { "type",   true,  &MemoryRegion::type, nullptr, nullptr },
-        { "start",  true,  nullptr,               &MemoryRegion::start, nullptr },
-        { "end",    true,  nullptr,               &MemoryRegion::end, nullptr },
-        { "file",   false, &MemoryRegion::file, nullptr, nullptr },
-        { "bank",   false, &MemoryRegion::bank, nullptr, nullptr },
-        { "target", false, &MemoryRegion::target, nullptr, nullptr },
-    };
-
-    HRESULT   hr        = S_OK;
-    size_t    idxRegion = 0;
-    size_t    idxField  = 0;
-    fs::path  romRelPath;
-    fs::path  found;
-
-
-
-    for (idxRegion = 0; idxRegion < memArray.ArraySize(); idxRegion++)
-    {
-        const JsonValue & entry = memArray.ArrayAt (idxRegion);
-        MemoryRegion      region;
-
-
-
-        for (idxField = 0; idxField < _countof (krgFields); idxField++)
-        {
-            const Field<MemoryRegion> & f = krgFields[idxField];
-
-
-
-            hr = GetValue (entry, f, region, outError);
-            if (f.fRequired)
-            {
-                CHR (hr);
-            }
-            else 
-            {
-                IGNORE_RETURN_VALUE (hr, S_OK);
-            }
-        }
-
-        CBRF (region.end >= region.start,
-              outError = format ("memory[{}]: end (${:04X}) < start (${:04X})",
-                                 idxRegion, 
-                                 region.end, 
-                                 region.start));
-
-        CBRF (!(region.type == "rom" && region.file.empty() && region.target.empty()),
-              outError = format ("memory[{}]: ROM region requires 'file' field", 
-                                 idxRegion));
-
-        // Resolve ROM file path
-        if (!region.file.empty())
-        {
-            romRelPath = fs::path ("ROMs") / region.file;
-            found      = resolver (searchPaths, romRelPath);
-
-            CBRF (!found.empty(),
-                  outError = format ("ROM file not found: ROMs/{}. "
-                                     "Run scripts/FetchRoms.ps1 to download ROM images.",
-                                     region.file));
-
-            region.resolvedPath = found.string();
-        }
-
-        outConfig.memoryRegions.push_back (region);
-    }
-
-Error:
-    // Populate error message from indices if we bailed out
-    if (FAILED (hr) && outError.empty())
-    {
-        if (idxField < _countof (krgFields))
-        {
-            outError = format ("memory[{}]: missing or invalid '{}' field",
-                               idxRegion, 
-                               krgFields[idxField].key);
-        }
-        else
-        {
-            outError = format ("memory[{}]: invalid configuration", 
-                               idxRegion);
-        }
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineConfigLoader::GetValue
+//  GetValue (template, kept for compatibility with internal use)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,108 +627,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineConfigLoader::LoadDevices
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineConfigLoader::LoadDevices (
-    const JsonValue & devArray,
-    MachineConfig   & outConfig,
-    string          & outError)
-{
-    static const Field<DeviceConfig> krgFields[] =
-    {
-        { "type",    true,  &DeviceConfig::type, nullptr,                nullptr             },
-        { "address", false, nullptr,             &DeviceConfig::address, nullptr             },
-        { "start",   false, nullptr,             &DeviceConfig::start,   nullptr             },
-        { "end",     false, nullptr,             &DeviceConfig::end,     nullptr             },
-        { "slot",    false, nullptr,             nullptr,                &DeviceConfig::slot },
-    };
-
-    HRESULT hr       = S_OK;
-    size_t  idxDev   = 0;
-    size_t  idxField = 0;
-
-
-
-    for (idxDev = 0; idxDev < devArray.ArraySize(); idxDev++)
-    {
-        const JsonValue & entry  = devArray.ArrayAt (idxDev);
-        DeviceConfig      device;
-
-
-
-        for (idxField = 0; idxField < _countof (krgFields); idxField++)
-        {
-            const Field<DeviceConfig> & f = krgFields[idxField];
-
-
-
-            hr = GetValue (entry, f, device, outError);
-            if (f.fRequired)
-            {
-                CHR (hr);
-            }
-            else
-            {
-                IGNORE_RETURN_VALUE (hr, S_OK);
-            }
-        }
-
-        // Post-process address mapping flags
-        if (device.address != 0)
-        {
-            device.start      = device.address;
-            device.end        = device.address;
-            device.hasAddress = true;
-        }
-
-        if (device.start != 0 && device.end != 0 && !device.hasAddress)
-        {
-            device.hasRange = true;
-        }
-
-        if (device.slot != 0)
-        {
-            device.hasSlot = true;
-
-            CBRF (device.slot >= 1 && device.slot <= 7,
-                  outError = format ("devices[{}]: slot must be 1-7, got {}",
-                                     idxDev, 
-                                     device.slot));
-
-            device.start = static_cast<Word> (0xC080 + device.slot * 16);
-            device.end   = static_cast<Word> (0xC08F + device.slot * 16);
-        }
-
-        outConfig.devices.push_back (device);
-    }
-
-Error:
-    if (FAILED (hr) && outError.empty())
-    {
-        if (idxField < _countof (krgFields))
-        {
-            outError = format ("devices[{}]: missing or invalid '{}' field",
-                               idxDev,
-                               krgFields[idxField].key);
-        }
-        else
-        {
-            outError = format ("devices[{}]: invalid configuration", 
-                               idxDev);
-        }
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  LoadVideoConfig
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -474,11 +641,11 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
     hr = video.GetArray ("modes", pModes);
     if (SUCCEEDED (hr))
     {
-        for (size_t i = 0; i < pModes->ArraySize(); i++)
+        for (size_t i = 0; i < pModes->ArraySize (); i++)
         {
-            if (pModes->ArrayAt (i).GetType() == JsonType::String)
+            if (pModes->ArrayAt (i).GetType () == JsonType::String)
             {
-                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
+                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString ());
             }
         }
     }
@@ -501,7 +668,3 @@ void MachineConfigLoader::LoadKeyboardConfig (const JsonValue & keyboard, Machin
 {
     keyboard.GetString ("type", outConfig.keyboardType);
 }
-
-
-
-
