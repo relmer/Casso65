@@ -216,6 +216,7 @@
     <ClCompile Include="CpuInitializationTests.cpp" />
     <ClCompile Include="CpuOperationTests.cpp" />
     <ClCompile Include="Cpu6502InterfaceTests.cpp" />
+    <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />
@@ -303,6 +304,9 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="EmuTests\HeadlessHostTests.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="EmuTests\InterruptControllerTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>

@@ -194,6 +194,7 @@
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
+    <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
@@ -226,6 +227,7 @@
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\IInterruptController.h" />
+    <ClInclude Include="Core\InterruptController.h" />
     <ClInclude Include="Core\IHostShell.h" />
     <ClInclude Include="Devices\IMmu.h" />
     <ClInclude Include="Devices\IVideoMode.h" />
