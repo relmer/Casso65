@@ -30,13 +30,9 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus)
 
 Byte EmuCpu::ReadByte (Word address)
 {
-    // $C000+: route through MemoryBus for I/O, ROM, and Language Card bank switching
-    if (address >= 0xC000)
-    {
-        return m_memoryBus.ReadByte (address);
-    }
-
-    return memory[address];
+    // All addresses go through MemoryBus. The bus has a fast page table for
+    // $0000-$BFFF that bypasses device dispatch. $C000+ uses device dispatch.
+    return m_memoryBus.ReadByte (address);
 }
 
 
@@ -51,14 +47,10 @@ Byte EmuCpu::ReadByte (Word address)
 
 void EmuCpu::WriteByte (Word address, Byte value)
 {
-    // $C000+: route through MemoryBus only (devices handle I/O, LC RAM, etc.)
-    // $0000-$BFFF: write to both bus (for video/device notifications) and memory[]
+    // All addresses go through MemoryBus. The bus's page table handles RAM
+    // writes directly to the correct backing buffer (main, aux, or LC RAM).
+    // I/O writes ($C000+) dispatch to devices.
     m_memoryBus.WriteByte (address, value);
-
-    if (address < 0xC000)
-    {
-        memory[address] = value;
-    }
 }
 
 

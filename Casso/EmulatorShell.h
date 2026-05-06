@@ -96,6 +96,8 @@ private:
     HRESULT CreateEmulatorWindow   (HINSTANCE hInstance);
     HRESULT CreateMemoryDevices    (const MachineConfig & config);
     void    WireLanguageCard       ();
+    void    WirePageTable          ();
+    void    RebuildBankingPages    ();
     void    MountCommandLineDisks  (const string & disk1Path, const string & disk2Path);
     void    CreateVideoModes       ();
     HRESULT CreateCpu              (const MachineConfig & config);

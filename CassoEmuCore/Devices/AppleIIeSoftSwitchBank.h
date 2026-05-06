@@ -18,7 +18,7 @@
 class AppleIIeSoftSwitchBank : public AppleSoftSwitchBank
 {
 public:
-    AppleIIeSoftSwitchBank ();
+    AppleIIeSoftSwitchBank (MemoryBus * bus = nullptr);
 
     Byte Read  (Word address) override;
     void Write (Word address, Byte value) override;
@@ -33,8 +33,9 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    bool m_80colMode   = false;
-    bool m_doubleHiRes = false;
-    bool m_altCharSet  = false;
-    bool m_80store     = false;
+    MemoryBus * m_bus         = nullptr;
+    bool        m_80store     = false;
+    bool        m_80colMode   = false;
+    bool        m_doubleHiRes = false;
+    bool        m_altCharSet  = false;
 };

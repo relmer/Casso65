@@ -35,6 +35,10 @@ public:
     Byte ReadAuxMem  (Word address) const;
     void WriteAuxMem (Word address, Byte value);
 
+    // Direct buffer access (used by MemoryBus page table)
+    Byte * GetAuxBuffer ()       { return m_auxRam.data (); }
+    const Byte * GetAuxBuffer () const { return m_auxRam.data (); }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:

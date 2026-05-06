@@ -5,6 +5,7 @@
 #include "Core/MemoryBus.h"
 #include "Devices/AppleKeyboard.h"
 #include "Devices/AppleIIeKeyboard.h"
+#include "Devices/AppleIIeSoftSwitchBank.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -204,6 +205,32 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0xC1), val,
             L"IIe keyboard upcast should work identically to base");
+    }
+
+    TEST_METHOD (IIeKeyboard_ForwardsC001WriteToSoftSwitch)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       iieKbd (&bus);
+        iieKbd.SetSoftSwitchSibling (&sw);
+
+        iieKbd.Write (0xC001, 0);
+
+        Assert::IsTrue (sw.Is80Store (),
+            L"Write to $C001 via keyboard should reach softswitch and enable 80STORE");
+    }
+
+    TEST_METHOD (IIeKeyboard_ForwardsC00DWriteToSoftSwitch)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       iieKbd (&bus);
+        iieKbd.SetSoftSwitchSibling (&sw);
+
+        iieKbd.Write (0xC00D, 0);
+
+        Assert::IsTrue (sw.Is80ColMode (),
+            L"Write to $C00D via keyboard should reach softswitch and enable 80COL");
     }
 
     TEST_METHOD (Reset_ClearsAllState)

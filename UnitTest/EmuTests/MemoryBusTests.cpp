@@ -256,4 +256,115 @@ public:
         Assert::AreEqual (static_cast<Byte> (0x77), val,
             L"Floating bus should reflect last device read value");
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Page table tests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (PageTable_RamRead_UsesMappedBuffer)
+    {
+        MemoryBus  bus;
+        Byte       buffer[0x100] = {};
+        buffer[0x42] = 0xAB;
+
+        bus.SetReadPage  (0x04, buffer);
+        bus.SetWritePage (0x04, buffer);
+
+        Byte val = bus.ReadByte (0x0442);
+
+        Assert::AreEqual (Byte (0xAB), val,
+            L"Page table read should return mapped buffer value");
+    }
+
+    TEST_METHOD (PageTable_RamWrite_UpdatesMappedBuffer)
+    {
+        MemoryBus  bus;
+        Byte       buffer[0x100] = {};
+
+        bus.SetReadPage  (0x04, buffer);
+        bus.SetWritePage (0x04, buffer);
+
+        bus.WriteByte (0x0442, 0xCD);
+
+        Assert::AreEqual (Byte (0xCD), buffer[0x42],
+            L"Page table write should update mapped buffer");
+    }
+
+    TEST_METHOD (PageTable_NoPage_FallsBackToDevice)
+    {
+        MemoryBus  bus;
+        MockDevice dev (0x0400, 0x04FF);
+        bus.AddDevice (&dev);
+
+        // No page mapped -- should hit device
+        Byte val = bus.ReadByte (0x0442);
+
+        Assert::AreEqual (1, dev.m_readCount,
+            L"Without page table mapping, read should fall through to device");
+        Assert::AreEqual (Byte (0x42), val,
+            L"Should return device value");
+    }
+
+    TEST_METHOD (PageTable_RemapBetweenBuffers_RoutesCorrectly)
+    {
+        MemoryBus  bus;
+        Byte       bufferA[0x100] = {};
+        Byte       bufferB[0x100] = {};
+        bufferA[0x10] = 0xAA;
+        bufferB[0x10] = 0xBB;
+
+        // Map page 4 to A
+        bus.SetReadPage (0x04, bufferA);
+        Byte v1 = bus.ReadByte (0x0410);
+
+        // Remap to B
+        bus.SetReadPage (0x04, bufferB);
+        Byte v2 = bus.ReadByte (0x0410);
+
+        Assert::AreEqual (Byte (0xAA), v1, L"First read should come from A");
+        Assert::AreEqual (Byte (0xBB), v2, L"Second read should come from B");
+    }
+
+    TEST_METHOD (PageTable_BankingChangedCallback_Invoked)
+    {
+        MemoryBus bus;
+        int       callCount = 0;
+
+        bus.SetBankingChangedCallback ([&] () { callCount++; });
+
+        bus.NotifyBankingChanged ();
+        bus.NotifyBankingChanged ();
+
+        Assert::AreEqual (2, callCount,
+            L"NotifyBankingChanged should invoke registered callback");
+    }
+
+    TEST_METHOD (PageTable_NoCallback_NotifyDoesNotCrash)
+    {
+        MemoryBus bus;
+
+        // No callback registered -- should be safe to call
+        bus.NotifyBankingChanged ();
+    }
+
+    TEST_METHOD (PageTable_HighAddressUsesDevice_NotPageTable)
+    {
+        MemoryBus  bus;
+        Byte       buffer[0x100] = {};
+        buffer[0x00] = 0xFF;
+        MockDevice dev (0xC000, 0xC0FF);
+        bus.AddDevice (&dev);
+
+        // Page table only applies to $0000-$BFFF; $C000+ goes to device
+        bus.SetReadPage (0xC0, buffer);
+
+        Byte val = bus.ReadByte (0xC042);
+
+        Assert::AreEqual (1, dev.m_readCount,
+            L"$C000+ should always use device dispatch, not page table");
+        Assert::AreEqual (Byte (0x42), val,
+            L"Should return device value");
+    }
 };

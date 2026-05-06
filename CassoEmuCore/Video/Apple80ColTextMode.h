@@ -34,7 +34,12 @@ public:
 
     const char * GetModeName () const override { return "apple2-text80"; }
 
+    // Provide access to aux memory for 80-column interleaved rendering.
+    // videoRam (passed to Render) is main RAM; aux is set separately.
+    void SetAuxMemory (const Byte * auxMem) { m_auxMem = auxMem; }
+
 private:
     MemoryBus              & m_bus;
     const CharacterRomData & m_charRom;
+    const Byte             * m_auxMem = nullptr;
 };

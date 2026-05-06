@@ -211,8 +211,11 @@ int WINAPI wWinMain (
     hr = LoadMachineConfig (machineName, disk1Path, config);
     CHR (hr);
 
-    // Remember last-used machine
-    IGNORE_RETURN_VALUE (hr, RegistrySettings::WriteString (kLastMachineValue, machineName));
+    // Remember last-used machine (don't pollute hr with the result)
+    {
+        HRESULT hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
 
     // Initialize emulator
     hr = shell.Initialize (hInstance, config,

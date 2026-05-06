@@ -18,7 +18,7 @@
 class AppleIIeKeyboard : public AppleKeyboard
 {
 public:
-    AppleIIeKeyboard ();
+    AppleIIeKeyboard (MemoryBus * bus = nullptr);
 
     Byte Read  (Word address) override;
     void Write (Word address, Byte value) override;
@@ -28,8 +28,15 @@ public:
     void SetOpenApple   (bool pressed) { m_openApple.store (pressed, memory_order_release); }
     void SetClosedApple (bool pressed) { m_closedApple.store (pressed, memory_order_release); }
 
-    // 80STORE state (queried by video mode selection)
-    bool Is80Store () const { return m_80store; }
+    // Sibling softswitch device that owns soft switches in $C000-$C00F
+    // (80STORE, RAMRD/WRT, ALTZP, 80COL, ALTCHARSET, etc.).
+    // The keyboard's address range covers these, so we forward to the
+    // softswitch instead of handling them here.
+    void SetSoftSwitchSibling (class AppleIIeSoftSwitchBank * sibling) { m_softSwitchSibling = sibling; }
+
+    // Sibling AuxRamCard that owns RAMRD/RAMWRT state. Used for $C013/$C014
+    // status reads.
+    void SetAuxRamSibling (class AuxRamCard * sibling) { m_auxRamSibling = sibling; }
 
     // Override key press to allow lowercase
     void KeyPressRaw (Byte asciiChar);
@@ -37,7 +44,9 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    atomic<bool> m_openApple{false};
-    atomic<bool> m_closedApple{false};
-    bool         m_80store{false};
+    MemoryBus *                    m_bus = nullptr;
+    class AppleIIeSoftSwitchBank * m_softSwitchSibling = nullptr;
+    class AuxRamCard *             m_auxRamSibling     = nullptr;
+    atomic<bool>                   m_openApple{false};
+    atomic<bool>                   m_closedApple{false};
 };

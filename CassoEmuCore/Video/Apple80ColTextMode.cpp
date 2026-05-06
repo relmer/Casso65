@@ -67,10 +67,9 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
+    Word pageBase = static_cast<Word> (0x0400);  // 80-col always uses page 1
 
-    Word pageBase = GetActivePageAddress (m_page2);
-
-    static constexpr int kTextCols   = 40;
+    static constexpr int kTextCols   = 80;
     static constexpr int kTextRows   = 24;
     static constexpr int kCharWidth  = 7;
     static constexpr int kCharHeight = 8;
@@ -78,28 +77,43 @@ void Apple80ColTextMode::Render (
     static constexpr uint32_t kColorGreen = 0xFF00FF00;
     static constexpr uint32_t kColorBlack = 0xFF000000;
 
-    // Render main memory characters (40 cols) as if 80-col
-    // Proper aux RAM interleaving requires aux memory access
+    // 80-column mode: even columns come from aux RAM, odd columns from main RAM.
+    // Each "column" in screen memory is one 7-pixel-wide character.
     for (int row = 0; row < kTextRows; row++)
     {
         Word rowAddr = static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
 
         for (int col = 0; col < kTextCols; col++)
         {
-            Byte charCode = (videoRam ? videoRam[static_cast<Word> (rowAddr + col)] : m_bus.ReadByte (static_cast<Word> (rowAddr + col)));
+            int  memCol  = col / 2;
+            bool fromAux = (col % 2) == 0;
+            Word addr    = static_cast<Word> (rowAddr + memCol);
 
-            // Render at half-width (7 pixels per char, no 2x scaling)
+            Byte charCode = 0;
+
+            if (fromAux && m_auxMem != nullptr)
+            {
+                charCode = m_auxMem[addr];
+            }
+            else if (videoRam != nullptr)
+            {
+                charCode = videoRam[addr];
+            }
+            else
+            {
+                charCode = m_bus.ReadByte (addr);
+            }
+
             for (int py = 0; py < kCharHeight; py++)
             {
                 Byte glyphRow = m_charRom.GetGlyphRow (charCode, py);
 
                 for (int px = 0; px < kCharWidth; px++)
                 {
-                    bool pixelOn = (glyphRow & (1 << px)) != 0;
-                    uint32_t color = pixelOn ? kColorGreen : kColorBlack;
+                    bool     pixelOn = (glyphRow & (1 << px)) != 0;
+                    uint32_t color   = pixelOn ? kColorGreen : kColorBlack;
 
-                    // Each char takes 7 pixels wide in 80-col mode
-                    int fbX = col * kCharWidth * 2 + px;
+                    int fbX = col * kCharWidth + px;
                     int fbY = row * kCharHeight * 2 + py * 2;
 
                     if (fbX < fbWidth && fbY + 1 < fbHeight)

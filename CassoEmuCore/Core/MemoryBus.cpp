@@ -28,6 +28,17 @@ MemoryBus::MemoryBus()
 
 Byte MemoryBus::ReadByte (Word address)
 {
+    // Fast path: page table lookup for $0000-$BFFF
+    if (address < 0xC000)
+    {
+        Byte * page = m_readPage[address >> 8];
+
+        if (page != nullptr)
+        {
+            return page[address & 0xFF];
+        }
+    }
+
     MemoryDevice * device = FindDevice (address);
 
     if (device != nullptr)
@@ -58,6 +69,20 @@ Byte MemoryBus::ReadByte (Word address)
 
 void MemoryBus::WriteByte (Word address, Byte value)
 {
+    // Fast path: page table lookup for $0000-$BFFF
+    if (address < 0xC000)
+    {
+        Byte * page = m_writePage[address >> 8];
+
+        if (page != nullptr)
+        {
+            page[address & 0xFF] = value;
+            return;
+        }
+
+        // No page mapping -- fall through to device-based write (e.g., for ROM areas)
+    }
+
     MemoryDevice * device = FindDevice (address);
 
     if (device != nullptr)
@@ -66,6 +91,32 @@ void MemoryBus::WriteByte (Word address, Byte value)
     }
 
     m_floatingBusValue = value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetReadPage / SetWritePage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SetReadPage (int pageIndex, Byte * page)
+{
+    if (pageIndex >= 0 && pageIndex < 0x100)
+    {
+        m_readPage[pageIndex] = page;
+    }
+}
+
+void MemoryBus::SetWritePage (int pageIndex, Byte * page)
+{
+    if (pageIndex >= 0 && pageIndex < 0x100)
+    {
+        m_writePage[pageIndex] = page;
+    }
 }
 
 

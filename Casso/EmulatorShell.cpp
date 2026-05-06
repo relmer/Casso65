@@ -8,14 +8,17 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/AppleIIeKeyboard.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleIIeSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/DiskIIController.h"
 #include "Devices/LanguageCard.h"
+#include "Devices/AuxRamCard.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
 #include "Video/AppleTextMode.h"
+#include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
 #include "Video/AppleHiResMode.h"
 #include "Video/AppleDoubleHiResMode.h"
@@ -127,6 +130,8 @@ HRESULT EmulatorShell::Initialize (
 
     hr = CreateCpu (config);
     CHR (hr);
+
+    WirePageTable();
 
     // Create status bar (after window, before D3D init so Resize accounts for it)
     CreateStatusBar();
@@ -660,6 +665,31 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         m_ownedDevices.push_back (move (device));
     }
 
+    // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches the
+    // softswitch (the keyboard's range $C000-$C01F would otherwise eat it).
+    {
+        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_keyboard);
+        auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+
+        if (iieKbd != nullptr && iieSw != nullptr)
+        {
+            iieKbd->SetSoftSwitchSibling (iieSw);
+        }
+
+        if (iieKbd != nullptr)
+        {
+            for (auto & dev : m_ownedDevices)
+            {
+                AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
+                if (aux != nullptr)
+                {
+                    iieKbd->SetAuxRamSibling (aux);
+                    break;
+                }
+            }
+        }
+    }
+
     // Slot devices and slot ROMs
     for (const auto & slot : config.slots)
     {
@@ -807,6 +837,133 @@ void EmulatorShell::WireLanguageCard()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WirePageTable
+//
+//  Sets up the MemoryBus page table to point each $0000-$BFFF page at the
+//  CPU's main RAM buffer (memory[]). This is the baseline mapping; the IIe
+//  may later swap pages to aux RAM via 80STORE/PAGE2 banking.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WirePageTable()
+{
+    if (!m_cpu)
+    {
+        return;
+    }
+
+    Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
+
+    // Map all RAM pages ($0000-$BFFF) to main memory
+    for (int page = 0x00; page < 0xC0; page++)
+    {
+        Byte * pagePtr = mainRam + (page * 0x100);
+        m_memoryBus.SetReadPage  (page, pagePtr);
+        m_memoryBus.SetWritePage (page, pagePtr);
+    }
+
+    // Register banking-change callback so soft switches can trigger remapping
+    m_memoryBus.SetBankingChangedCallback ([this] ()
+    {
+        RebuildBankingPages ();
+    });
+
+    // Initial state
+    RebuildBankingPages ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildBankingPages
+//
+//  Updates the page table mappings for $0400-$07FF (text page 1) and
+//  $2000-$3FFF (hi-res page 1) based on current 80STORE/PAGE2/HIRES state.
+//
+//  When 80STORE is ON:
+//    - PAGE2 ($C055) routes text page 1 RAM to AUX
+//    - PAGE2 + HIRES routes hi-res page 1 RAM to AUX
+//    - PAGE1 ($C054) routes both back to MAIN
+//  When 80STORE is OFF: pages always point to MAIN.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RebuildBankingPages()
+{
+    if (!m_cpu)
+    {
+        return;
+    }
+
+    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+
+    if (iieSw == nullptr || !iieSw->Is80Store ())
+    {
+        // Non-IIe or 80STORE off: always use main RAM
+        Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
+
+        for (int page = 0x04; page <= 0x07; page++)
+        {
+            Byte * p = mainRam + (page * 0x100);
+            m_memoryBus.SetReadPage  (page, p);
+            m_memoryBus.SetWritePage (page, p);
+        }
+        for (int page = 0x20; page <= 0x3F; page++)
+        {
+            Byte * p = mainRam + (page * 0x100);
+            m_memoryBus.SetReadPage  (page, p);
+            m_memoryBus.SetWritePage (page, p);
+        }
+        return;
+    }
+
+    // 80STORE is ON. PAGE2 selects aux for the display memory regions.
+    bool page2 = m_softSwitches != nullptr && m_softSwitches->IsPage2 ();
+    bool hires = m_softSwitches != nullptr && m_softSwitches->IsHiresMode ();
+
+    Byte * mainRam = const_cast<Byte *> (m_cpu->GetMemory());
+    Byte * auxRam  = nullptr;
+
+    // Find AuxRamCard for aux buffer
+    for (auto & dev : m_ownedDevices)
+    {
+        AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
+        if (aux != nullptr)
+        {
+            auxRam = aux->GetAuxBuffer ();
+            break;
+        }
+    }
+
+    Byte * textBank = (page2 && auxRam != nullptr) ? auxRam : mainRam;
+
+    for (int page = 0x04; page <= 0x07; page++)
+    {
+        Byte * p = textBank + (page * 0x100);
+        m_memoryBus.SetReadPage  (page, p);
+        m_memoryBus.SetWritePage (page, p);
+    }
+
+    // Hi-res region: only banked when HIRES soft switch is also active
+    Byte * hiresBank = (page2 && hires && auxRam != nullptr) ? auxRam : mainRam;
+
+    for (int page = 0x20; page <= 0x3F; page++)
+    {
+        Byte * p = hiresBank + (page * 0x100);
+        m_memoryBus.SetReadPage  (page, p);
+        m_memoryBus.SetWritePage (page, p);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MountCommandLineDisks
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -865,6 +1022,22 @@ void EmulatorShell::CreateVideoModes()
 
     auto doubleHiResMode = make_unique<AppleDoubleHiResMode> (m_memoryBus);
     m_videoModes.push_back (move (doubleHiResMode));
+
+    // Index 4: 80-column text (used on //e). Wired with aux memory after
+    // AuxRamCard exists.
+    auto text80 = make_unique<Apple80ColTextMode> (m_memoryBus, m_charRom);
+
+    for (auto & dev : m_ownedDevices)
+    {
+        AuxRamCard * aux = dynamic_cast<AuxRamCard *> (dev.get ());
+        if (aux != nullptr)
+        {
+            text80->SetAuxMemory (aux->GetAuxBuffer ());
+            break;
+        }
+    }
+
+    m_videoModes.push_back (move (text80));
 }
 
 
@@ -994,6 +1167,7 @@ void EmulatorShell::ShowMachinePicker()
 HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
 {
     HRESULT             hr             = S_OK;
+    HRESULT             hrReg          = S_OK;
     vector<fs::path>    searchPaths;
     fs::path            configRelPath;
     fs::path            configPath;
@@ -1064,11 +1238,14 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     hr = CreateCpu (newConfig);
     CHR (hr);
 
+    WirePageTable();
+
     UpdateStatusBar();
     UpdateWindowTitle();
 
-    // Save to registry
-    IGNORE_RETURN_VALUE (hr, RegistrySettings::WriteString (kLastMachineValue, machineName));
+    // Save to registry (don't pollute hr with the result)
+    hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
+    IGNORE_RETURN_VALUE (hrReg, S_OK);
 
 Error:
     return hr;
@@ -2458,18 +2635,27 @@ void EmulatorShell::SelectVideoMode()
 
     // When 80STORE is active on the //e, $C054/$C055 control aux/main memory
     // selection — not page 1/page 2. Suppress page2 for video rendering.
-    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+    auto * iieSoftSwitches = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
 
-    if (iieKbd != nullptr && iieKbd->Is80Store())
+    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store ())
     {
         m_page2 = false;
     }
 
+    bool is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode ();
+
     // Select video mode based on soft switch state
     if (!m_graphicsMode)
     {
-        // Text mode
-        m_activeVideoMode = m_videoModes[0].get();
+        // Text mode: use 80-col on //e if enabled, else 40-col
+        if (is80ColMode && m_videoModes.size () > 4)
+        {
+            m_activeVideoMode = m_videoModes[4].get();
+        }
+        else
+        {
+            m_activeVideoMode = m_videoModes[0].get();
+        }
     }
     else if (!m_hiresMode)
     {

@@ -4,6 +4,8 @@
 
 #include "Core/MemoryBus.h"
 #include "Devices/AppleSoftSwitchBank.h"
+#include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/AppleIIeKeyboard.h"
 #include "Video/AppleTextMode.h"
 #include "Video/AppleHiResMode.h"
 #include "Video/AppleLoResMode.h"
@@ -243,5 +245,203 @@ public:
         sw.Read (0xC050);
         Assert::IsTrue (sw.IsGraphicsMode (),
             L"Toggle G->T->G should restore graphics mode");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IIeSoftSwitchBank: banking change notifications
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (IIeSwitches_Page2Switch_NotifiesBus)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw (&bus);
+        int                    callCount = 0;
+
+        bus.SetBankingChangedCallback ([&] () { callCount++; });
+
+        sw.Read (0xC055);   // PAGE2
+        sw.Read (0xC054);   // PAGE1
+        sw.Read (0xC056);   // LORES
+        sw.Read (0xC057);   // HIRES
+
+        Assert::AreEqual (4, callCount,
+            L"Each $C054-$C057 access should fire banking-changed callback");
+    }
+
+    TEST_METHOD (IIeSwitches_NoBus_NoCrash)
+    {
+        AppleIIeSoftSwitchBank sw;  // null bus
+
+        // Should not crash even without a bus to notify
+        sw.Read (0xC055);
+    }
+
+    TEST_METHOD (IIeSwitches_DoubleHiRes_StillTracked)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw (&bus);
+
+        sw.Read (0xC05E);
+        Assert::IsTrue (sw.IsDoubleHiRes (),
+            L"$C05E should enable double hi-res");
+
+        sw.Read (0xC05F);
+        Assert::IsFalse (sw.IsDoubleHiRes (),
+            L"$C05F should disable double hi-res");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Bus integration tests for IIe softswitches
+    //
+    //  These verify that softswitch reads/writes reach the right device when
+    //  routed through the bus. Without these, the keyboard's overlapping
+    //  range ($C000-$C01F) silently consumes $C00C-$C00F (80COL/ALTCHARSET)
+    //  and $C000-$C001 (80STORE) before they reach the softswitch.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BusDispatch_C00D_Read_Enables80ColMode)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       kbd (&bus);
+
+        kbd.SetSoftSwitchSibling (&sw);
+        bus.AddDevice (&kbd);
+        bus.AddDevice (&sw);
+
+        bus.ReadByte (0xC00D);
+
+        Assert::IsTrue (sw.Is80ColMode (),
+            L"Read of $C00D through bus should enable 80COL mode");
+    }
+
+    TEST_METHOD (BusDispatch_C00C_Read_Disables80ColMode)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       kbd (&bus);
+
+        kbd.SetSoftSwitchSibling (&sw);
+        bus.AddDevice (&kbd);
+        bus.AddDevice (&sw);
+
+        bus.ReadByte (0xC00D);   // turn on
+        bus.ReadByte (0xC00C);   // turn off
+
+        Assert::IsFalse (sw.Is80ColMode (),
+            L"Read of $C00C through bus should disable 80COL mode");
+    }
+
+    TEST_METHOD (BusDispatch_C00F_Read_EnablesAltCharSet)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       kbd (&bus);
+
+        kbd.SetSoftSwitchSibling (&sw);
+        bus.AddDevice (&kbd);
+        bus.AddDevice (&sw);
+
+        bus.ReadByte (0xC00F);
+
+        Assert::IsTrue (sw.IsAltCharSet (),
+            L"Read of $C00F through bus should enable alt char set");
+    }
+
+    TEST_METHOD (BusDispatch_C055_Read_NotifiesBankingThroughBus)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw (&bus);
+        bus.AddDevice (&sw);
+
+        int callCount = 0;
+        bus.SetBankingChangedCallback ([&] () { callCount++; });
+
+        bus.ReadByte (0xC055);
+
+        Assert::IsTrue (callCount > 0,
+            L"Bus read of $C055 should reach softswitch and fire banking callback");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IIeSoftSwitchBank: 80STORE state ($C000/$C001)
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (IIeSwitches_80Store_DefaultsOff)
+    {
+        AppleIIeSoftSwitchBank sw;
+        Assert::IsFalse (sw.Is80Store (),
+            L"80STORE should default to off");
+    }
+
+    TEST_METHOD (IIeSwitches_WriteC001_Sets80Store)
+    {
+        AppleIIeSoftSwitchBank sw;
+        sw.Write (0xC001, 0);
+
+        Assert::IsTrue (sw.Is80Store (),
+            L"Write to $C001 should enable 80STORE");
+    }
+
+    TEST_METHOD (IIeSwitches_WriteC000_Clears80Store)
+    {
+        AppleIIeSoftSwitchBank sw;
+        sw.Write (0xC001, 0);
+        sw.Write (0xC000, 0);
+
+        Assert::IsFalse (sw.Is80Store (),
+            L"Write to $C000 should disable 80STORE");
+    }
+
+    TEST_METHOD (IIeSwitches_80StoreToggle_NotifiesBus)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw (&bus);
+        int                    callCount = 0;
+
+        bus.SetBankingChangedCallback ([&] () { callCount++; });
+
+        sw.Write (0xC001, 0);   // off -> on
+        sw.Write (0xC000, 0);   // on -> off
+        sw.Write (0xC000, 0);   // off -> off (no change)
+
+        Assert::AreEqual (2, callCount,
+            L"Banking callback should fire only on actual state changes");
+    }
+
+    TEST_METHOD (BusDispatch_C001_Write_Enables80Store)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       kbd (&bus);
+        kbd.SetSoftSwitchSibling (&sw);
+        bus.AddDevice (&kbd);
+        bus.AddDevice (&sw);
+
+        bus.WriteByte (0xC001, 0);
+
+        Assert::IsTrue (sw.Is80Store (),
+            L"Bus write of $C001 should reach softswitch via keyboard forwarding");
+    }
+
+    TEST_METHOD (BusDispatch_C00D_Write_Enables80ColMode)
+    {
+        MemoryBus              bus;
+        AppleIIeSoftSwitchBank sw  (&bus);
+        AppleIIeKeyboard       kbd (&bus);
+        kbd.SetSoftSwitchSibling (&sw);
+        bus.AddDevice (&kbd);
+        bus.AddDevice (&sw);
+
+        bus.WriteByte (0xC00D, 0);
+
+        Assert::IsTrue (sw.Is80ColMode (),
+            L"Bus write of $C00D should reach softswitch via keyboard forwarding");
     }
 };
