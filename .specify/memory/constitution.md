@@ -2,18 +2,22 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
-Version change: N/A → 1.0.0 (initial ratification)
-Modified principles: N/A (new document)
-Added sections:
-  - Core Principles (5 principles)
-  - Technology Constraints
-  - Development Workflow
-  - Governance
+Version change: 1.3.0 → 1.4.0 (MINOR — materially expanded code-style guidance)
+Modified principles:
+  - I. Code Quality: expanded EHM rule (now applies to any function with
+    fallible internals, not only HRESULT returners); added rules for
+    "No Calls Inside Macro Arguments", "Variable Declarations at Top of
+    Scope", "No Unnecessary Scope Blocks", "Function Comments in .cpp
+    Only", and "Function Spacing"; tightened "Avoid Nesting" with the
+    explicit 1-2 / 3-max indentation cap (previously phrased only in
+    Principle V).
+Added sections: N/A (additions are within Principle I)
 Removed sections: N/A
 Templates requiring updates:
-  ✅ plan-template.md - Constitution Check section aligns with new principles
-  ✅ spec-template.md - Requirements/edge cases align with UX consistency principle
-  ✅ tasks-template.md - Test phases align with Testing Discipline principle
+  ✅ plan-template.md - Constitution Check still aligned (rules are
+     enforced at implementation time)
+  ✅ spec-template.md - No template change required
+  ✅ tasks-template.md - No template change required
 Follow-up TODOs: None
 ================================================================================
 -->
@@ -28,9 +32,14 @@ All code MUST adhere to established formatting and structural standards:
 
 - **Formatting Preservation**: NEVER delete blank lines between file-level constructs, NEVER break column alignment in declarations
 - **Indentation Exactness**: Preserve exact indentation when modifying code; match existing whitespace precisely
-- **Error Handling Macros (EHM)**: Use project EHM patterns (`CHR`, `CBR`, `CWRA`, `BAIL_OUT_IF`, etc.) for all HRESULT-returning functions; use `BAIL_OUT_IF` for success-path early exits
+- **Error Handling Macros (EHM)**: Use project EHM patterns (`CHR`, `CBR`, `CWRA`, `BAIL_OUT_IF`, etc.) for all HRESULT-returning functions; use `BAIL_OUT_IF` for success-path early exits. ANY function that contains calls (or other operations) that can fail MUST follow the EHM pattern internally — even if the function does not itself return HRESULT to its caller.
+- **No Calls Inside Macro Arguments**: NEVER pass a non-trivial function call as an argument to a macro (including EHM macros, assertions, logging macros). Trivial accessors only — e.g. `.size()`, `.empty()`, `.data()`, `.c_str()`, getter accessors. For anything that can fail or has side effects, capture the result into a local variable first, then pass the variable to the macro.
 - **Single Exit Point**: Functions returning HRESULT MUST have exactly one exit point via the `Error:` label; NEVER use direct `goto Error`; NEVER use early returns — always use EHM macros
-- **Avoid Nesting**: Use EHM macros to flatten deeply nested conditional logic instead of stacking `if`/`else` blocks
+- **Avoid Nesting**: Use EHM macros to flatten deeply nested conditional logic instead of stacking `if`/`else` blocks. Functions SHOULD have at most 1-2 levels of indentation beyond the EHM pattern; 3 is the absolute maximum. When indentation grows, extract inner logic into a helper function.
+- **Variable Declarations at Top of Scope**: Declare ALL variables at the top of their enclosing scope block. Do NOT define variables in the middle of code. (This is independent of and supplemental to the C++ language allowing mid-block declarations.)
+- **No Unnecessary Scope Blocks**: Do NOT introduce `{ ... }` blocks that are not required by control flow or lifetime semantics. Scope blocks must serve a purpose (loop body, conditional body, RAII lifetime, etc.).
+- **Function Comments in .cpp Only**: Every function MUST have a function-level comment block in the .cpp implementation file. Function-level comments MUST NOT appear in the .h header file. Header files document only declarations and types, not implementation behavior.
+- **Function Spacing**: NEVER insert a space between a function name and an empty argument list — write `func()`, not `func ()`. ALWAYS insert a space (or more, for column alignment) between a function name and a non-empty argument list, and between any keyword that takes parens (`if`, `for`, `while`, `switch`, `return`, `sizeof`, etc.) and the opening paren — write `func (a, b)`, `if (x)`, `return (value)`.
 - **Smart Pointers**: Prefer `unique_ptr` for exclusive ownership, `shared_ptr` when shared ownership is required
 
 **Rationale**: Consistent formatting enables efficient code review and reduces merge conflicts. EHM patterns ensure predictable error handling, resource cleanup, and flat readable code.
@@ -152,4 +161,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.3.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-04-19
+**Version**: 1.4.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-05-05
