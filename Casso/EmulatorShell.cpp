@@ -13,6 +13,7 @@
 #include "Devices/DiskIIController.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
+#include "Core/Prng.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
 #include "Core/MachineConfig.h"
@@ -57,6 +58,17 @@ static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
 EmulatorShell::EmulatorShell()
 {
+    // Phase 4 / FR-035. The Prng is the deterministic stand-in for
+    // indeterminate //e DRAM at power-on, shared across every device that
+    // re-seeds in PowerCycle. The seed is derived from a couple of
+    // weakly-correlated host sources so consecutive launches hit
+    // different patterns; tests pin the seed directly via the test
+    // harness instead of going through this path.
+    uint64_t    seed = static_cast<uint64_t> (time (nullptr));
+
+    seed ^= static_cast<uint64_t> (GetCurrentProcessId ()) << 32;
+
+    m_prng = make_unique<Prng> (seed);
 }
 
 
@@ -1512,22 +1524,13 @@ void EmulatorShell::ProcessCommands()
 
             case IDM_MACHINE_RESET:
             {
-                if (m_cpu)
-                {
-                    Word resetVec = m_cpu->ReadWord (0xFFFC);
-                    m_cpu->SetPC (resetVec);
-                }
+                SoftReset ();
                 break;
             }
 
             case IDM_MACHINE_POWERCYCLE:
             {
-                m_memoryBus.Reset();
-
-                if (m_cpu)
-                {
-                    m_cpu->InitForEmulation();
-                }
+                PowerCycle ();
                 break;
             }
 
@@ -2742,3 +2745,70 @@ void EmulatorShell::SelectVideoMode()
 
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034. Drives the //e /RESET path: every device clears its
+//  reset-sensitive state (audit S10 [CRITICAL] - 80COL/ALTCHARSET no
+//  longer survive), the MMU returns to the post-reset banking flags, and
+//  the CPU re-loads PC from $FFFC. User RAM is preserved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SoftReset ()
+{
+    m_memoryBus.SoftResetAll ();
+
+    if (m_mmu != nullptr)
+    {
+        m_mmu->OnSoftReset ();
+    }
+
+    m_interruptController.SoftReset ();
+
+    if (m_cpu != nullptr)
+    {
+        m_cpu->SoftReset ();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035. Reseeds every DRAM-owning device from m_prng then
+//  runs the SoftReset sequence. The Prng is constructed once (host
+//  process lifetime) so consecutive cycles within a single session
+//  continue producing fresh patterns rather than repeating the seed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PowerCycle ()
+{
+    if (m_prng == nullptr)
+    {
+        return;
+    }
+
+    m_memoryBus.PowerCycleAll (*m_prng);
+
+    if (m_mmu != nullptr)
+    {
+        m_mmu->OnPowerCycle (*m_prng);
+    }
+
+    m_interruptController.PowerCycle ();
+
+    if (m_cpu != nullptr)
+    {
+        m_cpu->PowerCycle (*m_prng);
+    }
+}

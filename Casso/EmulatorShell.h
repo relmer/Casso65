@@ -65,6 +65,14 @@ public:
     // Access bus for test wiring
     MemoryBus & GetBus () { return m_memoryBus; }
 
+    // Phase 4 / FR-034 / FR-035: split-reset entry points exposed for the
+    // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
+    // future programmatic callers. SoftReset preserves user RAM and
+    // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
+    // owning device from the shared Prng before SoftReset (audit S10).
+    void SoftReset  ();
+    void PowerCycle ();
+
 private:
     // Window message handler overrides
     bool    OnChar    (WPARAM ch, LPARAM lParam) override;
@@ -130,6 +138,7 @@ private:
     ComponentRegistry   m_registry;
     InterruptController m_interruptController;
     unique_ptr<EmuCpu> m_cpu;
+    unique_ptr<class Prng> m_prng;
 
     D3DRenderer         m_d3dRenderer;
     MenuSystem          m_menuSystem;
