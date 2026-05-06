@@ -13,7 +13,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 EmuCpu::EmuCpu (MemoryBus & memoryBus)
-    : Cpu(),
+    : Cpu6502 (),
       m_memoryBus (memoryBus)
 {
     Byte * pBase = memory.data ();

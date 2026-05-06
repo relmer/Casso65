@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "Cpu.h"
+#include "Cpu6502.h"
 #include "MemoryBus.h"
 
 
@@ -12,11 +12,13 @@
 //
 //  EmuCpu
 //
-//  Subclass of CassoCore Cpu that routes memory access through MemoryBus.
+//  Subclass of Cpu6502 that routes memory access through MemoryBus.
+//  Inherits ICpu + I6502DebugInfo via Cpu6502; the strategy/composition
+//  refactor in T028 widens this surface further.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmuCpu : public Cpu
+class EmuCpu : public Cpu6502
 {
 public:
     explicit EmuCpu (MemoryBus & memoryBus);
@@ -27,7 +29,9 @@ public:
     Word ReadWord  (Word address) override;
     void WriteWord (Word address, Word value) override;
 
-    // Cycle tracking
+    // Cycle tracking — backed by the Cpu6502::m_totalCycles counter so
+    // the existing Add/Reset/Get surface and the new ICpu::GetCycleCount
+    // observe the same value.
     uint64_t   GetTotalCycles      () const { return m_totalCycles; }
     void       ResetCycles         ()       { m_totalCycles = 0; }
     uint64_t * GetCycleCounterPtr  ()       { return &m_totalCycles; }
@@ -38,5 +42,4 @@ public:
 
 private:
     MemoryBus & m_memoryBus;
-    uint64_t    m_totalCycles = 0;
 };
