@@ -32,6 +32,17 @@ public:
 
     HRESULT Flush ();
 
+    // Test-only injection. Sets the loaded/dirty flags directly without
+    // any host I/O so reset-semantics tests can assert that PowerCycle
+    // ejects every drive without depending on a 143360-byte fixture
+    // file. The buffer remains zeroed; tests that need real sector data
+    // continue to use Load().
+    void SetLoadedForTest (bool loaded, bool dirty)
+    {
+        m_loaded = loaded;
+        m_dirty  = dirty;
+    }
+
     const string & GetFilePath () const { return m_filePath; }
 
 private:
