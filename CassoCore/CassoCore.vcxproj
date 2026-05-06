@@ -199,6 +199,8 @@
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="Cpu.h" />
+    <ClInclude Include="ICpu.h" />
+    <ClInclude Include="I6502DebugInfo.h" />
     <ClInclude Include="CpuOperations.h" />
     <ClInclude Include="CpuStatus.h" />
     <ClInclude Include="Ehm.h" />
