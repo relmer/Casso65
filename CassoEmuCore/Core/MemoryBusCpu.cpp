@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MemoryBusCpu.h"
+#include "Prng.h"
 
 
 
@@ -134,4 +135,64 @@ void MemoryBusCpu::InitForEmulation ()
     m_totalCycles = 0;
 
     PC = ReadWord (resVector);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034. Mirrors the 6502 /RESET sequence: forces I=1, sets
+//  SP to the post-reset 0xFD value, and reloads PC from $FFFC. RAM, A/X/
+//  Y and the cycle counter are preserved (audit §10).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBusCpu::SoftReset ()
+{
+    SP = 0xFD;
+
+    status.flags.interruptDisable = 1;
+    status.flags.alwaysOne        = 1;
+
+    m_irqLine    = false;
+    m_nmiLine    = false;
+    m_nmiPending = false;
+
+    PC = ReadWord (resVector);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035. Re-seeds Cpu::memory[$0000-$BFFF) from the shared
+//  Prng, zeros page-2 text ($0800-$0BFF) per the InitForEmulation
+//  comment, then runs the SoftReset sequence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBusCpu::PowerCycle (Prng & prng)
+{
+    prng.Fill (memory.data (), 0xC000);
+
+    fill (memory.begin () + 0x0800, memory.begin () + 0x0C00, Byte (0));
+
+    A             = 0;
+    X             = 0;
+    Y             = 0;
+    m_totalCycles = 0;
+
+    status.status                 = 0;
+    status.flags.alwaysOne        = 1;
+    status.flags.interruptDisable = 1;
+
+    SoftReset ();
 }

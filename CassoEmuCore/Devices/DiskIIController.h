@@ -66,6 +66,8 @@ public:
     Word GetStart () const override { return m_ioStart; }
     Word GetEnd   () const override { return m_ioEnd; }
     void Reset    () override;
+    void SoftReset  () override;
+    void PowerCycle (Prng & prng) override;
 
     // Disk image management
     HRESULT MountDisk (int drive, const string & path);

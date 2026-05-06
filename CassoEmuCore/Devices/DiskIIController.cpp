@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskIIController.h"
+#include "Core/Prng.h"
 
 
 
@@ -554,6 +555,64 @@ void DiskIIController::Reset ()
     m_shiftRegister = 0;
     m_nibbleBuffer.clear ();
     m_nibblePos     = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034: //e soft reset clears the controller hardware state
+//  but PRESERVES the disk mounts. Dirty images are flushed back to host
+//  storage so a reset doesn't lose the user's writes (audit §10).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::SoftReset ()
+{
+    HRESULT hrFlush = S_OK;
+    int     drive   = 0;
+
+    Reset ();
+
+    for (drive = 0; drive < 2; drive++)
+    {
+        if (m_disks[drive].IsLoaded ())
+        {
+            hrFlush = m_disks[drive].Flush ();
+            IGNORE_RETURN_VALUE (hrFlush, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035: a full power cycle ejects every drive (which itself
+//  flushes dirty images first) and clears the controller hardware state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskIIController::PowerCycle (Prng & prng)
+{
+    int     drive = 0;
+
+    UNREFERENCED_PARAMETER (prng);
+
+    Reset ();
+
+    for (drive = 0; drive < 2; drive++)
+    {
+        m_disks[drive].Eject ();
+    }
 }
 
 

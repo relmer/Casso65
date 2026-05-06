@@ -48,6 +48,7 @@ public:
     Word GetStart () const override { return 0xC000; }
     Word GetEnd   () const override { return 0xC01F; }
     void Reset    () override;
+    void SoftReset () override;
 
     // Called from EmulatorShell when a key event arrives (UI thread)
     void KeyPress (Byte asciiChar);

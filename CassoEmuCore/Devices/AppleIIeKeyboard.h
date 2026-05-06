@@ -23,6 +23,7 @@ public:
     Byte Read  (Word address) override;
     void Write (Word address, Byte value) override;
     void Reset () override;
+    void SoftReset () override;
 
     // Open/Closed Apple button state (set from UI thread)
     void SetOpenApple   (bool pressed) { m_openApple.store (pressed, memory_order_release); }

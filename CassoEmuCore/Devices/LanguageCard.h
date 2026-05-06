@@ -72,6 +72,7 @@ public:
     Byte ReadRom    (Word address) const;
 
     void SoftReset    ();
+    void PowerCycle   (Prng & prng) override;
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 

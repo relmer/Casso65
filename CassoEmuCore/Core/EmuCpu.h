@@ -8,6 +8,8 @@
 
 #include <memory>
 
+class Prng;
+
 
 
 
@@ -89,6 +91,11 @@ public:
     // Power-on initialization (DRAM randomization + reset-vector fetch).
     // No-op if the strategy is not a MemoryBusCpu.
     void             InitForEmulation ();
+
+    // Phase 4 split-reset (FR-034 / FR-035). Forwarded to the underlying
+    // MemoryBusCpu when present; no-op if the strategy is some other ICpu.
+    void             SoftReset  ();
+    void             PowerCycle (Prng & prng);
 
 private:
     MemoryBus &              m_memoryBus;

@@ -58,7 +58,7 @@ public:
 
     void  OnSoftSwitchChanged () override;
     void  OnSoftReset         () override;
-    void  OnPowerCycle        () override;
+    void  OnPowerCycle        (Prng & prng) override;
 
     void  SetIntC8Rom    (bool v) { m_intC8Rom = v; }
 

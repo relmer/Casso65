@@ -2,6 +2,7 @@
 
 #include "AppleIIeMmu.h"
 #include "Core/MemoryBus.h"
+#include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Devices/LanguageCard.h"
@@ -262,14 +263,17 @@ void AppleIIeMmu::OnSoftReset ()
 //
 //  OnPowerCycle
 //
-//  Power-on defaults match soft reset for the flags. RAM seeding is
-//  performed by the RamDevice power-cycle path (Phase 4).
+//  Power-on defaults match soft reset for the flags, then aux RAM is
+//  re-seeded from the shared Prng so it matches the indeterminate-but-
+//  deterministic posture the rest of the //e DRAM gets (FR-035).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleIIeMmu::OnPowerCycle ()
+void AppleIIeMmu::OnPowerCycle (Prng & prng)
 {
     OnSoftReset ();
+
+    prng.Fill (m_auxRam.data (), m_auxRam.size ());
 }
 
 

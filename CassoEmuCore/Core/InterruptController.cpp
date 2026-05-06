@@ -137,3 +137,43 @@ void InterruptController::UpdateLine ()
 
     m_cpu->SetInterruptLine (CpuInterruptKind::kMaskable, m_aggregate != 0);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034: clear all per-source assertions and de-assert the
+//  wired CPU's maskable line. Source-ID allocations are preserved so
+//  peripherals keep their tokens across a reset (audit §10).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InterruptController::SoftReset ()
+{
+    m_aggregate = 0;
+
+    UpdateLine ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035: same effect as SoftReset — there is no DRAM-shaped
+//  state on the controller. Provided as a separate entry point so the
+//  EmulatorShell power path can be uniform across components.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InterruptController::PowerCycle ()
+{
+    SoftReset ();
+}

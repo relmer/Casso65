@@ -7,6 +7,7 @@ class RamDevice;
 class RomDevice;
 class LanguageCard;
 class AppleSoftSwitchBank;
+class Prng;
 
 
 
@@ -80,5 +81,5 @@ public:
     virtual bool          GetSlotC3Rom   () const = 0;
 
     virtual void          OnSoftReset    () = 0;
-    virtual void          OnPowerCycle   () = 0;
+    virtual void          OnPowerCycle   (Prng & prng) = 0;
 };

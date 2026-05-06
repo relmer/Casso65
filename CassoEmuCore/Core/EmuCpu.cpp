@@ -94,3 +94,51 @@ void EmuCpu::InitForEmulation ()
         pBusCpu->InitForEmulation ();
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034 forwarder. Pass-through to MemoryBusCpu::SoftReset
+//  when present; other ICpu strategies (e.g. fake CPUs in unit tests)
+//  simply receive nothing — they are responsible for their own reset
+//  semantics via ICpu::Reset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmuCpu::SoftReset ()
+{
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+
+    if (pBusCpu)
+    {
+        pBusCpu->SoftReset ();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerCycle
+//
+//  Phase 4 / FR-035 forwarder. Re-seeds the CPU's memory[] and runs the
+//  power-on register/PC initialization through MemoryBusCpu::PowerCycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmuCpu::PowerCycle (Prng & prng)
+{
+    MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
+
+    if (pBusCpu)
+    {
+        pBusCpu->PowerCycle (prng);
+    }
+}

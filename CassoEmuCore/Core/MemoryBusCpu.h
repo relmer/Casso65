@@ -4,6 +4,8 @@
 #include "Cpu6502.h"
 #include "MemoryBus.h"
 
+class Prng;
+
 
 
 
@@ -36,6 +38,18 @@ public:
     // Randomize main RAM (DRAM power-on simulation), set initial register
     // state and load PC from the reset vector via the bus.
     void    InitForEmulation ();
+
+    // Phase 4 split-reset (FR-034 / FR-035).
+    //
+    // SoftReset matches the //e CPU's reaction to /RESET: I=1, SP=0xFD,
+    // PC re-loaded from $FFFC. A/X/Y and DRAM are preserved.
+    //
+    // PowerCycle re-seeds the inherited Cpu::memory[] from the shared
+    // Prng (deterministic stand-in for indeterminate DRAM at power-on),
+    // zeros A/X/Y, clears the cycle counter, then performs the SoftReset
+    // register/PC initialization.
+    void    SoftReset  ();
+    void    PowerCycle (Prng & prng);
 
 private:
     MemoryBus &  m_memoryBus;

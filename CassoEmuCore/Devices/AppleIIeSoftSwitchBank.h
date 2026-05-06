@@ -30,6 +30,7 @@ public:
     void Write (Word address, Byte value) override;
     Word GetEnd () const override { return 0xC07F; }
     void Reset () override;
+    void SoftReset () override;
 
     bool Is80ColMode    () const { return m_80colMode; }
     bool IsDoubleHiRes  () const { return m_doubleHiRes; }

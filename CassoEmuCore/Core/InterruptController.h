@@ -40,6 +40,14 @@ public:
     // Setter for late-binding the CPU after construction.
     void                            SetCpu (ICpu * cpu) { m_cpu = cpu; }
 
+    // Phase 4 split-reset. Both clear the aggregate and de-assert the
+    // CPU's IRQ line; PowerCycle additionally accepts the shared Prng for
+    // signature symmetry with MemoryDevice::PowerCycle. Sources keep
+    // their allocated IrqSourceIds — re-enumerating them would invalidate
+    // tokens already held by peripheral devices.
+    void                            SoftReset  ();
+    void                            PowerCycle ();
+
 private:
     void                            UpdateLine ();
 
