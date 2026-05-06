@@ -7,6 +7,12 @@
 
 **Authoritative Requirements Input**: [`docs/iie-audit.md`](../../docs/iie-audit.md) — full gap analysis and desired-correct-behavior reference for every //e subsystem touched by this feature. Every [CRITICAL] and [MAJOR] finding in that document is in scope here unless explicitly listed under "Out of Scope" below.
 
+## Clarifications
+
+### Session 2026-05-05
+
+- Q: When MIXED mode is active and 80COL=1, should the bottom 4 text rows render in 80-column or 40-column? → A: 80-column (option A) — matches real //e hardware and addresses audit item M12. Captured as FR-017a; routed through the composed video subsystem (FR-020), not a branched code path.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot a stock Apple //e to a working BASIC prompt (Priority: P1)
@@ -82,6 +88,7 @@ A developer or CI system runs the test suite for Casso. The suite includes a hea
 1. **Given** the test runner is invoked on a clean checkout, **When** the //e integration suite runs, **Then** no window is created, no audio device is opened, no host file outside the repo is read or written, and all asserts pass.
 2. **Given** the suite is run twice in succession, **When** results are compared, **Then** every test produces identical pass/fail status and identical scraped/hashed outputs (deterministic).
 3. **Given** a regression is introduced in any in-scope //e subsystem (soft switches, aux RAM, LC, keyboard, video, Disk II, ROM mapping, IRQ, VBL, reset), **When** the suite runs, **Then** at least one targeted test fails with a diagnostic that points to the affected subsystem.
+4. **Given** the //e is in MIXED+80COL mode with a known fixture program drawing graphics in the top region and printing 80-column text in the bottom 4 rows, **When** the harness scrapes both main and aux text page memory and the framebuffer, **Then** the bottom 4 rows render as 80-column interleaved text (not 40-column), the graphics region is unchanged, and the result matches the recorded golden output.
 
 ---
 
@@ -170,6 +177,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 - **FR-016**: 40-column text mode MUST render correctly using the //e character ROM, including the FLASH and INVERSE attributes for the standard character set, and the ALTCHARSET-selected MouseText alternate set.
 - **FR-017**: 80-column text mode MUST render correctly by interleaving main and auxiliary text memory and MUST honor ALTCHARSET. Flashing characters MUST flash only when ALTCHARSET selects the flashing set, matching //e behavior.
+- **FR-017a**: When MIXED mode is active (TEXT bottom rows over GRAPHICS top rows) AND 80COL=1, the bottom 4 text rows MUST render using the 80-column text path (aux/main interleave with ALTCHARSET and flash semantics matching FR-017). When 80COL=0, the bottom 4 text rows MUST render using the 40-column path (FR-016). The mixed-mode rendering MUST reach the 80-column text renderer through the same composed video subsystem path used for full-screen 80-column text (per FR-020), not via a branched/duplicated code path.
 - **FR-018**: Lo-res and standard hi-res graphics modes MUST render correctly. Hi-res rendering MUST include NTSC artifact color rendering (so that programs which rely on artifact color to produce 6-color output look correct).
 - **FR-019**: Double hi-res (DHR) MUST render correctly with proper aux/main interleaving per the //e DHR memory layout.
 - **FR-020**: The video subsystem MUST be composed (not branched) so that adding new modes or future machine variants does not require forking the existing modes.
