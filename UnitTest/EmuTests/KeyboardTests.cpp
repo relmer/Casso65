@@ -6,6 +6,8 @@
 #include "Devices/AppleKeyboard.h"
 #include "Devices/AppleIIeKeyboard.h"
 #include "Devices/AppleIIeSoftSwitchBank.h"
+#include "Devices/AppleIIeMmu.h"
+#include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -210,8 +212,15 @@ public:
     TEST_METHOD (IIeKeyboard_ForwardsC001WriteToSoftSwitch)
     {
         MemoryBus              bus;
+        RamDevice              mainRam (0x0000, 0xBFFF);
+        AppleIIeMmu            mmu;
         AppleIIeSoftSwitchBank sw  (&bus);
         AppleIIeKeyboard       iieKbd (&bus);
+
+        sw.SetMmu (&mmu);
+        HRESULT hrInit = mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+        UNREFERENCED_PARAMETER (hrInit);
+
         iieKbd.SetSoftSwitchSibling (&sw);
 
         iieKbd.Write (0xC001, 0);
