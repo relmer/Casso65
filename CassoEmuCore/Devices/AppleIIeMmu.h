@@ -5,6 +5,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/IMmu.h"
+#include "Devices/CxxxRomRouter.h"
 
 
 
@@ -64,6 +65,13 @@ public:
     Byte *       GetAuxBuffer ()       { return m_auxRam.data (); }
     const Byte * GetAuxBuffer () const { return m_auxRam.data (); }
 
+    // Cxxx-ROM routing (audit C8 carryover). Internal $C100-$CFFF ROM
+    // bytes and slot ROM bytes are attached after Initialize; the MMU
+    // owns the CxxxRomRouter device that is registered on the bus.
+    void               AttachInternalCxxxRom (vector<Byte> data);
+    void               AttachSlotRom         (int slot, vector<Byte> data);
+    CxxxRomRouter *    GetCxxxRouter         () { return &m_cxxxRouter; }
+
 private:
     void   RebindPageTable     ();
     void   ResolveZeroPage     ();
@@ -77,6 +85,7 @@ private:
     Byte                 *   m_mainRamPtr  = nullptr;
     AppleSoftSwitchBank  *   m_ssBank      = nullptr;
     vector<Byte>             m_auxRam;
+    CxxxRomRouter            m_cxxxRouter;
 
     bool                     m_ramRd       = false;
     bool                     m_ramWrt      = false;

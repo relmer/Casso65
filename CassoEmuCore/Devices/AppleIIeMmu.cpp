@@ -43,7 +43,8 @@ static constexpr int  kMain02_BFLast      = 0xBF;
 ////////////////////////////////////////////////////////////////////////////////
 
 AppleIIeMmu::AppleIIeMmu ()
-    : m_auxRam (kAuxRamSize, 0)
+    : m_auxRam     (kAuxRamSize, 0),
+      m_cxxxRouter (*this)
 {
 }
 
@@ -84,10 +85,39 @@ HRESULT AppleIIeMmu::Initialize (
     m_mainRamPtr = mainRam->GetData ();
     m_ssBank     = ssBank;
 
+    m_bus->AddDevice (&m_cxxxRouter);
+
     RebindPageTable ();
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachInternalCxxxRom / AttachSlotRom
+//
+//  Caller (EmulatorShell or test fixture) hands ROM bytes to the MMU's
+//  router. Slot N occupies $CN00-$CNFF; internal ROM covers $C100-$CFFF
+//  (3840 bytes). The router decides per-byte which source wins based on
+//  INTCXROM / SLOTC3ROM / INTC8ROM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleIIeMmu::AttachInternalCxxxRom (vector<Byte> data)
+{
+    m_cxxxRouter.SetInternalRom (move (data));
+}
+
+
+
+void AppleIIeMmu::AttachSlotRom (int slot, vector<Byte> data)
+{
+    m_cxxxRouter.SetSlotRom (slot, move (data));
 }
 
 

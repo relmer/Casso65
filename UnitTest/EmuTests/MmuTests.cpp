@@ -353,4 +353,140 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0xEE), f.mmu.GetAuxBuffer ()[0x1111]);
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  CxxxRomRouter (audit C8): INTCXROM physically remaps slot $C100-$CFFF
+    //  to internal ROM. SLOTC3ROM/INTC8ROM control $C300-$C3FF and the
+    //  $C800-$CFFF expansion window. Reads of $CFFF auto-clear INTC8ROM.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Slot6IsReachableWhenIntCxRomClear)
+    {
+        MmuFixture f;
+
+        vector<Byte> internal (0x0F00, 0xAA);
+        vector<Byte> slot6    (0x0100, 0x00);
+
+        slot6[0x00] = 0x66;
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.AttachSlotRom         (6, move (slot6));
+
+        f.mmu.SetIntCxRom (false);
+
+        Assert::AreEqual (static_cast<Byte> (0x66), f.bus.ReadByte (0xC600),
+            L"Audit C8: INTCXROM=0 must expose slot 6 ROM at $C600");
+    }
+
+    TEST_METHOD (Slot6IsShadowedWhenIntCxRomSet)
+    {
+        MmuFixture f;
+
+        vector<Byte> internal (0x0F00, 0x00);
+        vector<Byte> slot6    (0x0100, 0x66);
+
+        // $C600 in internal-ROM space lives at offset (0xC600-0xC100)=0x500.
+        internal[0x500] = 0xCC;
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.AttachSlotRom         (6, move (slot6));
+
+        f.mmu.SetIntCxRom (true);
+
+        Assert::AreEqual (static_cast<Byte> (0xCC), f.bus.ReadByte (0xC600),
+            L"Audit C8: INTCXROM=1 must shadow slot 6 with internal ROM");
+    }
+
+    TEST_METHOD (SlotC3Rom_ClearMapsInternal80ColFirmware)
+    {
+        MmuFixture f;
+
+        vector<Byte> internal (0x0F00, 0x00);
+        vector<Byte> slot3    (0x0100, 0x33);
+
+        // $C300 internal offset = 0x200.
+        internal[0x200] = 0x80;
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.AttachSlotRom         (3, move (slot3));
+
+        f.mmu.SetIntCxRom  (false);
+        f.mmu.SetSlotC3Rom (false);
+
+        Assert::AreEqual (static_cast<Byte> (0x80), f.bus.ReadByte (0xC300),
+            L"SLOTC3ROM=0 must map internal 80-col firmware at $C300");
+    }
+
+    TEST_METHOD (SlotC3Rom_SetMapsSlot3Card)
+    {
+        MmuFixture f;
+
+        vector<Byte> internal (0x0F00, 0x00);
+        vector<Byte> slot3    (0x0100, 0x00);
+
+        slot3[0x00] = 0x33;
+        internal[0x200] = 0x80;
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.AttachSlotRom         (3, move (slot3));
+
+        f.mmu.SetIntCxRom  (false);
+        f.mmu.SetSlotC3Rom (true);
+
+        Assert::AreEqual (static_cast<Byte> (0x33), f.bus.ReadByte (0xC300),
+            L"SLOTC3ROM=1 must map slot 3 card ROM at $C300");
+    }
+
+    TEST_METHOD (IntC8Rom_LatchedByC3xxAccess_AndClearedByCFFF)
+    {
+        MmuFixture f;
+
+        vector<Byte> internal (0x0F00, 0x00);
+        vector<Byte> slot3    (0x0100, 0x00);
+
+        // Internal $C800 lives at offset (0xC800-0xC100)=0x700.
+        internal[0x700] = 0xC8;
+        internal[0x200] = 0x80;
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.AttachSlotRom         (3, move (slot3));
+
+        f.mmu.SetIntCxRom  (false);
+        f.mmu.SetSlotC3Rom (false);
+
+        Assert::IsFalse (f.mmu.GetIntC8Rom (),
+            L"INTC8ROM should be clear at start");
+
+        f.bus.ReadByte (0xC300);
+        Assert::IsTrue (f.mmu.GetIntC8Rom (),
+            L"Internal $C3xx access must latch INTC8ROM=1");
+
+        Assert::AreEqual (static_cast<Byte> (0xC8), f.bus.ReadByte (0xC800),
+            L"INTC8ROM=1: $C800-$CFFF must read internal ROM");
+
+        // Read of $CFFF clears INTC8ROM.
+        f.bus.ReadByte (0xCFFF);
+        Assert::IsFalse (f.mmu.GetIntC8Rom (),
+            L"$CFFF read must auto-clear INTC8ROM");
+    }
+
+    TEST_METHOD (CxxxExpansionWindow_FloatsWhenIntC8RomClear)
+    {
+        MmuFixture f;
+
+        vector<Byte> internal (0x0F00, 0xAB);
+        vector<Byte> slot6    (0x0100, 0x66);
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.AttachSlotRom         (6, move (slot6));
+
+        f.mmu.SetIntCxRom (false);
+
+        // INTC8ROM is clear; $C800-$CFFF must NOT read internal ROM.
+        Assert::AreEqual (static_cast<Byte> (0xFF), f.bus.ReadByte (0xC900),
+            L"INTC8ROM=0 + INTCXROM=0: $C800-$CFFF expansion window floats");
+    }
 };

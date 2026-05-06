@@ -3,6 +3,7 @@
 #include "AppleIIeKeyboard.h"
 #include "AppleIIeSoftSwitchBank.h"
 #include "AppleIIeMmu.h"
+#include "LanguageCard.h"
 
 
 
@@ -62,6 +63,12 @@ Byte AppleIIeKeyboard::Read (Word address)
 
         switch (address)
         {
+            case 0xC011: // BSRBANK2 (set when BANK2 selected)
+                flag = m_lc != nullptr && m_lc->IsBank2 ();
+                break;
+            case 0xC012: // BSRREADRAM
+                flag = m_lc != nullptr && m_lc->IsReadRam ();
+                break;
             case 0xC013: // RDRAMRD
                 flag = m_mmu != nullptr && m_mmu->GetRamRd ();
                 break;
@@ -98,7 +105,7 @@ Byte AppleIIeKeyboard::Read (Word address)
             case 0xC01B: // RDMIXED
                 flag = m_softSwitchSibling != nullptr && m_softSwitchSibling->IsMixedMode ();
                 break;
-            // BSRBANK2 / BSRREADRAM (LC) is Phase 3; VBL ($C019) is Phase 5.
+            // $C019 RDVBLBAR is Phase 5.
             default:
                 break;
         }

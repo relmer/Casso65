@@ -766,7 +766,26 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
                 CBRN (false, wideError.c_str ());
             }
 
-            m_memoryBus.AddDevice (device.get ());
+            // On //e the AppleIIeMmu owns the $C100-$CFFF router and
+            // dispatches between internal ROM and slot ROMs based on
+            // INTCXROM/SLOTC3ROM/INTC8ROM. On ][/][+, the slot ROM is
+            // bus-resident as before (no INTCXROM concept).
+            if (m_mmu != nullptr)
+            {
+                vector<Byte> bytes (slot.romSize);
+
+                for (size_t i = 0; i < slot.romSize; i++)
+                {
+                    bytes[i] = device->Read (static_cast<Word> (romStart + i));
+                }
+
+                m_mmu->AttachSlotRom (slot.slot, move (bytes));
+            }
+            else
+            {
+                m_memoryBus.AddDevice (device.get ());
+            }
+
             m_ownedDevices.push_back (move (device));
         }
     }
@@ -845,6 +864,8 @@ void EmulatorShell::WireLanguageCard()
         size_t dataOffset   = slotRomStart - romStart;
         size_t lowerSize    = 0xD000 - slotRomStart;
 
+        UNREFERENCED_PARAMETER (dataOffset);
+
         vector<Byte> lowerData (lowerSize);
 
         for (size_t i = 0; i < lowerSize; i++)
@@ -852,18 +873,41 @@ void EmulatorShell::WireLanguageCard()
             lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
         }
 
-        auto lowerRom = RomDevice::CreateFromData (
-            slotRomStart, static_cast<Word> (0xCFFF),
-            lowerData.data(), lowerData.size());
+        // On //e: hand to the MMU's CxxxRomRouter (audit C8 carryover).
+        // On ][/][+: keep the legacy bus-resident ROM device.
+        if (m_mmu != nullptr)
+        {
+            m_mmu->AttachInternalCxxxRom (move (lowerData));
+        }
+        else
+        {
+            auto lowerRom = RomDevice::CreateFromData (
+                slotRomStart, static_cast<Word> (0xCFFF),
+                lowerData.data(), lowerData.size());
 
-        m_memoryBus.AddDevice (lowerRom.get());
-        m_ownedDevices.push_back (move (lowerRom));
+            m_memoryBus.AddDevice (lowerRom.get());
+            m_ownedDevices.push_back (move (lowerRom));
+        }
     }
 
     // Bank device intercepts $D000–$FFFF, routing to LC RAM or ROM
     auto lcBank = make_unique<LanguageCardBank> (*lc);
     m_memoryBus.AddDevice (lcBank.get());
     m_ownedDevices.push_back (move (lcBank));
+
+    // //e wiring: LC needs the MMU (for ALTZP routing) and the keyboard
+    // sibling needs the LC pointer for $C011/$C012 status reads.
+    if (m_mmu != nullptr)
+    {
+        lc->SetMmu (m_mmu.get ());
+    }
+
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetLanguageCard (lc);
+    }
 }
 
 

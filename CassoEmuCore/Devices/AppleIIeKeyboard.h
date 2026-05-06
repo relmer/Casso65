@@ -38,6 +38,10 @@ public:
     // Used for $C013-$C017 status bit-7 reads.
     void SetMmu (class AppleIIeMmu * mmu) { m_mmu = mmu; }
 
+    // Sibling LanguageCard for $C011 (BSRBANK2) / $C012 (BSRREADRAM)
+    // status bit-7 reads.
+    void SetLanguageCard (class LanguageCard * lc) { m_lc = lc; }
+
     // Override key press to allow lowercase
     void KeyPressRaw (Byte asciiChar);
 
@@ -47,6 +51,7 @@ private:
     MemoryBus *                    m_bus = nullptr;
     class AppleIIeSoftSwitchBank * m_softSwitchSibling = nullptr;
     class AppleIIeMmu *            m_mmu               = nullptr;
+    class LanguageCard *           m_lc                = nullptr;
     atomic<bool>                   m_openApple{false};
     atomic<bool>                   m_closedApple{false};
 };
