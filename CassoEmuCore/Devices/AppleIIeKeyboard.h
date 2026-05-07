@@ -43,6 +43,11 @@ public:
     // status bit-7 reads.
     void SetLanguageCard (class LanguageCard * lc) { m_lc = lc; }
 
+    // Phase 5 / FR-033. //e video timing model — sourced for $C019
+    // (RDVBLBAR) bit-7. Polarity is INVERTED at the read site:
+    // bit 7 = 1 during display, 0 during vblank. Null-safe.
+    void SetVideoTiming (class IVideoTiming * vt) { m_videoTiming = vt; }
+
     // Override key press to allow lowercase
     void KeyPressRaw (Byte asciiChar);
 
@@ -53,6 +58,7 @@ private:
     class AppleIIeSoftSwitchBank * m_softSwitchSibling = nullptr;
     class AppleIIeMmu *            m_mmu               = nullptr;
     class LanguageCard *           m_lc                = nullptr;
+    class IVideoTiming *           m_videoTiming       = nullptr;
     atomic<bool>                   m_openApple{false};
     atomic<bool>                   m_closedApple{false};
 };

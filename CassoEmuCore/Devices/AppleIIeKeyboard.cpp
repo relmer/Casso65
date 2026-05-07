@@ -4,6 +4,7 @@
 #include "AppleIIeSoftSwitchBank.h"
 #include "AppleIIeMmu.h"
 #include "LanguageCard.h"
+#include "Video/IVideoTiming.h"
 
 
 
@@ -105,7 +106,9 @@ Byte AppleIIeKeyboard::Read (Word address)
             case 0xC01B: // RDMIXED
                 flag = m_softSwitchSibling != nullptr && m_softSwitchSibling->IsMixedMode ();
                 break;
-            // $C019 RDVBLBAR is Phase 5.
+            case 0xC019: // RDVBLBAR — bit 7 = 1 during display, 0 during vblank
+                flag = m_videoTiming != nullptr && !m_videoTiming->IsInVblank ();
+                break;
             default:
                 break;
         }

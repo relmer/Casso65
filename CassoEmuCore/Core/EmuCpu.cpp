@@ -48,6 +48,33 @@ EmuCpu::EmuCpu (MemoryBus & memoryBus, std::unique_ptr<ICpu> cpu)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AddCycles
+//
+//  Per-instruction cycle fan-out. Forwards the count to the underlying
+//  6502 cycle accumulator and, when wired, ticks the //e video timing
+//  model so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe
+//  for ][/][+ and unit tests that leave the video timing unset.
+//
+//  Per FR-033, Phase 5 T056.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmuCpu::AddCycles (Byte n)
+{
+    m_cpu6502->AddCycles (n);
+
+    if (m_videoTiming != nullptr)
+    {
+        m_videoTiming->Tick (n);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadWord
 //
 ////////////////////////////////////////////////////////////////////////////////

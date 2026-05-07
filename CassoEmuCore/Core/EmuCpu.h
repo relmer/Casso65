@@ -5,6 +5,7 @@
 #include "ICpu.h"
 #include "MemoryBus.h"
 #include "MemoryBusCpu.h"
+#include "Video/IVideoTiming.h"
 
 #include <memory>
 
@@ -60,7 +61,14 @@ public:
     uint64_t         GetTotalCycles      () const  { return m_cpu6502->GetCycleCount (); }
     void             ResetCycles         ()        { m_cpu6502->ResetCycles (); }
     uint64_t *       GetCycleCounterPtr  ()        { return m_cpu6502->GetCycleCounterPtr (); }
-    void             AddCycles           (Byte n)  { m_cpu6502->AddCycles (n); }
+    void             AddCycles           (Byte n);
+
+    // Phase 5 / FR-033. Optional sink ticked once per AddCycles call so
+    // the //e video timing model stays phase-locked to CPU progress.
+    // Null-safe: ][/][+ or unit tests that do not need a video timer
+    // simply leave it unset and AddCycles becomes a single forwarder.
+    void             SetVideoTiming      (IVideoTiming * vt) { m_videoTiming = vt; }
+    IVideoTiming *   GetVideoTiming      () const            { return m_videoTiming; }
 
     // 6502 execution surface
     void             StepOne                  ()                              { m_cpu6502->StepOne (); }
@@ -100,5 +108,6 @@ public:
 private:
     MemoryBus &              m_memoryBus;
     std::unique_ptr<ICpu>    m_cpu;
-    Cpu6502 *                m_cpu6502 = nullptr;
+    Cpu6502 *                m_cpu6502     = nullptr;
+    IVideoTiming *           m_videoTiming = nullptr;
 };

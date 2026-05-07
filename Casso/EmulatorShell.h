@@ -12,6 +12,7 @@
 #include "DebugConsole.h"
 #include "Video/VideoOutput.h"
 #include "Video/CharacterRomData.h"
+#include "Video/VideoTiming.h"
 #include "WasapiAudio.h"
 
 
@@ -168,6 +169,7 @@ private:
     class RamDevice *             m_mainRamDev   = nullptr;
 
     unique_ptr<class AppleIIeMmu> m_mmu;
+    unique_ptr<VideoTiming>       m_videoTiming;
 
     // Emulation state
     MachineConfig   m_config;

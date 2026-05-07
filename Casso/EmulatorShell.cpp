@@ -69,6 +69,11 @@ EmulatorShell::EmulatorShell()
     seed ^= static_cast<uint64_t> (GetCurrentProcessId ()) << 32;
 
     m_prng = make_unique<Prng> (seed);
+
+    // Phase 5 / FR-033 / T055. //e video timing model — owned at the
+    // shell level so all three machine kinds (][/][+/]e) share the same
+    // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
+    m_videoTiming = make_unique<VideoTiming> ();
 }
 
 
@@ -711,6 +716,11 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             iieKbd->SetMmu (m_mmu.get ());
         }
 
+        if (iieKbd != nullptr && m_videoTiming != nullptr)
+        {
+            iieKbd->SetVideoTiming (m_videoTiming.get ());
+        }
+
         if (iieSw != nullptr && m_mmu != nullptr)
         {
             iieSw->SetMmu (m_mmu.get ());
@@ -1125,6 +1135,15 @@ HRESULT EmulatorShell::CreateCpu (const MachineConfig & config)
 
 
     m_cpu = make_unique<EmuCpu> (m_memoryBus);
+
+    // Phase 5 / FR-033 / T056. Wire the //e video timing model into the
+    // EmuCpu cycle fan-out. Every AddCycles call now ticks VideoTiming
+    // so $C019 (RDVBLBAR) tracks the 17,030-cycle frame. Null-safe for
+    // tests/builds that haven't constructed a timing model.
+    if (m_videoTiming != nullptr)
+    {
+        m_cpu->SetVideoTiming (m_videoTiming.get ());
+    }
 
     // Wire the InterruptController to the CPU. Phase 1 wiring registers
     // zero asserters today — the //e card slots (1/3/4/5/6) will allocate
@@ -2770,6 +2789,11 @@ void EmulatorShell::SoftReset ()
 
     m_interruptController.SoftReset ();
 
+    if (m_videoTiming != nullptr)
+    {
+        m_videoTiming->SoftReset ();
+    }
+
     if (m_cpu != nullptr)
     {
         m_cpu->SoftReset ();
@@ -2806,6 +2830,11 @@ void EmulatorShell::PowerCycle ()
     }
 
     m_interruptController.PowerCycle ();
+
+    if (m_videoTiming != nullptr)
+    {
+        m_videoTiming->PowerCycle (*m_prng);
+    }
 
     if (m_cpu != nullptr)
     {

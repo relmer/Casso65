@@ -10,15 +10,18 @@
 //
 //  Tick
 //
-//  Phase 4 stub: accumulates CPU cycles into the running counter. Phase 5
-//  will wrap modulo 17,030 (kCyclesPerFrame) and gate IsInVblank on
-//  scanlines 192..261; until then the counter is observation-only.
+//  Advances the cycle-in-frame counter wrapped modulo 17,030. Per FR-033
+//  / audit §1.2, every emulated CPU cycle ticks the //e video circuit;
+//  EmuCpu::AddCycles fans the per-instruction count into here so that
+//  $C019 readers see the correct phase of the 262-line frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void VideoTiming::Tick (uint32_t cpuCycles)
 {
-    m_cycleCounter += cpuCycles;
+    uint32_t    total = m_cycleCounter + cpuCycles;
+
+    m_cycleCounter = total % kCyclesPerFrame;
 }
 
 
