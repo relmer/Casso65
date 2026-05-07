@@ -4,6 +4,7 @@
 
 #include "Video/VideoTiming.h"
 #include "Devices/AppleIIeKeyboard.h"
+#include "Devices/AppleIIeSoftSwitchBank.h"
 #include "Devices/AppleKeyboard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -124,11 +125,15 @@ public:
     TEST_METHOD (RDVBLBAR_BitInvertedRelativeToIsInVblank)
     {
         // The RDVBLBAR convention: bit 7 = 1 during display, 0 during vblank.
-        // Verify the polarity at the AppleIIeKeyboard $C019 read site.
-        VideoTiming         vt;
-        AppleIIeKeyboard    kbd;
+        // Phase 6 / T061: the soft-switch bank owns the $C019 read; the
+        // keyboard forwards from $C000-$C063 down into the bank.
+        VideoTiming               vt;
+        AppleIIeKeyboard          kbd;
+        AppleIIeSoftSwitchBank    bank;
 
-        kbd.SetVideoTiming (&vt);
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+        bank.SetVideoTiming       (&vt);
 
         // Display region — bit 7 should be set.
         vt.Tick (100);
@@ -154,14 +159,17 @@ public:
         // VBL transition. Each iteration ticks a typical instruction's
         // worth of cycles (5 — LDA $C019; BPL); the loop must observe
         // bit 7 going from 1 -> 0 within at most one frame's worth.
-        VideoTiming         vt;
-        AppleIIeKeyboard    kbd;
-        Byte                val             = 0;
-        uint32_t            spunCycles      = 0;
-        uint32_t            previousBit7    = 0xFF;
-        bool                sawTransition   = false;
+        VideoTiming               vt;
+        AppleIIeKeyboard          kbd;
+        AppleIIeSoftSwitchBank    bank;
+        Byte                      val             = 0;
+        uint32_t                  spunCycles      = 0;
+        uint32_t                  previousBit7    = 0xFF;
+        bool                      sawTransition   = false;
 
-        kbd.SetVideoTiming (&vt);
+        kbd .SetSoftSwitchSibling (&bank);
+        bank.SetKeyboard          (&kbd);
+        bank.SetVideoTiming       (&vt);
 
         previousBit7 = kbd.Read (0xC019) & 0x80;
 

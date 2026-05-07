@@ -252,6 +252,9 @@
     <ClCompile Include="EmuTests\SoftSwitchTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="EmuTests\SoftSwitchReadSurfaceTests.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="EmuTests\SpeakerTests.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
