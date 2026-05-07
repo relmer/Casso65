@@ -1221,6 +1221,10 @@ void EmulatorShell::CreateVideoModes()
     if (auxBuf != nullptr)
     {
         text80->SetAuxMemory (auxBuf);
+
+        // DHR also needs aux memory access (FR-019). Index 3 = AppleDoubleHiResMode.
+        auto * dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get ());
+        dhr->SetAuxMemory (auxBuf);
     }
 
     m_videoModes.push_back (move (text80));
@@ -2898,8 +2902,22 @@ void EmulatorShell::SelectVideoMode()
     }
     else
     {
-        // Hi-res graphics
-        m_activeVideoMode = m_videoModes[2].get();
+        // Hi-res graphics — use DHR (index 3) when DHIRES + 80COL are
+        // both active on the //e (FR-019, audit M8). Otherwise standard
+        // hi-res (index 2).
+        bool useDhr = iieSoftSwitches != nullptr
+                   && iieSoftSwitches->IsDoubleHiRes ()
+                   && is80ColMode
+                   && m_videoModes.size () > 3;
+
+        if (useDhr)
+        {
+            m_activeVideoMode = m_videoModes[3].get();
+        }
+        else
+        {
+            m_activeVideoMode = m_videoModes[2].get();
+        }
     }
 
     // Pass page2 state to the active renderer

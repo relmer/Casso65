@@ -33,6 +33,12 @@ public:
 
     const char * GetModeName () const override { return "apple2-doublehires"; }
 
+    // Aux memory (a pointer into the //e auxiliary 64K RAM block) is set by
+    // the shell wiring. DHR reads aux + main interleaved per byte position
+    // (aux supplies the first 7 dots, main supplies the next 7 dots).
+    void SetAuxMemory (const Byte * auxMem) { m_auxMem = auxMem; }
+
 private:
-    MemoryBus & m_bus;
+    MemoryBus    & m_bus;
+    const Byte   * m_auxMem = nullptr;
 };
