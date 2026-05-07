@@ -232,6 +232,51 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeadlessHost::BuildAppleIIeWithDiskII
+//
+//  Phase 11 (T097-T104). Extends BuildAppleIIe by attaching the Disk II
+//  boot ROM (disk2.rom) to slot 6 via mmu->AttachSlotRom and adding a
+//  DiskIIController + DiskImageStore to outCore. Tests then mount
+//  synthetic disks via the store and call core.RunCycles to drive the
+//  controller in lock-step with the CPU. No third-party disk software is
+//  loaded — every fixture is built in memory at test-init time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HeadlessHost::BuildAppleIIeWithDiskII (EmulatorCore & outCore)
+{
+    HRESULT                hr = S_OK;
+    std::vector<uint8_t>   slot6Rom;
+
+    hr = BuildAppleIIe (outCore);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    hr = outCore.fixtures->OpenFixture ("disk2.rom", slot6Rom);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    outCore.mmu->AttachSlotRom (6, std::move (slot6Rom));
+
+    outCore.diskController = std::make_unique<DiskIIController> (6);
+    outCore.diskStore      = std::make_unique<DiskImageStore> ();
+
+    outCore.bus->AddDevice (outCore.diskController.get ());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCore::PowerCycle
 //
 //  Phase 7. Re-seeds every DRAM-owning device from the shared Prng then
@@ -309,6 +354,7 @@ void EmulatorCore::RunCycles (uint64_t cycleBudget)
 {
     uint64_t   target;
     int        i;
+    uint32_t   stepCycles;
 
     if (!HasAppleIIe ())
     {
@@ -322,7 +368,13 @@ void EmulatorCore::RunCycles (uint64_t cycleBudget)
         for (i = 0; i < kCpuStepBatch; i++)
         {
             cpu->StepOne ();
-            cpu->AddCycles (cpu->GetLastInstructionCycles ());
+            stepCycles = cpu->GetLastInstructionCycles ();
+            cpu->AddCycles (stepCycles);
+
+            if (diskController != nullptr)
+            {
+                diskController->Tick (stepCycles);
+            }
         }
     }
 }
