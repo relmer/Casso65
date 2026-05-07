@@ -701,7 +701,7 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
     }
 
     // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches the
-    // softswitch (the keyboard's range $C000-$C01F would otherwise eat it).
+    // softswitch (the keyboard's range $C000-$C063 would otherwise eat it).
     {
         auto * iieKbd = dynamic_cast<AppleIIeKeyboard *>     (m_keyboard);
         auto * iieSw  = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
@@ -709,6 +709,12 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         if (iieKbd != nullptr && iieSw != nullptr)
         {
             iieKbd->SetSoftSwitchSibling (iieSw);
+            iieSw->SetKeyboard           (iieKbd);
+        }
+
+        if (iieKbd != nullptr && m_speaker != nullptr)
+        {
+            iieKbd->SetSpeakerSibling (m_speaker);
         }
 
         if (iieKbd != nullptr && m_mmu != nullptr)
@@ -719,6 +725,11 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         if (iieKbd != nullptr && m_videoTiming != nullptr)
         {
             iieKbd->SetVideoTiming (m_videoTiming.get ());
+        }
+
+        if (iieSw != nullptr && m_videoTiming != nullptr)
+        {
+            iieSw->SetVideoTiming (m_videoTiming.get ());
         }
 
         if (iieSw != nullptr && m_mmu != nullptr)
@@ -929,6 +940,13 @@ void EmulatorShell::WireLanguageCard()
     if (iieKbd != nullptr)
     {
         iieKbd->SetLanguageCard (lc);
+    }
+
+    auto * iieSw = dynamic_cast<AppleIIeSoftSwitchBank *> (m_softSwitches);
+
+    if (iieSw != nullptr)
+    {
+        iieSw->SetLanguageCard (lc);
     }
 }
 
@@ -2008,6 +2026,26 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     m_keyboard->SetKeyDown (true);
 
+    // Phase 6 / T063 / FR-013. //e modifier-key wiring (host -> emulator):
+    //   left  Alt   -> Open Apple   ($C061)
+    //   right Alt   -> Closed Apple ($C062)
+    //   Shift       -> Shift        ($C063)
+    // Ignored on ][/][+ (the dynamic_cast yields nullptr).
+    {
+        auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+        if (iieKbd != nullptr)
+        {
+            switch (vk)
+            {
+                case VK_LMENU: iieKbd->SetOpenApple   (true); break;
+                case VK_RMENU: iieKbd->SetClosedApple (true); break;
+                case VK_SHIFT: iieKbd->SetShift       (true); break;
+                default: break;
+            }
+        }
+    }
+
     switch (vk)
     {
         case VK_LEFT:
@@ -2053,12 +2091,28 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (vk);
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_keyboard)
+    if (m_keyboard == nullptr)
     {
-        m_keyboard->SetKeyDown (false);
+        return false;
+    }
+
+    m_keyboard->SetKeyDown (false);
+
+    // Phase 6 / T063: release //e modifiers when the host releases the
+    // physical key.
+    auto * iieKbd = dynamic_cast<AppleIIeKeyboard *> (m_keyboard);
+
+    if (iieKbd != nullptr)
+    {
+        switch (vk)
+        {
+            case VK_LMENU: iieKbd->SetOpenApple   (false); break;
+            case VK_RMENU: iieKbd->SetClosedApple (false); break;
+            case VK_SHIFT: iieKbd->SetShift       (false); break;
+            default: break;
+        }
     }
 
     return false;
