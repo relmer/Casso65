@@ -74,6 +74,7 @@ struct EmulatorCore
 
     // Cycle-pumped helpers used by Phase 7 integration tests.
     void   PowerCycle    ();
+    void   SoftReset     ();
     void   RunCycles     (uint64_t cycleBudget);
     bool   HasAppleIIe   () const { return cpu != nullptr && mmu != nullptr; }
 };

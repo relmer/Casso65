@@ -263,6 +263,40 @@ void EmulatorCore::PowerCycle ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorCore::SoftReset
+//
+//  Phase 8 (T079). Mirrors EmulatorShell::SoftReset: fans the
+//  SoftReset-shaped event out across the bus, then explicitly resets
+//  the MMU + VideoTiming + CPU. RAM contents (main, aux, all six LC
+//  banks) are preserved by design — only flag state and the CPU's
+//  post-reset register-file state change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCore::SoftReset ()
+{
+    if (!HasAppleIIe ())
+    {
+        return;
+    }
+
+    bus->SoftResetAll ();
+    mmu->OnSoftReset  ();
+
+    if (videoTiming != nullptr)
+    {
+        videoTiming->SoftReset ();
+    }
+
+    cpu->SoftReset ();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCore::RunCycles
 //
 //  Pumps the EmuCpu in small batches until the cycle counter reaches the

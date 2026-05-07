@@ -173,13 +173,13 @@ Each task that touches a public function MUST observe:
 
 **Independent Test**: Targeted `EmuIntegrationTests::Phase 8_*` scenarios that drive deterministic patterns through every soft-switch combination and compare against a precomputed table.
 
-- [ ] T074 [P] [Phase 8] Add `UnitTest/EmuTests/MemoryProbeHelpers.h/.cpp` — peek/poke into main, aux, LC bank1, LC bank2, aux LC bank1, aux LC bank2 directly via `MemoryBus` overrides, bypassing the CPU. Locals at top. (FR-005, FR-006, FR-010)
-- [ ] T075 [Phase 8] Add `EmuIntegrationTests::Phase 8_RamRd_RamWrt_RouteAuxIndependently`. Patterns: write `0xAA` at $4000 with RAMWRT=0; set RAMWRT=1, write `0x55` at $4000; set RAMRD=0, read $4000 → `0xAA`; set RAMRD=1, read → `0x55`. Acceptance: test passes. (Phase 8 acceptance scenario 1; FR-005, audit §2)
-- [ ] T076 [Phase 8] Add `EmuIntegrationTests::Phase 8_LcPreWrite_AnyTwoOddReads_EnablesWrite`, `Phase 8_LcPreWrite_InterveningWriteResets`, `Phase 8_LcPowerOnDefaultsToBank2WriteRamPrearmed`. (Phase 8 acceptance scenario 2; FR-008, FR-009, FR-011)
-- [ ] T077 [Phase 8] Add `EmuIntegrationTests::Phase 8_AltZp_RoutesZpStackToAux`, `Phase 8_AltZp_RoutesLcWindowToAuxBank`. (Phase 8 acceptance scenario 3; FR-006, FR-010)
-- [ ] T078 [Phase 8] Add `EmuIntegrationTests::Phase 8_Store80_PlusHiresPlusPage2_RoutesHiresWritesToAux`. With 80STORE=1, HIRES=1, PAGE2=1, write to $2000-$3FFF and assert the data lands in aux hi-res memory regardless of RAMWRT. (Phase 8 acceptance scenario 4; FR-007)
-- [ ] T079 [Phase 8] Add `EmuIntegrationTests::Phase 8_SoftReset_PreservesAuxAndLcRam_AndPostsCpuPostResetState`. Soft-reset and assert aux RAM + both LC banks (main + aux) are unchanged; CPU I=1, SP per-spec, PC = `(FFFC)`. (Phase 8 acceptance scenario 5; FR-012, FR-034)
-- [ ] T080 [Phase 8] [GATE] Build all four configs. Run all `EmuIntegrationTests::Phase 8_*`, plus Phase 7, full pre-existing suite. Boot ][ and ][+. Acceptance: all previously-passing tests still pass on ARM64+x64 Debug+Release; ][/][+ machine configs continue to boot.
+- [X] T074 [P] [Phase 8] Add `UnitTest/EmuTests/MemoryProbeHelpers.h/.cpp` — peek/poke into main, aux, LC bank1, LC bank2, aux LC bank1, aux LC bank2 directly via `MemoryBus` overrides, bypassing the CPU. Locals at top. (FR-005, FR-006, FR-010)
+- [X] T075 [Phase 8] Add `EmuIntegrationTests::Phase 8_RamRd_RamWrt_RouteAuxIndependently`. Patterns: write `0xAA` at $4000 with RAMWRT=0; set RAMWRT=1, write `0x55` at $4000; set RAMRD=0, read $4000 → `0xAA`; set RAMRD=1, read → `0x55`. Acceptance: test passes. (Phase 8 acceptance scenario 1; FR-005, audit §2)
+- [X] T076 [Phase 8] Add `EmuIntegrationTests::Phase 8_LcPreWrite_AnyTwoOddReads_EnablesWrite`, `Phase 8_LcPreWrite_InterveningWriteResets`, `Phase 8_LcPowerOnDefaultsToBank2WriteRamPrearmed`. (Phase 8 acceptance scenario 2; FR-008, FR-009, FR-011)
+- [X] T077 [Phase 8] Add `EmuIntegrationTests::Phase 8_AltZp_RoutesZpStackToAux`, `Phase 8_AltZp_RoutesLcWindowToAuxBank`. (Phase 8 acceptance scenario 3; FR-006, FR-010)
+- [X] T078 [Phase 8] Add `EmuIntegrationTests::Phase 8_Store80_PlusHiresPlusPage2_RoutesHiresWritesToAux`. With 80STORE=1, HIRES=1, PAGE2=1, write to $2000-$3FFF and assert the data lands in aux hi-res memory regardless of RAMWRT. (Phase 8 acceptance scenario 4; FR-007)
+- [X] T079 [Phase 8] Add `EmuIntegrationTests::Phase 8_SoftReset_PreservesAuxAndLcRam_AndPostsCpuPostResetState`. Soft-reset and assert aux RAM + both LC banks (main + aux) are unchanged; CPU I=1, SP per-spec, PC = `(FFFC)`. (Phase 8 acceptance scenario 5; FR-012, FR-034)
+- [X] T080 [Phase 8] [GATE] Build all four configs. Run all `EmuIntegrationTests::Phase 8_*`, plus Phase 7, full pre-existing suite. Boot ][ and ][+. Acceptance: all previously-passing tests still pass on ARM64+x64 Debug+Release; ][/][+ machine configs continue to boot.
 
 ---
 
