@@ -129,11 +129,11 @@ Each task that touches a public function MUST observe:
 
 **Purpose**: Implement the `VideoTiming` model and expose `IsInVblank()` to the soft-switch read of $C019. (FR-033; audit §1.2 M `RDVBLBAR`)
 
-- [ ] T055 Implement `CassoEmuCore/Video/VideoTiming.h/.cpp` per `contracts/IVideoTiming.md` and `data-model.md` §VideoTiming. Tracks the current scanline and pixel relative to the //e's 65-cycle-per-line, 262-line-per-frame timing. `IsInVblank()` returns true for lines 192-261. `Tick(cycles)` advances the model. Locals at top; ≤ 50 lines per method. (FR-033)
-- [ ] T056 Wire `VideoTiming` into `EmuCpu`'s tick fan-out so it advances every emulated cycle (`VideoTiming::Tick(emuCpu.GetCyclesElapsedSinceLastFanout())`). (FR-033)
-- [ ] T057 Wire `AppleIIeSoftSwitchBank` $C019 read to return bit 7 = `videoTiming.IsInVblank() ? 0 : 1` (RDVBLBAR is *not* VBL — it's the inverse: 1 during active scan, 0 during vblank). Bits 0-6 from the floating bus. (FR-033, audit §1.2)
-- [ ] T058 Add `UnitTest/EmuTests/VideoTimingTests.cpp`: `VideoTimingTests::TickAdvancesScanline`, `VblankRegionIsLines192Through261`, `IsInVblankTransitionsAtLine192Boundary`, `OneFullFrameIs17030Cycles`, `RDVBLBAR_BitInvertedRelativeToIsInVblank`, `SpinWaitOnC019TerminatesWithinOneFrame`. Acceptance: all listed tests pass. (FR-033, audit §1.2 M)
-- [ ] T059 [GATE] Build all four configs. Run `VideoTimingTests`, full pre-existing suite. Boot ][ and ][+. Acceptance: all previously-passing tests still pass; ][/][+ machine configs continue to boot.
+- [X] T055 Implement `CassoEmuCore/Video/VideoTiming.h/.cpp` per `contracts/IVideoTiming.md` and `data-model.md` §VideoTiming. Tracks the current scanline and pixel relative to the //e's 65-cycle-per-line, 262-line-per-frame timing. `IsInVblank()` returns true for lines 192-261. `Tick(cycles)` advances the model. Locals at top; ≤ 50 lines per method. (FR-033)
+- [X] T056 Wire `VideoTiming` into `EmuCpu`'s tick fan-out so it advances every emulated cycle (`VideoTiming::Tick(emuCpu.GetCyclesElapsedSinceLastFanout())`). (FR-033)
+- [X] T057 Wire `AppleIIeSoftSwitchBank` $C019 read to return bit 7 = `videoTiming.IsInVblank() ? 0 : 1` (RDVBLBAR is *not* VBL — it's the inverse: 1 during active scan, 0 during vblank). Bits 0-6 from the floating bus. (FR-033, audit §1.2)
+- [X] T058 Add `UnitTest/EmuTests/VideoTimingTests.cpp`: `VideoTimingTests::TickAdvancesScanline`, `VblankRegionIsLines192Through261`, `IsInVblankTransitionsAtLine192Boundary`, `OneFullFrameIs17030Cycles`, `RDVBLBAR_BitInvertedRelativeToIsInVblank`, `SpinWaitOnC019TerminatesWithinOneFrame`. Acceptance: all listed tests pass. (FR-033, audit §1.2 M)
+- [X] T059 [GATE] Build all four configs. Run `VideoTimingTests`, full pre-existing suite. Boot ][ and ][+. Acceptance: all previously-passing tests still pass; ][/][+ machine configs continue to boot.
 
 ---
 
