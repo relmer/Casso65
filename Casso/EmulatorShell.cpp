@@ -1937,6 +1937,11 @@ void EmulatorShell::ProcessCommands()
                 if (m_cpu)
                 {
                     m_cpu->StepOne();
+
+                    if (m_diskController != nullptr)
+                    {
+                        m_diskController->Tick (m_cpu->GetLastInstructionCycles ());
+                    }
                 }
                 break;
             }
@@ -2163,6 +2168,14 @@ void EmulatorShell::ExecuteCpuSlices()
         }
 
         executed += sliceActual;
+
+        // Pump the Disk II controller's nibble engine in lockstep with
+        // CPU cycles. Without this the boot ROM's read latch ($C08C)
+        // never sees a sync nibble and $C600 spins forever waiting.
+        if (m_diskController != nullptr)
+        {
+            m_diskController->Tick (sliceActual);
+        }
 
         if (audioActive)
         {
