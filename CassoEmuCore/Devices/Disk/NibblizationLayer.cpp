@@ -269,17 +269,21 @@ static void AppendDataField (
 
     for (i = 0; i < kEncodedDataSize; i++)
     {
-        // Standard Apple DOS 3.3 RWTS convention: each on-disk nibble
-        // is the running XOR of the encoded payload bytes up to that
-        // point, encoded through the 6+2 write-translate table. The
-        // final checksum nibble is the same running XOR (i.e. the last
-        // value of `prev`). The earlier "prev = encoded[i]" variant
-        // round-tripped with a matching reader but produced sector
-        // payloads that real DOS 3.3 RWTS could not decode -- every
-        // sector read after the first failed checksum and was retried
-        // forever, so CATALOG saw an empty volume.
-        prev = static_cast<Byte> (prev ^ encoded[i]);
-        PackNibbleBits (dst, bitOffset, kWriteTranslate[prev & 0x3F]);
+        // Apple disk encoding (matches AppleWin's CImageBase::Code62):
+        // each on-disk nibble is the encoded payload byte XOR'd with
+        // the PREVIOUS raw payload byte (not with a running checksum).
+        // The boot ROM's decode loop does
+        //     A := A XOR inverse_translate[disk_byte]
+        // which produces A_i = encoded[i] only if disk[i] = translate[
+        // encoded[i] XOR encoded[i-1]] (the running A *recovers* the
+        // encoded sequence, so the on-disk values must be consecutive
+        // XORs of raw encoded bytes, not a running cumulative XOR).
+        // The 343rd checksum nibble is just the FINAL raw encoded byte
+        // (without any XOR), which makes A_final XOR inv_translate[
+        // checksum] == 0 -- the boot ROM's success gate.
+        enc  = static_cast<Byte> (encoded[i] ^ prev);
+        prev = encoded[i];
+        PackNibbleBits (dst, bitOffset, kWriteTranslate[enc & 0x3F]);
     }
 
     PackNibbleBits (dst, bitOffset, kWriteTranslate[prev & 0x3F]);
@@ -588,15 +592,13 @@ static HRESULT DecodeOneSector (
 
     for (i = 0; i < kEncodedDataSize; i++)
     {
-        // Standard Apple convention: on-disk nibbles are the running
-        // XOR of the encoded payload. To recover an individual encoded
-        // byte we XOR consecutive on-disk values: encoded[i] = on_disk[i]
-        // ^ on_disk[i-1] (with on_disk[-1] = 0).
-        Byte  inverted = InverseTranslate (raw = ReadNibbleAt (img, track, bitPos));
-        Byte  raw_dec  = static_cast<Byte> (inverted ^ prev);
-
-        encoded[i] = raw_dec;
-        prev       = inverted;
+        // Inverse of the AppleWin/Apple-spec convention used in the
+        // Code62 writer above: on-disk nibbles encode encoded[i] XOR'd
+        // with the previous raw encoded value, so we recover raw
+        // values via XOR with the previous DECODED value.
+        raw         = ReadNibbleAt (img, track, bitPos);
+        encoded[i]  = static_cast<Byte> (InverseTranslate (raw) ^ prev);
+        prev        = encoded[i];
     }
 
     for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)

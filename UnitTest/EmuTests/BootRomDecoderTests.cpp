@@ -47,7 +47,7 @@ namespace
     static constexpr Word       kBootLoadAddress     = 0x0800;
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
-    static constexpr uint64_t   kSectorReadCycles    = 16'000'000ULL;
+    static constexpr uint64_t   kSectorReadCycles    = 64'000'000ULL;
     static constexpr size_t     kSectorBytes         = 256;
 
 
@@ -150,47 +150,45 @@ namespace
             (void) fopen_s (&fp, path, "w");
         }
 
-        const uint64_t kStep = kSectorReadCycles / 200;
-        uint64_t       cyc   = 0;
+        // Single-step the CPU and Disk II in lockstep so we can trap
+        // PC the very first instruction it lands in $0800-$BFFF (the
+        // loaded bootstrap), BEFORE the CPU executes any instruction
+        // that would trigger an illegal-opcode assertion (because the
+        // test pattern bytes likely don't form valid 6502 code). The
+        // boot ROM JMPs into the bootstrap only when every checksum
+        // gate passes -- that PC transition IS our success signal.
+        const uint64_t kBudget = kSectorReadCycles;
+        uint64_t       cyc     = 0;
         bool           ranBootLoader = false;
-        Word           maxPc = 0;
 
-        while (cyc < kSectorReadCycles)
+        while (cyc < kBudget)
         {
-            core.RunCycles (kStep);
-            cyc += kStep;
-
             Word pc = core.cpu->GetPC ();
 
-            // Boot ROM lives at $C600-$C6FF; firmware WAIT at $FCAA;
-            // anything outside those ranges is the loaded bootstrap
-            // running. RAM under $0800 (zero page, stack, $03xx
-            // scratch) doesn't get JSR'd from the boot ROM, so any
-            // PC in $0800-$BFFF is success.
             if (pc >= 0x0800 && pc < 0xC000)
             {
                 ranBootLoader = true;
-                if (pc > maxPc) maxPc = pc;
+                break;
             }
 
-            if (fp != nullptr)
+            core.cpu->StepOne ();
+            uint32_t cycles = core.cpu->GetLastInstructionCycles ();
+            core.cpu->AddCycles (cycles);
+            if (core.diskController != nullptr)
+            {
+                core.diskController->Tick (cycles);
+            }
+            cyc += cycles;
+
+            if (fp != nullptr && (cyc & 0x7FFF) < cycles)
             {
                 fprintf (fp,
-                    "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X 800-7=$%02X $%02X $%02X $%02X $%02X $%02X $%02X $%02X bootloader=%d maxPc=$%04X\n",
+                    "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X\n",
                     (unsigned long long) cyc, pc,
                     core.cpu->GetX (), core.cpu->GetA (),
                     core.diskController->GetEngine (kDrive1).GetBitPosition (),
                     core.diskController->GetCurrentTrack (),
-                    core.diskController->GetEngine (kDrive1).PeekReadLatch (),
-                    core.bus->ReadByte (0x0800),
-                    core.bus->ReadByte (0x0801),
-                    core.bus->ReadByte (0x0802),
-                    core.bus->ReadByte (0x0803),
-                    core.bus->ReadByte (0x0804),
-                    core.bus->ReadByte (0x0805),
-                    core.bus->ReadByte (0x0806),
-                    core.bus->ReadByte (0x0807),
-                    ranBootLoader ? 1 : 0, maxPc);
+                    core.diskController->GetEngine (kDrive1).PeekReadLatch ());
             }
         }
 
