@@ -27,7 +27,47 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
 
+// Embed Common Controls v6 dependency in the binary's activation
+// context. Without this, SetWindowSubclass / TOOLINFO / and a host
+// of other modern comctl32 APIs fall back to no-op v5 behavior --
+// in particular our drive-bay tooltips never appear because
+// SetWindowSubclass returns FALSE silently.
+#pragma comment(linker, "\"/manifestdependency:type='win32' " \
+    "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' " \
+    "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
+    "language='*'\"")
+
 static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
+
+// TEMP disk-boot diagnostics. Writes %TEMP%\casso-disk.log. Remove once
+// disk boot is verified.
+static void DiskDebugLog (const char * fmt, ...)
+{
+    char    path[MAX_PATH] = {};
+    char    line[1024]     = {};
+    DWORD   pathLen        = 0;
+    FILE *  fp             = nullptr;
+    va_list args;
+
+    pathLen = GetTempPathA (MAX_PATH, path);
+    if (pathLen == 0 || pathLen > MAX_PATH - 32)
+    {
+        return;
+    }
+    strcat_s (path, "casso-disk.log");
+
+    if (fopen_s (&fp, path, "a") != 0 || fp == nullptr)
+    {
+        return;
+    }
+
+    va_start (args, fmt);
+    vsnprintf (line, sizeof (line), fmt, args);
+    va_end (args);
+
+    fprintf (fp, "%s\n", line);
+    fclose (fp);
+}
 
 // Per-machine UI state lives under HKCU\Software\relmer\Casso\Machines\{machine}.
 // Disk paths under that subkey use the simple value names "Disk1" / "Disk2".
@@ -371,7 +411,67 @@ void EmulatorShell::CreateStatusBar()
                                    nullptr);
     CWRA (m_statusBar);
 
+    // Tooltip control parented to the status bar so the owner-drawn
+    // Drive 1/Drive 2 parts can show "Drive N: <path>" on hover. The
+    // status bar itself doesn't deliver tooltip messages for owner-drawn
+    // parts (SBT_TOOLTIPS / SB_SETTIPTEXT only triggers on truncated
+    // text), and TTF_SUBCLASS doesn't intercept the status bar's mouse
+    // messages reliably -- the canonical workaround is to subclass the
+    // status bar manually and TTM_RELAYEVENT each mouse message into
+    // the tooltip control.
+    m_driveTooltip = CreateWindowExW (WS_EX_TOPMOST,
+                                      TOOLTIPS_CLASS,
+                                      nullptr,
+                                      WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+                                      CW_USEDEFAULT, CW_USEDEFAULT,
+                                      CW_USEDEFAULT, CW_USEDEFAULT,
+                                      m_statusBar,
+                                      nullptr,
+                                      m_hInstance,
+                                      nullptr);
+
+    if (m_driveTooltip != nullptr)
+    {
+        SetWindowPos (m_driveTooltip, HWND_TOPMOST, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
     UpdateStatusBar();
+
+    // Pre-register the Drive 1/Drive 2 tools now (after parts exist) so
+    // the very first hover works. RefreshDriveStatus then keeps the
+    // rects + text in sync as the user resizes / mounts / ejects.
+    if (m_driveTooltip != nullptr && m_diskController != nullptr)
+    {
+        TOOLINFOW  ti = { };
+
+        for (int d = 0; d < DiskIIController::kDriveCount; d++)
+        {
+            ti.cbSize   = sizeof (ti);
+            ti.uFlags   = 0;
+            ti.hwnd     = m_statusBar;
+            ti.uId      = static_cast<UINT_PTR> (d);
+            ti.rect     = RECT { 0, 0, 1, 1 };
+            ti.lpszText = const_cast<LPWSTR> (L"");
+
+            SendMessage (m_driveTooltip, TTM_ADDTOOLW, 0,
+                         reinterpret_cast<LPARAM> (&ti));
+        }
+
+        SendMessage (m_driveTooltip, TTM_ACTIVATE, TRUE, 0);
+
+        // Snappier hover: 250 ms instead of the default ~half-second.
+        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_INITIAL, MAKELPARAM (250, 0));
+        SendMessage (m_driveTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAKELPARAM (10000, 0));
+
+        // Subclass the status bar so we can forward mouse messages to
+        // the tooltip via TTM_RELAYEVENT. SetWindowSubclass keeps a
+        // per-instance reference data slot for `this`.
+        SetWindowSubclass (m_statusBar, &EmulatorShell::s_StatusBarSubclass,
+                           1, reinterpret_cast<DWORD_PTR> (this));
+
+        RefreshDriveStatus ();
+    }
 
     // Periodic refresh for owner-drawn drive activity LEDs. Only set when
     // a Disk II controller is present; otherwise the indicators don't
@@ -563,8 +663,10 @@ Error:
 
 void EmulatorShell::RefreshDriveStatus()
 {
-    RECT  partRect = { };
-    LONG  result   = 0;
+    RECT      partRect = { };
+    LONG      result   = 0;
+    wchar_t   tooltip[MAX_PATH + 32] = { };
+    TOOLINFOW ti       = { };
 
     if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
     {
@@ -584,7 +686,88 @@ void EmulatorShell::RefreshDriveStatus()
         {
             InvalidateRect (m_statusBar, &partRect, FALSE);
         }
+
+        // Refresh the matching tooltip's rect + text. The tools were
+        // pre-registered in CreateStatusBar; here we just keep them in
+        // sync as the user mounts/ejects images and resizes the window.
+        if (m_driveTooltip != nullptr && result != 0)
+        {
+            const string & srcPath = m_diskStore.GetSourcePath (6, d);
+
+            if (srcPath.empty ())
+            {
+                swprintf_s (tooltip, L"Drive %d: (empty)", d + 1);
+            }
+            else
+            {
+                swprintf_s (tooltip, L"Drive %d: %hs", d + 1, srcPath.c_str ());
+            }
+
+            ti.cbSize   = sizeof (ti);
+            ti.hwnd     = m_statusBar;
+            ti.uId      = static_cast<UINT_PTR> (d);
+            ti.rect     = partRect;
+            ti.lpszText = tooltip;
+
+            SendMessage (m_driveTooltip, TTM_NEWTOOLRECT, 0,
+                         reinterpret_cast<LPARAM> (&ti));
+            SendMessage (m_driveTooltip, TTM_UPDATETIPTEXTW, 0,
+                         reinterpret_cast<LPARAM> (&ti));
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_StatusBarSubclass
+//
+//  Window subclass for the status bar: forwards mouse messages to the
+//  drive tooltip control via TTM_RELAYEVENT so it can decide whether the
+//  cursor is inside a registered tool's rect and show/hide the popup.
+//  This is the canonical pattern for tooltips on owner-drawn parts that
+//  the parent control does not natively expose to TTF_SUBCLASS.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT CALLBACK EmulatorShell::s_StatusBarSubclass (
+    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+    UNREFERENCED_PARAMETER (uIdSubclass);
+
+    EmulatorShell * self = reinterpret_cast<EmulatorShell *> (dwRefData);
+
+    if (self != nullptr && self->m_driveTooltip != nullptr)
+    {
+        switch (uMsg)
+        {
+            case WM_MOUSEMOVE:
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONUP:
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONUP:
+            case WM_MBUTTONDOWN:
+            case WM_MBUTTONUP:
+            {
+                MSG msg = { };
+                msg.hwnd    = hwnd;
+                msg.message = uMsg;
+                msg.wParam  = wParam;
+                msg.lParam  = lParam;
+                SendMessage (self->m_driveTooltip, TTM_RELAYEVENT, 0,
+                             reinterpret_cast<LPARAM> (&msg));
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    return DefSubclassProc (hwnd, uMsg, wParam, lParam);
 }
 
 
@@ -2306,6 +2489,29 @@ void EmulatorShell::ExecuteCpuSlices()
         }
 
         executed += sliceActual;
+
+        // TEMP disk diagnostics: sample once per slice while motor is on.
+        if (m_diskController != nullptr && m_diskController->IsMotorOn ())
+        {
+            static uint64_t s_sliceCounter = 0;
+            s_sliceCounter++;
+            if ((s_sliceCounter % 200) == 0)
+            {
+                Word pc       = m_cpu ? m_cpu->GetPC () : 0;
+                Byte x        = m_cpu ? m_cpu->GetX  () : 0;
+                Byte a        = m_cpu ? m_cpu->GetA  () : 0;
+                int  drv      = m_diskController->GetActiveDrive ();
+                int  track    = m_diskController->GetCurrentTrack ();
+                auto & engine = m_diskController->GetEngine (drv);
+                DiskDebugLog ("slice=%llu PC=$%04X X=$%02X A=$%02X drv=%d track=%d bitPos=%zu latch=$%02X",
+                              (unsigned long long) s_sliceCounter,
+                              pc, x, a,
+                              drv,
+                              track,
+                              engine.GetBitPosition (),
+                              engine.PeekReadLatch ());
+            }
+        }
 
         if (audioActive)
         {

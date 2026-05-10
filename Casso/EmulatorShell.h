@@ -144,6 +144,16 @@ private:
     HWND                m_statusBar       = nullptr;
     HWND                m_renderHwnd      = nullptr;
 
+    // Tooltip control owned by the status bar so owner-drawn drive
+    // parts can show "Drive N: <path>" on hover. SBT_TOOLTIPS only
+    // fires for truncated text parts, so we maintain our own tool
+    // entries instead.
+    HWND                m_driveTooltip            = nullptr;
+
+    static LRESULT CALLBACK s_StatusBarSubclass (
+        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+        UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+
     // Cached status-bar layout: counted by UpdateStatusBar so the periodic
     // RefreshDriveStatus and OnDrawItem handlers can identify which parts
     // are owner-drawn drive indicators without re-querying the bar.
