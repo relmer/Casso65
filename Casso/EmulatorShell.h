@@ -77,14 +77,16 @@ public:
 
 private:
     // Window message handler overrides
-    bool    OnChar    (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand (HWND hwnd, int id) override;
-    LRESULT OnCreate  (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy (HWND hwnd) override;
-    bool    OnKeyDown (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp   (WPARAM vk, LPARAM lParam) override;
-    bool    OnNotify  (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize    (HWND hwnd, UINT width, UINT height) override;
+    bool    OnChar     (WPARAM ch, LPARAM lParam) override;
+    bool    OnCommand  (HWND hwnd, int id) override;
+    LRESULT OnCreate   (HWND hwnd, CREATESTRUCT * pcs) override;
+    bool    OnDestroy  (HWND hwnd) override;
+    bool    OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
+    bool    OnKeyDown  (WPARAM vk, LPARAM lParam) override;
+    bool    OnKeyUp    (WPARAM vk, LPARAM lParam) override;
+    bool    OnNotify   (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
+    bool    OnSize     (HWND hwnd, UINT width, UINT height) override;
+    bool    OnTimer    (HWND hwnd, UINT_PTR timerId) override;
 
     // Command group handlers
     void OnFileCommand    (int id);
@@ -130,14 +132,22 @@ private:
     // Status bar
     void    CreateStatusBar        ();
     void    UpdateStatusBar        ();
+    void    RefreshDriveStatus     ();
+    void    DrawDriveStatusItem    (DRAWITEMSTRUCT * pdis, int driveIndex);
     void    ShowDevicePopup        ();
 
     // Queue a command for the CPU thread
     void PostCommand (WORD id, const string & payload = "");
 
-    HACCEL              m_accelTable = nullptr;
-    HWND                m_statusBar  = nullptr;
-    HWND                m_renderHwnd = nullptr;
+    HACCEL              m_accelTable      = nullptr;
+    HWND                m_statusBar       = nullptr;
+    HWND                m_renderHwnd      = nullptr;
+
+    // Cached status-bar layout: counted by UpdateStatusBar so the periodic
+    // RefreshDriveStatus and OnDrawItem handlers can identify which parts
+    // are owner-drawn drive indicators without re-querying the bar.
+    int                 m_statusBarDriveCount = 0;
+    int                 m_statusBarFirstDrivePart = 0;
 
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
@@ -180,6 +190,11 @@ private:
     // mounted disk's DiskImage is owned by the store; the slot 6 disk
     // controller sees it via DiskIIController::SetExternalDisk.
     DiskImageStore                m_diskStore;
+
+    // Cached pointer to the active DiskIIController (slot 6 typically).
+    // Used by the status bar to show per-drive activity LEDs. Refreshed
+    // by CreateMemoryDevices / SwitchMachine.
+    class DiskIIController *      m_diskController = nullptr;
 
     // Emulation state
     MachineConfig   m_config;

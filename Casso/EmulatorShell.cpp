@@ -45,6 +45,11 @@ static constexpr int    kFramebufferWidth  = 560;
 static constexpr int    kFramebufferHeight = 384;
 static constexpr LPCWSTR kWindowClass      = L"CassoWindow";
 
+// Drive activity LED refresh timer (~20 Hz). Cheap and responsive enough
+// for the eye to register motor on/off bursts without consuming UI cycles.
+static constexpr UINT_PTR kDriveStatusTimerId    = 0x10D5;
+static constexpr UINT     kDriveStatusTimerMs    = 50;
+
 
 
 
@@ -296,6 +301,14 @@ void EmulatorShell::CreateStatusBar()
 
     UpdateStatusBar();
 
+    // Periodic refresh for owner-drawn drive activity LEDs. Only set when
+    // a Disk II controller is present; otherwise the indicators don't
+    // exist and the timer would just be paint-invalidating empty space.
+    if (m_diskController != nullptr)
+    {
+        SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
+    }
+
     fSuccess = GetWindowRect (m_statusBar, &sbRect);
     CWRA (fSuccess);
 
@@ -333,19 +346,27 @@ Error:
 
 void EmulatorShell::UpdateStatusBar()
 {
-    static constexpr int s_kPartCount = 4;
-    static constexpr int s_kPadding   = 24;
+    static constexpr int  s_kLeftPartCount        = 4;
+    static constexpr int  s_kPadding              = 24;
+    static constexpr int  s_kDriveIndicatorWidth  = 110;
+    static constexpr int  s_kMaxDriveCount        = 2;
+    static constexpr int  s_kMaxPartCount         = s_kLeftPartCount + s_kMaxDriveCount;
 
-    HRESULT hr                  = S_OK;
-    BOOL    fSuccess            = FALSE;
-    HDC     hdc                 = NULL;
-    HFONT   sbFont              = NULL;
-    HFONT   oldFont             = nullptr;
-    SIZE    size                = { };
-    int     parts[s_kPartCount] = { };
-    int     edge                = 0;
+    HRESULT hr                          = S_OK;
+    BOOL    fSuccess                    = FALSE;
+    HDC     hdc                         = NULL;
+    HFONT   sbFont                      = NULL;
+    HFONT   oldFont                     = nullptr;
+    SIZE    size                        = { };
+    int     parts[s_kMaxPartCount]      = { };
+    int     edge                        = 0;
+    int     driveCount                  = 0;
+    int     totalParts                  = 0;
+    int     statusBarWidth              = 0;
+    int     driveTotalWidth             = 0;
+    RECT    sbClientRect                = { };
 
-    wstring statusBarItem[] =
+    wstring statusBarItem[s_kLeftPartCount] =
     {
         format (L"CPU: {}",           fs::path (m_config.cpu).wstring()),
         format (L"Clock: {:.3f} MHz", m_config.clockSpeed / 1000000.0),
@@ -354,6 +375,16 @@ void EmulatorShell::UpdateStatusBar()
     };
 
 
+
+    if (m_diskController != nullptr)
+    {
+        driveCount = DiskIIController::kDriveCount;
+    }
+
+    totalParts                 = s_kLeftPartCount + driveCount;
+    driveTotalWidth            = driveCount * s_kDriveIndicatorWidth;
+    m_statusBarDriveCount      = driveCount;
+    m_statusBarFirstDrivePart  = s_kLeftPartCount;
 
     hdc = GetDC (m_statusBar);
     CPRA (hdc);
@@ -364,11 +395,16 @@ void EmulatorShell::UpdateStatusBar()
         oldFont = static_cast<HFONT> (SelectObject (hdc, sbFont));
     }
 
-    for (int i = 0; i < s_kPartCount - 1; i++)
+    fSuccess = GetClientRect (m_statusBar, &sbClientRect);
+    CWRA (fSuccess);
+    statusBarWidth = sbClientRect.right - sbClientRect.left;
+
+    // Left-aligned parts: width measured from text + padding.
+    for (int i = 0; i < s_kLeftPartCount - 1; i++)
     {
-        fSuccess = GetTextExtentPoint32W (hdc, 
+        fSuccess = GetTextExtentPoint32W (hdc,
                                           statusBarItem[i].c_str(),
-                                          static_cast<int> (statusBarItem[i].size()), 
+                                          static_cast<int> (statusBarItem[i].size()),
                                           &size);
         CWRA (fSuccess);
 
@@ -376,16 +412,54 @@ void EmulatorShell::UpdateStatusBar()
         parts[i] = edge;
     }
 
-    parts[s_kPartCount - 1] = -1;
-
-    SendMessage (m_statusBar, SB_SETPARTS, s_kPartCount, reinterpret_cast<LPARAM> (parts));
-
-    for (int i = 0; i < s_kPartCount; i++)
+    // The "N devices" part fills the gap between the left items and the
+    // right-aligned drive indicators (or to the right edge when no
+    // controller is present).
+    if (driveCount == 0)
     {
-        SendMessageW (m_statusBar, 
-                      SB_SETTEXTW, 
+        parts[s_kLeftPartCount - 1] = -1;
+    }
+    else
+    {
+        parts[s_kLeftPartCount - 1] = statusBarWidth - driveTotalWidth;
+
+        for (int d = 0; d < driveCount; d++)
+        {
+            int idx = s_kLeftPartCount + d;
+
+            if (d == driveCount - 1)
+            {
+                parts[idx] = -1;
+            }
+            else
+            {
+                parts[idx] = statusBarWidth - (driveCount - 1 - d) * s_kDriveIndicatorWidth;
+            }
+        }
+    }
+
+    SendMessage (m_statusBar, SB_SETPARTS, totalParts, reinterpret_cast<LPARAM> (parts));
+
+    for (int i = 0; i < s_kLeftPartCount; i++)
+    {
+        SendMessageW (m_statusBar,
+                      SB_SETTEXTW,
                       i,
                       reinterpret_cast<LPARAM> (statusBarItem[i].c_str()));
+    }
+
+    // Owner-draw drive indicators. The lParam carries the drive index so
+    // OnDrawItem can paint without having to re-derive it from the part
+    // index. SBT_OWNERDRAW + the part index in wParam tells the status bar
+    // to fire WM_DRAWITEM with itemData = our payload.
+    for (int d = 0; d < driveCount; d++)
+    {
+        int idx = s_kLeftPartCount + d;
+
+        SendMessage (m_statusBar,
+                     SB_SETTEXTW,
+                     static_cast<WPARAM> (idx) | SBT_OWNERDRAW,
+                     static_cast<LPARAM> (d));
     }
 
 
@@ -399,6 +473,133 @@ Error:
     ReleaseDC (m_statusBar, hdc);
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshDriveStatus
+//
+//  Forces a repaint of just the owner-drawn drive-indicator parts on the
+//  status bar. Called from OnTimer so the LED reflects current motor +
+//  active-drive state without flickering the rest of the bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshDriveStatus()
+{
+    RECT  partRect = { };
+    LONG  result   = 0;
+
+    if (m_statusBar == nullptr || m_statusBarDriveCount <= 0)
+    {
+        return;
+    }
+
+    for (int d = 0; d < m_statusBarDriveCount; d++)
+    {
+        int  partIndex = m_statusBarFirstDrivePart + d;
+
+        result = static_cast<LONG> (SendMessage (m_statusBar,
+                                                 SB_GETRECT,
+                                                 partIndex,
+                                                 reinterpret_cast<LPARAM> (&partRect)));
+
+        if (result != 0)
+        {
+            InvalidateRect (m_statusBar, &partRect, FALSE);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawDriveStatusItem
+//
+//  Paints one drive indicator: "Drive N: " followed by a filled circle
+//  that's red when the controller's motor is on AND that drive is the
+//  selected one, grey otherwise. Honors the system-default 3D face
+//  background and window text color so the indicator blends with the rest
+//  of the status bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DrawDriveStatusItem (DRAWITEMSTRUCT * pdis, int driveIndex)
+{
+    static constexpr int  s_kDotRadius     = 5;
+    static constexpr int  s_kLeftMargin    = 6;
+    static constexpr int  s_kLabelDotGap   = 4;
+
+    wchar_t   label[16]    = { };
+    HBRUSH    bgBrush      = nullptr;
+    HBRUSH    dotBrush     = nullptr;
+    HPEN      dotPen       = nullptr;
+    HBRUSH    oldBrush     = nullptr;
+    HPEN      oldPen       = nullptr;
+    SIZE      labelSize    = { };
+    RECT      labelRect    = { };
+    int       dotCx        = 0;
+    int       dotCy        = 0;
+    bool      active       = false;
+    COLORREF  dotColor     = 0;
+
+    if (pdis == nullptr)
+    {
+        return;
+    }
+
+    swprintf_s (label, L"Drive %d: ", driveIndex + 1);
+
+    bgBrush = GetSysColorBrush (COLOR_3DFACE);
+    FillRect (pdis->hDC, &pdis->rcItem, bgBrush);
+
+    SetBkMode    (pdis->hDC, TRANSPARENT);
+    SetTextColor (pdis->hDC, GetSysColor (COLOR_WINDOWTEXT));
+
+    labelRect       = pdis->rcItem;
+    labelRect.left += s_kLeftMargin;
+
+    DrawTextW (pdis->hDC, label, -1, &labelRect,
+               DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    GetTextExtentPoint32W (pdis->hDC, label,
+                           static_cast<int> (wcslen (label)),
+                           &labelSize);
+
+    active = m_diskController != nullptr
+          && m_diskController->IsMotorOn ()
+          && m_diskController->GetActiveDrive () == driveIndex;
+
+    dotColor = active ? RGB (220, 32, 32) : RGB (128, 128, 128);
+
+    dotCx = labelRect.left + labelSize.cx + s_kLabelDotGap + s_kDotRadius;
+    dotCy = (pdis->rcItem.top + pdis->rcItem.bottom) / 2;
+
+    dotBrush = CreateSolidBrush (dotColor);
+    dotPen   = CreatePen        (PS_SOLID, 1, dotColor);
+
+    if (dotBrush != nullptr && dotPen != nullptr)
+    {
+        oldBrush = static_cast<HBRUSH> (SelectObject (pdis->hDC, dotBrush));
+        oldPen   = static_cast<HPEN>   (SelectObject (pdis->hDC, dotPen));
+
+        Ellipse (pdis->hDC,
+                 dotCx - s_kDotRadius, dotCy - s_kDotRadius,
+                 dotCx + s_kDotRadius, dotCy + s_kDotRadius);
+
+        if (oldBrush != nullptr) SelectObject (pdis->hDC, oldBrush);
+        if (oldPen   != nullptr) SelectObject (pdis->hDC, oldPen);
+    }
+
+    if (dotBrush != nullptr) DeleteObject (dotBrush);
+    if (dotPen   != nullptr) DeleteObject (dotPen);
 }
 
 
@@ -835,6 +1036,20 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             }
 
             m_ownedDevices.push_back (move (device));
+        }
+    }
+
+    // Cache DiskIIController pointer for the status-bar drive activity
+    // indicator. We pick the first one we find (typically slot 6).
+    m_diskController = nullptr;
+    for (auto & dev : m_ownedDevices)
+    {
+        DiskIIController *  dc = dynamic_cast<DiskIIController *> (dev.get ());
+
+        if (dc != nullptr)
+        {
+            m_diskController = dc;
+            break;
         }
     }
 
@@ -1442,6 +1657,7 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     m_keyboard        = nullptr;
     m_softSwitches    = nullptr;
     m_speaker         = nullptr;
+    m_diskController  = nullptr;
 
     // Initialize with new config
     m_config         = newConfig;
@@ -1463,6 +1679,18 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
 
     UpdateStatusBar();
     UpdateWindowTitle();
+
+    // Restart the drive activity timer based on the new machine's
+    // hardware. KillTimer is a no-op if the timer wasn't set; SetTimer
+    // is only needed when a Disk II controller is present.
+    if (m_hwnd != nullptr)
+    {
+        KillTimer (m_hwnd, kDriveStatusTimerId);
+        if (m_diskController != nullptr)
+        {
+            SetTimer (m_hwnd, kDriveStatusTimerId, kDriveStatusTimerMs, nullptr);
+        }
+    }
 
     // Save to registry (don't pollute hr with the result)
     hrReg = RegistrySettings::WriteString (kLastMachineValue, machineName);
@@ -2111,6 +2339,8 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 
 
 
+    KillTimer (m_hwnd, kDriveStatusTimerId);
+
     m_running.store (false, memory_order_release);
     m_pauseCV.notify_one();
     PostQuitMessage (0);
@@ -2292,6 +2522,11 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
         SendMessage (m_statusBar, WM_SIZE, 0, 0);
         GetWindowRect (m_statusBar, &sbRect);
         sbHeight = sbRect.bottom - sbRect.top;
+
+        // Right-aligned drive indicators are anchored to the bar's client
+        // width. Recompute part edges so they stay flush with the right
+        // edge of the resized bar.
+        UpdateStatusBar ();
     }
 
     renderH -= sbHeight;
@@ -2304,6 +2539,76 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 
     m_d3dRenderer.Resize (static_cast<int> (width), renderH);
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDrawItem
+//
+//  Owner-draw dispatch for status-bar drive indicators. The status bar
+//  forwards WM_DRAWITEM to its parent (this window) for any part marked
+//  SBT_OWNERDRAW. itemID is the part index, itemData is the lParam we
+//  passed to SB_SETTEXT (the drive index).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (idCtl);
+
+    int  driveIndex = 0;
+    int  partIndex  = 0;
+
+    if (pdis == nullptr || pdis->hwndItem != m_statusBar)
+    {
+        return true;
+    }
+
+    partIndex = static_cast<int> (pdis->itemID);
+
+    if (partIndex < m_statusBarFirstDrivePart
+        || partIndex >= m_statusBarFirstDrivePart + m_statusBarDriveCount)
+    {
+        return true;
+    }
+
+    driveIndex = static_cast<int> (pdis->itemData);
+
+    DrawDriveStatusItem (pdis, driveIndex);
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnTimer
+//
+//  Periodic refresh of the drive-activity indicators. Motor on/off and
+//  drive-select events are bursty (millisecond timescales); a 50 ms
+//  refresh is plenty for visible activity feedback without consuming
+//  noticeable UI cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
+{
+    UNREFERENCED_PARAMETER (hwnd);
+
+    if (timerId == kDriveStatusTimerId)
+    {
+        RefreshDriveStatus ();
+        return false;
+    }
+
+    return true;
 }
 //  OnFileCommand
 //
