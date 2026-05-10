@@ -29,6 +29,18 @@
 
 static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
 
+// Per-machine last-mounted disk image. Constructed at runtime as
+// "Disk1.{machine}" / "Disk2.{machine}" so apple2e / apple2plus /
+// apple2 each remember their own slot 6 mounts independently.
+static wstring MakeDiskRegValueName (int drive, const wstring & machineName)
+{
+    wstring  name;
+
+    name = (drive == 0) ? L"Disk1." : L"Disk2.";
+    name += machineName;
+    return name;
+}
+
 
 
 
@@ -123,6 +135,7 @@ EmulatorShell::~EmulatorShell()
 
 HRESULT EmulatorShell::Initialize (
     HINSTANCE             hInstance,
+    const wstring       & machineName,
     const MachineConfig & config,
     const string        & disk1Path,
     const string        & disk2Path)
@@ -132,8 +145,9 @@ HRESULT EmulatorShell::Initialize (
 
 
 
-    m_config         = config;
-    m_cyclesPerFrame = config.cyclesPerFrame;
+    m_currentMachineName = machineName;
+    m_config             = config;
+    m_cyclesPerFrame     = config.cyclesPerFrame;
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
@@ -1312,21 +1326,52 @@ void EmulatorShell::MountCommandLineDisks (
     const string & disk2Path)
 {
     HRESULT  hr = S_OK;
+    string   resolvedDisk1 = disk1Path;
+    string   resolvedDisk2 = disk2Path;
 
-    if (disk1Path.empty() && disk2Path.empty())
+    // Per-machine remembered disks. Command-line wins; otherwise fall
+    // back to whatever this machine had mounted last session, so the
+    // user doesn't have to re-pick the .dsk every launch (and so the
+    // test harness can flip-test the same image without re-clicking
+    // the file dialog).
+    if (resolvedDisk1.empty () && !m_currentMachineName.empty ())
+    {
+        wstring  saved;
+        HRESULT  hrRead = RegistrySettings::ReadString (
+            MakeDiskRegValueName (0, m_currentMachineName).c_str (), saved);
+
+        if (hrRead == S_OK && !saved.empty ())
+        {
+            resolvedDisk1 = fs::path (saved).string ();
+        }
+    }
+
+    if (resolvedDisk2.empty () && !m_currentMachineName.empty ())
+    {
+        wstring  saved;
+        HRESULT  hrRead = RegistrySettings::ReadString (
+            MakeDiskRegValueName (1, m_currentMachineName).c_str (), saved);
+
+        if (hrRead == S_OK && !saved.empty ())
+        {
+            resolvedDisk2 = fs::path (saved).string ();
+        }
+    }
+
+    if (resolvedDisk1.empty () && resolvedDisk2.empty ())
     {
         return;
     }
 
-    if (!disk1Path.empty())
+    if (!resolvedDisk1.empty ())
     {
-        hr = MountDiskInSlot6 (0, disk1Path);
+        hr = MountDiskInSlot6 (0, resolvedDisk1);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (!disk2Path.empty())
+    if (!resolvedDisk2.empty ())
     {
-        hr = MountDiskInSlot6 (1, disk2Path);
+        hr = MountDiskInSlot6 (1, resolvedDisk2);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -1393,6 +1438,17 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
 
+    // Persist this drive's mount path so the next launch / next time
+    // this machine is selected auto-mounts the same disk. Don't pollute
+    // hr with the registry result -- a missing key is non-fatal.
+    if (!m_currentMachineName.empty ())
+    {
+        wstring  wPath = fs::path (path).wstring ();
+        HRESULT  hrReg = RegistrySettings::WriteString (
+            MakeDiskRegValueName (drive, m_currentMachineName).c_str (), wPath);
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
+
 Error:
     return hr;
 }
@@ -1419,6 +1475,15 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
     if (controller != nullptr)
     {
         controller->SetExternalDisk (drive, nullptr);
+    }
+
+    // Clear the per-machine remembered path so the next launch comes up
+    // empty in this slot.
+    if (!m_currentMachineName.empty ())
+    {
+        HRESULT  hrReg = RegistrySettings::WriteString (
+            MakeDiskRegValueName (drive, m_currentMachineName).c_str (), L"");
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 }
 
@@ -1673,13 +1738,20 @@ HRESULT EmulatorShell::SwitchMachine (const wstring & machineName)
     m_diskController  = nullptr;
 
     // Initialize with new config
-    m_config         = newConfig;
-    m_cyclesPerFrame = newConfig.cyclesPerFrame;
+    m_currentMachineName = machineName;
+    m_config              = newConfig;
+    m_cyclesPerFrame      = newConfig.cyclesPerFrame;
 
     hr = CreateMemoryDevices (newConfig);
     CHR (hr);
 
     WireLanguageCard();
+
+    // Remount per-machine disks if any were saved last time this
+    // machine was active. Empty paths fall through harmlessly so a
+    // never-used machine won't try to mount anything.
+    MountCommandLineDisks (string (), string ());
+
     CreateVideoModes();
 
     hr = m_memoryBus.Validate();
@@ -2165,17 +2237,21 @@ void EmulatorShell::ExecuteCpuSlices()
 
             m_cpu->AddCycles (cycles);
             sliceActual += cycles;
+
+            // Pump the Disk II nibble engine in lockstep with EACH
+            // instruction's cycles, not once per slice. The boot ROM
+            // sits in a tight LDA $C0EC / BPL loop reading the data
+            // latch; if the engine only advances at slice boundaries
+            // the CPU sees one valid nibble per ~1000 cycles instead
+            // of ~32, and the boot ROM never accumulates enough sync
+            // bytes to find a sector header.
+            if (m_diskController != nullptr)
+            {
+                m_diskController->Tick (cycles);
+            }
         }
 
         executed += sliceActual;
-
-        // Pump the Disk II controller's nibble engine in lockstep with
-        // CPU cycles. Without this the boot ROM's read latch ($C08C)
-        // never sees a sync nibble and $C600 spins forever waiting.
-        if (m_diskController != nullptr)
-        {
-            m_diskController->Tick (sliceActual);
-        }
 
         if (audioActive)
         {

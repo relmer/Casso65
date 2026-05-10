@@ -41,6 +41,10 @@ public:
     int        GetCurrentTrack  () const { return m_currentTrack; }
     size_t     GetBitPosition   () const { return m_bitPos; }
 
+    // Diagnostic / test peek at the current read latch contents without
+    // the read-clears-on-MSB side effect ReadLatch carries.
+    uint8_t    PeekReadLatch    () const { return m_readLatch; }
+
     void       Tick             (uint32_t cpuCycles);
     uint8_t    ReadLatch        ();
     void       WriteLatch       (uint8_t value);

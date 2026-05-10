@@ -52,6 +52,7 @@ public:
 
     HRESULT Initialize (
         HINSTANCE              hInstance,
+        const wstring        & machineName,
         const MachineConfig  & config,
         const string    & disk1Path,
         const string    & disk2Path);
@@ -198,6 +199,13 @@ private:
 
     // Emulation state
     MachineConfig   m_config;
+
+    // Machine config file name (without ".json" extension, e.g.,
+    // "apple2e", "apple2plus", "apple2"). Used as a registry-key
+    // suffix so per-machine UI state (e.g., last-mounted disks) can
+    // round-trip between sessions without one machine's setting
+    // clobbering another's.
+    wstring         m_currentMachineName;
 
     // -- Threading --
     thread     m_cpuThread;
