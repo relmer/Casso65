@@ -269,9 +269,17 @@ static void AppendDataField (
 
     for (i = 0; i < kEncodedDataSize; i++)
     {
-        enc = static_cast<Byte> (encoded[i] ^ prev);
-        PackNibbleBits (dst, bitOffset, kWriteTranslate[enc & 0x3F]);
-        prev = encoded[i];
+        // Standard Apple DOS 3.3 RWTS convention: each on-disk nibble
+        // is the running XOR of the encoded payload bytes up to that
+        // point, encoded through the 6+2 write-translate table. The
+        // final checksum nibble is the same running XOR (i.e. the last
+        // value of `prev`). The earlier "prev = encoded[i]" variant
+        // round-tripped with a matching reader but produced sector
+        // payloads that real DOS 3.3 RWTS could not decode -- every
+        // sector read after the first failed checksum and was retried
+        // forever, so CATALOG saw an empty volume.
+        prev = static_cast<Byte> (prev ^ encoded[i]);
+        PackNibbleBits (dst, bitOffset, kWriteTranslate[prev & 0x3F]);
     }
 
     PackNibbleBits (dst, bitOffset, kWriteTranslate[prev & 0x3F]);
@@ -580,9 +588,15 @@ static HRESULT DecodeOneSector (
 
     for (i = 0; i < kEncodedDataSize; i++)
     {
-        raw         = ReadNibbleAt (img, track, bitPos);
-        encoded[i]  = static_cast<Byte> (InverseTranslate (raw) ^ prev);
-        prev        = encoded[i];
+        // Standard Apple convention: on-disk nibbles are the running
+        // XOR of the encoded payload. To recover an individual encoded
+        // byte we XOR consecutive on-disk values: encoded[i] = on_disk[i]
+        // ^ on_disk[i-1] (with on_disk[-1] = 0).
+        Byte  inverted = InverseTranslate (raw = ReadNibbleAt (img, track, bitPos));
+        Byte  raw_dec  = static_cast<Byte> (inverted ^ prev);
+
+        encoded[i] = raw_dec;
+        prev       = inverted;
     }
 
     for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)

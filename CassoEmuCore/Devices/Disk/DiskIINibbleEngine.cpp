@@ -106,8 +106,31 @@ void DiskIINibbleEngine::SetCurrentTrack (int track)
 
     if (clamped != m_currentTrack)
     {
+        // Real Disk II behavior: the head physically moves between
+        // tracks while the disk keeps spinning. The bit cursor (the
+        // rotational position of the disk under the head) carries
+        // over modulo the new track's bit length. Resetting m_bitPos
+        // to 0 here used to corrupt every track-change read because
+        // the read latch lost its sync alignment and had to spend
+        // an entire revolution finding the next address-field sync
+        // gap before any sector could be located -- which on a tight
+        // RWTS read loop frequently times out and reports a checksum
+        // error. Cap to the new track's bit length so we don't end
+        // up past the wrap.
+        size_t  newBits = (m_disk != nullptr)
+                          ? m_disk->GetTrackBitCount (clamped)
+                          : 0;
+
         m_currentTrack = clamped;
-        m_bitPos       = 0;
+
+        if (newBits > 0)
+        {
+            m_bitPos = m_bitPos % newBits;
+        }
+        else
+        {
+            m_bitPos = 0;
+        }
     }
 }
 
@@ -226,17 +249,23 @@ void DiskIINibbleEngine::AdvanceOneBit ()
 
 void DiskIINibbleEngine::ShiftReadBit (uint8_t bit)
 {
-    // Real Disk II LSS: the read latch is an 8-bit shift register that
-    // clocks in a new MFM bit every 4 µs (one bit-cell). The latch
-    // never freezes -- bits shift continuously. The "byte ready" line
-    // goes high when the MSB becomes 1; CPU reads of $C0EC return the
-    // current latch state, and a CPU read of an MSB-set latch causes
-    // the byte-ready line to drop, clearing the latch so the next
-    // 8 bit-cells assemble a fresh nibble.
+    // Continuous-shift model. The latch clocks in a new bit every 4 µs
+    // bit-cell; CPU reads of $C0EC return the current latch value and
+    // the read of an MSB-set value clears the latch (in ReadLatch) so
+    // the next 8 bits assemble a fresh nibble.
     //
-    // Sync nibbles (0xFF + trailing 2 zero gap bits) drift the byte
-    // boundary so the latch eventually re-aligns onto the byte
-    // boundaries that contain $D5 / $AA / $96 prologs.
+    // Earlier we tried a freeze-on-MSB variant (real WD chip behavior)
+    // which works in theory but failed in practice here -- combined
+    // with the 10-bit sync-gap nibbles, freezing kept the latch at the
+    // wrong byte alignment indefinitely. The continuous shift lets the
+    // latch advance through the sync gaps and re-align to whatever
+    // boundary contains the $D5 prolog.
+    //
+    // Sync nibbles (0xFF + trailing 2 zero gap bits, written by
+    // NibblizationLayer::PackSyncNibbleBits) are what create the
+    // alignment drift that lets the latch eventually find the right
+    // byte boundaries containing the address-field $D5 / $AA / $96
+    // prologs.
     m_readLatch = static_cast<uint8_t> ((m_readLatch << 1) | (bit & 1));
 }
 
