@@ -128,11 +128,22 @@ void DiskIIController::HandleSwitch (int offset)
         case 0x6: HandlePhase (3, false); break;
         case 0x7: HandlePhase (3, true);  break;
         case 0x8:
-            m_motorOn = false;
-            m_engine[0].SetMotorOn (false);
-            m_engine[1].SetMotorOn (false);
+            // Motor-off command: real Disk II keeps the disk physically
+            // spinning for ~1 second after this so DOS RWTS retries and
+            // back-to-back command sequences don't lose rotational
+            // sync (UTAIIe ch. 9). Arm a spindown timer rather than
+            // killing the engine immediately; the visible m_motorOn
+            // flag flips once the timer expires in Tick().
+            if (m_motorOn && m_motorSpindownCycles == 0)
+            {
+                m_motorSpindownCycles = kMotorSpindownCycles;
+            }
             break;
         case 0x9:
+            // Motor-on command: cancel any pending spindown so the
+            // engine keeps producing nibbles continuously across the
+            // motor-off / motor-on toggle DOS issues between sectors.
+            m_motorSpindownCycles = 0;
             m_motorOn = true;
             m_engine[m_activeDrive].SetMotorOn (true);
             break;
@@ -217,10 +228,6 @@ Byte DiskIIController::HandleReadDispatch ()
 
 void DiskIIController::HandlePhase (int phase, bool on)
 {
-    int   currentPhase = 0;
-    int   targetPhase  = -1;
-    int   delta        = 0;
-
     if (on)
     {
         m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
@@ -230,24 +237,48 @@ void DiskIIController::HandlePhase (int phase, bool on)
         m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
     }
 
-    currentPhase = (m_quarterTrack / 2) & 3;
-    targetPhase  = FindHighestPhase (m_phases);
+    // Disk II stepper model (UTAIIe ch. 9; AppleWin ControlStepperDeferred):
+    //   - 4 phase magnets arranged 90 degrees apart around the cog.
+    //   - The head's rotational position (which magnet it's nearest)
+    //     cycles every full track. Casso represents position as a
+    //     quarter-track count (0..kMaxQuarterTrack); two consecutive
+    //     quarter-tracks lie under different magnet positions, so
+    //     `(m_quarterTrack / 2) & 3` is the current "phase index" the
+    //     head is nearest.
+    //   - Movement is determined by which adjacent magnets (rot+/-1)
+    //     are currently energized. A single adjacent magnet pulls the
+    //     head one half-track toward it (= 2 quarter-tracks). Two
+    //     adjacent magnets ($3=0+1, $6=1+2, $C=2+3, $9=3+0) pull the
+    //     head only halfway, i.e. one quarter-track (the cog rests
+    //     between the two magnet positions).
+    //   - Opposing-only magnet pairs ($5=0+2, $A=1+3) cancel out and
+    //     leave the head where it is.
+    //
+    // The previous "highest set bit" model only stepped by one quarter-
+    // track per phase event regardless of the magnet topology, which
+    // walked the head ~1.5x too fast on standard DOS step sequences and
+    // dropped multi-track seeks intermittently.
+    int  rot       = (m_quarterTrack / 2) & 3;
+    int  direction = 0;
 
-    if (targetPhase < 0)
+    if (m_phases & (1 << ((rot + 1) & 3)))
     {
-        return;
+        direction += 1;
+    }
+    if (m_phases & (1 << ((rot + 3) & 3)))
+    {
+        direction -= 1;
     }
 
-    delta = targetPhase - currentPhase;
+    int  qtDelta = direction * 2;
 
-    if (delta == 1 || delta == -3)
+    if (m_phases == 0x3 || m_phases == 0x6 ||
+        m_phases == 0xC || m_phases == 0x9)
     {
-        m_quarterTrack++;
+        qtDelta = direction;
     }
-    else if (delta == -1 || delta == 3)
-    {
-        m_quarterTrack--;
-    }
+
+    m_quarterTrack += qtDelta;
 
     if (m_quarterTrack < 0)
     {
@@ -302,6 +333,21 @@ void DiskIIController::UpdateEngineSelection ()
 
 void DiskIIController::Tick (uint32_t cpuCycles)
 {
+    if (m_motorSpindownCycles > 0)
+    {
+        if (cpuCycles >= m_motorSpindownCycles)
+        {
+            m_motorSpindownCycles = 0;
+            m_motorOn             = false;
+            m_engine[0].SetMotorOn (false);
+            m_engine[1].SetMotorOn (false);
+        }
+        else
+        {
+            m_motorSpindownCycles -= cpuCycles;
+        }
+    }
+
     m_engine[m_activeDrive].Tick (cpuCycles);
 }
 
@@ -413,6 +459,7 @@ void DiskIIController::Reset ()
     m_phases       = 0;
     m_quarterTrack = 0;
     m_motorOn      = false;
+    m_motorSpindownCycles = 0;
     m_activeDrive  = 0;
     m_q6           = false;
     m_q7           = false;

@@ -79,6 +79,17 @@ private:
     int                  m_quarterTrack = 0;
 
     bool                 m_motorOn      = false;
+
+    // Real Disk II hardware: writing $C0E8 (motor off) starts a ~1
+    // second spindown timer; the disk physically keeps spinning during
+    // this window so DOS RWTS (which toggles motor off between
+    // commands and back on a few hundred cycles later for the next
+    // read) doesn't lose rotational sync. Tracked in CPU cycles
+    // remaining; ticks down in Tick(); reaches 0 and we actually
+    // stop the engine. UTAIIe ch. 9 / AppleWin SPINNING_CYCLES.
+    static constexpr uint32_t  kMotorSpindownCycles = 1'000'000U;
+    uint32_t             m_motorSpindownCycles = 0;
+
     int                  m_activeDrive  = 0;
     bool                 m_q6           = false;
     bool                 m_q7           = false;
