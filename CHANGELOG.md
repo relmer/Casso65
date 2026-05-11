@@ -6,6 +6,79 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.536] — 2026-05-10 — Disk II + //e text fidelity
+
+### Fixed (disk)
+- **DOS 3.3 boots from `.dsk` images.** Disk II nibblization corrected:
+  10-bit sync nibbles (`PackSyncNibbleBits`); standard data-field XOR
+  convention (each on-disk nibble = `encoded[i] XOR encoded[i-1]`,
+  checksum nibble = final raw encoded byte); standard Disk II LSS read
+  latch model with continuous-shift + 7 µs data-ready hold.
+- **CATALOG works on real DOS 3.3 master disk.** Two latent bugs in
+  the Disk II controller surfaced once boot succeeded:
+  - Motor spindown delay added (~1 second per UTAIIe ch. 9 / AppleWin
+    `SPINNING_CYCLES`). DOS RWTS toggles motor off / on between
+    commands and depends on the disk physically continuing to spin
+    during that window.
+  - Phase-stepper now uses the adjacency-pull model (`±2` quarter-tracks
+    per single-magnet pull, `±1` for the four "two-adjacent-magnets-on"
+    states `$3/$6/$C/$9`) instead of the old "highest set bit"
+    approximation, which accumulated drift across multi-track seeks
+    and landed CATALOG's 17-track seek on the wrong sectors.
+- **`DiskIIController::Tick`** now actually runs on the GUI CPU thread
+  (previously was wired only in tests).
+- **Per-machine disk auto-mount** persists in
+  `HKCU\Software\relmer\Casso\Machines\{machine}\Disk1|Disk2` and is
+  restored on machine switch / power cycle.
+- **PowerCycle before MountCommandLineDisks** at startup: PowerCycle
+  ejects every drive, so the previous order silently discarded the
+  freshly-mounted image.
+
+### Fixed (//e video)
+- **PR#3 (80-column mode) renders blank cells, not garbage.** The
+  `Decode4K` path for the //e enhanced video ROM was loading the
+  alternate character set from the wrong half of the 4 KB file. Now
+  matches UTAIIe ch. 8 (Sather) Tables 8.2 / 8.3: alt set's 256 chars
+  all live in the first 2 KB of the file. Bug was latent until Phase
+  12 added ALTCHARSET support to the 80-col renderer (audit M13).
+
+### Fixed (//e UI / keyboard)
+- **Edit > Copy Text** now reads the text page through `MemoryBus`
+  rather than `m_cpu->GetMemory()`. The MMU owns its own RAM device(s)
+  on the //e, so writes from firmware land in the bus-side buffer; the
+  CPU's internal `memory[]` mirror was a stale copy unrelated to what
+  appears on screen.
+- **Alt key** routes through the emulated keyboard so Open / Closed
+  Apple modifiers work; the Win32 layer no longer eats the modifier.
+- **Soft reset** preserves modifier-key latches.
+
+### Added (UI)
+- **Drive 1 / Drive 2 activity LEDs and tooltips** in the status bar.
+  Tooltips show mount path, current track, and read / write nibble
+  counters.
+
+### Added (tests)
+- Real-ROM boot-decoder tests (`BootRomDecoderTests`) — drive the
+  actual `disk2.rom` slot 6 firmware on the emulated 6502 against
+  synthetic disks; gates the on-disk format against the real Apple
+  firmware's checksum routines.
+- Direct-bus readback tests (`DiskReadbackTests`) — all 35 tracks ×
+  16 sectors round-trip bit-perfect through the nibblizer + LSS
+  without a CPU.
+- End-to-end CATALOG repro test (`CatalogReproductionTest`) — boots
+  real `dos33-master.dsk`, types `CATALOG`, asserts directory listing
+  is printed (no I/O ERROR).
+- 80-col PR#3 alt-set decoder gates (`Pr3AuxClearTest`).
+
+### Known follow-ups
+- 80-col cursor invisible after PR#3 (cursor-blink loop never runs;
+  likely VBL-interrupt or similar timer wiring).
+- Tooltip stats stale after PowerCycle.
+- Disk subsystem broken after PowerCycle (counters don't advance).
+- Bursty cosmetic update of nibble counters in the status bar.
+
+
+
 ## [1.3.509] — 2026-05-09 — Apple //e fidelity (spec 004, Phases 0-16)
 
 The bulk of this entry completes Apple //e fidelity work begun in
