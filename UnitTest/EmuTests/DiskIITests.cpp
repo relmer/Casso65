@@ -102,8 +102,17 @@ public:
         disk->Read (kMotorOn);
         Assert::IsTrue  (disk->IsMotorOn (), L"$C0E9 must enable the motor");
 
+        // $C0E8 starts the ~1 second motor-spindown timer (UTAIIe ch. 9
+        // / AppleWin SPINNING_CYCLES). The motor stays on until the
+        // timer expires; the controller advances the timer in Tick().
+        // A sufficiently large Tick must drop the motor.
         disk->Read (kMotorOff);
-        Assert::IsFalse (disk->IsMotorOn (), L"$C0E8 must disable the motor");
+        Assert::IsTrue (disk->IsMotorOn (),
+            L"$C0E8 must keep the motor spinning for the spindown window");
+
+        disk->Tick (2'000'000);  // > 1M cycle spindown
+        Assert::IsFalse (disk->IsMotorOn (),
+            L"$C0E8 must disable the motor after the spindown timer expires");
     }
 
     TEST_METHOD (DriveSelectViaC0EAC0EB)

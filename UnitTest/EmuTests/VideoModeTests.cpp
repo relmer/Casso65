@@ -670,18 +670,34 @@ namespace Phase12VideoTestHelpers
     // The Decode4K path XORs the source bytes with 0xFF, so we pre-invert.
     static std::vector<Byte> Build4KSyntheticCharRom (Byte normalDots, Byte altDots)
     {
+        // //e enhanced video ROM layout per UTAIIe ch. 8 / AppleWin
+        // userVideoRom4K (matched by CharacterRomData::Decode4K):
+        //   Primary set [00..3F] inverse + [40..7F] flash share offsets
+        //     0..0x1FF (the first half kB of the file).
+        //   Primary set [80..FF] normal text from offsets 0x400..0x7FF.
+        //   Alt set [00..FF] all read linearly from offsets 0..0x7FF
+        //     (chars $00-$7F are MouseText / inverse, $80-$FF reuse the
+        //     same primary normal-text glyphs).
+        //   Second 2 KB of the file is unused by the standard //e ROM.
+        //
+        // This synthetic ROM makes the chars $00-$7F (which the alt set
+        // reads from the FIRST half of the first 2 KB) decode to the
+        // alt-dot pattern; the chars $80-$FF (shared between primary
+        // and alt sets) decode to the normal-dot pattern. Tests that
+        // compare primary vs alt rendering must use a char in $00-$7F
+        // since $80-$FF is identical between the two sets.
         std::vector<Byte> raw (4096, 0xFF);
         Byte normalSrc = static_cast<Byte> (~normalDots & 0xFF);
         Byte altSrc    = static_cast<Byte> (~altDots & 0xFF);
 
-        for (size_t i = 0; i < 0x800; i++)
+        for (size_t i = 0; i < 0x400; i++)
         {
-            raw[i] = normalSrc;
+            raw[i] = altSrc;       // chars $00-$7F (in alt set; flash/inverse in primary)
         }
 
-        for (size_t i = 0x800; i < 0x1000; i++)
+        for (size_t i = 0x400; i < 0x800; i++)
         {
-            raw[i] = altSrc;
+            raw[i] = normalSrc;    // chars $80-$FF (shared by both sets)
         }
 
         return raw;
@@ -761,7 +777,8 @@ public:
             bus.WriteByte (addr, 0xA0);
         }
 
-        bus.WriteByte (0x0400, 0xC1);   // main col 1 = normal 'A'
+        bus.WriteByte (0x0400, 0x40);   // main col 1 = char $40 ('@' inverse
+                                        // in primary, MouseText 0 in alt)
 
         std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x00);
         CharacterRomData rom;
