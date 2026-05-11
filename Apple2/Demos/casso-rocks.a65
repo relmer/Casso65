@@ -23,8 +23,8 @@
 ;    row 12 -> $400 + 128*4 + 40*1 = $0628
 ;    centered (40-12)/2 = column 14 -> $0636
 ;
-;  Display character bytes have bit 7 set (normal), bit 7 clear is
-;  inverse / flash. We set bit 7 on every glyph here.
+;  Display character bytes have bit 7 set for normal (white-on-black);
+;  bit 7 clear means inverse / flash. We OR $80 onto every glyph below.
 ; ============================================================================
 
     .org $0801
@@ -58,7 +58,7 @@ spin
     jmp spin              ; halt
 
 msg
-    .byte $C3,$C1,$D3,$D3,$CF,$A0,$D2,$CF,$C3,$CB,$D3,$A1
-    ;     C   A   S   S   O   sp  R   O   C   K   S   !
+    .byte 'C'+$80, 'A'+$80, 'S'+$80, 'S'+$80, 'O'+$80, ' '+$80
+    .byte 'R'+$80, 'O'+$80, 'C'+$80, 'K'+$80, 'S'+$80, '!'+$80
 
 ; --- end ---
