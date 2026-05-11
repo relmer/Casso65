@@ -243,6 +243,23 @@ void Function2()
   - `fix(ops): correct ShiftLeft dispatch to use ASL not ROL`
   - `test(adc): add signed overflow edge cases`
 
+## Branching and Merging
+
+- **NEVER squash on merge.** All branch merges to `master` must use
+  `--no-ff` to preserve commit history.
+
+## Workspace Hygiene
+
+- **Always clean up diagnostic artifacts.** When debugging produces
+  log files, trace dumps, stderr captures, or any other stray files
+  in the working tree, remove them explicitly when the debugging
+  session ends.
+- **Do NOT add stray-file patterns to `.gitignore`.** The user
+  prefers stray files to surface in `git status` as a visible
+  reminder. Silencing them with `.gitignore` defeats that signal.
+- The only `.gitignore`d disk image is the Apple-owned
+  `Disks/Apple/dos33-master.dsk`. Disks we author belong in the repo.
+
 ## Shell and Terminal Rules
 
 - **ALL** terminal windows use PowerShell, not CMD
