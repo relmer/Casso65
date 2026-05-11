@@ -376,5 +376,5 @@ UnitTest/6502/
 # Apple II ROM images — user-supplied, not redistributable
 ROMs/
 
-# Locally-mounted disk images (incl. copyrighted)
-/Disks/
+# Disk images we cannot redistribute (Apple-owned)
+/Disks/Apple/dos33-master.dsk
