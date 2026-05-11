@@ -3045,7 +3045,6 @@ void EmulatorShell::CopyScreenText()
 {
     HGLOBAL hMem    = nullptr;
     wchar_t * pDest = nullptr;
-    const Byte * pMem  = nullptr;
     wstring   text;
 
 
@@ -3055,9 +3054,12 @@ void EmulatorShell::CopyScreenText()
         return;
     }
 
-    // Read the 40x24 text screen from Apple II memory (-)
-    pMem = m_cpu->GetMemory();
-
+    // Read the 40x24 text screen via the memory bus rather than the
+    // CPU's internal memory[] buffer. On the //e the MMU owns its own
+    // RAM device(s), so writes from firmware land in the bus-side
+    // buffer; m_cpu->GetMemory() points at a stale/uninitialized
+    // mirror that has nothing to do with what the user sees on screen.
+    // Same fix that landed for the framebuffer renderer earlier.
     for (int row = 0; row < 24; row++)
     {
         // Apple II text screen uses a non-linear address mapping
@@ -3065,11 +3067,11 @@ void EmulatorShell::CopyScreenText()
 
         for (int col = 0; col < 40; col++)
         {
-            Byte ch = pMem[base + col];
+            Byte ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
 
             // Convert Apple II screen code to ASCII
-            // Normal: - = ASCII -
-            // Inverse/flash: - = ASCII -
+            // Normal: $20-$3F = '@'..'_' on inverse, etc.
+            // High bit set ($80-$FF): normal ASCII characters.
             if (ch >= 0xA0)
             {
                 ch -= 0x80;
