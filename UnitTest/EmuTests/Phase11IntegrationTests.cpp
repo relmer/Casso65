@@ -41,6 +41,12 @@ namespace
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
+        // See EmuValidationSuiteTests::BuildSyntheticDsk for rationale:
+        // plant `JMP $0801` so the CPU halts cleanly in legal code
+        // after the boot ROM hands control to $0801 with our sector
+        // 0 contents loaded at $0800-$08FF.
+        raw[1] = 0x4C; raw[2] = 0x01; raw[3] = 0x08;
+
         raw[kSentinelOffset] = kSentinelByte;
         return raw;
     }
@@ -49,6 +55,8 @@ namespace
     vector<Byte> BuildSyntheticPo ()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+
+        raw[1] = 0x4C; raw[2] = 0x01; raw[3] = 0x08;
 
         raw[kSentinelOffset] = kSentinelByte;
         return raw;

@@ -123,6 +123,15 @@ namespace
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
+        // Boot ROM loads file offset 0..255 into RAM at $0800-$08FF
+        // and JMPs to $0801. Plant `JMP $0801` (4C 01 08) so the CPU
+        // loops cleanly inside legal code after the hand-off, instead
+        // of executing the all-zero (BRK) sector and tripping
+        // Cpu::StepOne's illegal-opcode assert when BRK lands in a
+        // 65C02-only ROM handler. The test's real assertions (motor
+        // on, nibbles read, screen scrape-able) remain meaningful.
+        raw[1] = 0x4C; raw[2] = 0x01; raw[3] = 0x08;
+
         raw[kSentinelOffset] = kSentinelByte;
         return raw;
     }
@@ -131,6 +140,9 @@ namespace
     vector<Byte> BuildSyntheticPo ()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+
+        // Same JMP-to-self halt as BuildSyntheticDsk -- see comment there.
+        raw[1] = 0x4C; raw[2] = 0x01; raw[3] = 0x08;
 
         raw[kSentinelOffset] = kSentinelByte;
         return raw;
