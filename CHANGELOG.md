@@ -9,6 +9,25 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **HGR cassowary demo on the bootable demo disk.** The
+  `Apple2/Demos/casso-rocks.a65` boot sector now contains a from-
+  scratch 6502 RWTS that, after the disk2.rom boot PROM hands off
+  control, steps the head from track 0 to tracks 1 and 2, reads all
+  16 sectors of each via direct LSS scanning of D5/AA/96 address
+  marks and D5/AA/AD data prologues, performs the standard 6-and-2
+  expansion in-place, and lands the 8 KB cassowary framebuffer at
+  `$2000-$3FFF`. It then flips `TXTOFF` and `HIRESON` to reveal the
+  image. The whole loader (including the 32-sector RWTS) fits in
+  the 255-byte sector-0 boot stage. The framebuffer is generated
+  deterministically by `scripts/HgrPreprocess.py` (Pillow,
+  Floyd-Steinberg dither) from `Assets/3a Mrs Cassowary closeup
+  8167.jpg` and committed alongside the source as
+  `Apple2/Demos/cassowary.hgr`. Test renamed to
+  `BootDiskTests::CassoRocks_DemoDisk_DisplaysHgrCassowary` and
+  verifies both the soft-switch state (graphics on, mixed off,
+  page2 off, hires on) and that `$2000-$3FFF` matches the on-disk
+  framebuffer byte-for-byte.
+
 - **In-house bootable demo disk** under `Apple2/Demos/`. The
   `casso-rocks.a65` source assembles to a 45-byte sector-0 program
   that displays "CASSO ROCKS!" centered on the text screen. New
