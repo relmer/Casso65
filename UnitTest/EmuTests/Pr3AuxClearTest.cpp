@@ -68,6 +68,19 @@ namespace
 //  the primary set's normal text). The second 2 KB of the ROM file
 //  isn't used by the standard //e enhanced ROM at all.
 //
+//  Also documents the //e PR#3 cursor visibility model (originally
+//  filed as a "cursor blink loop never runs" bug, but on a stock //e
+//  without a mouse card the PR#3 cursor is *static*, not blinking --
+//  the firmware in $C800-$CFFF never polls $C019 / RDVBLBAR and never
+//  XORs the inverse bit into the cursor cell, both of which we
+//  verified by scanning the ROM end-to-end). The cursor cell is
+//  written *once* on entry to BASICIN with $20 (inverse-space, which
+//  with ALTCHARSET=1 renders as a solid block) and stays solid until
+//  the user types a key. This is the same behavior a real Apple //e
+//  exhibits in stock-no-mouse-card mode. The originally observed
+//  "invisible cursor" was a side-effect of the Decode4K alt-set bug
+//  rendering $20 as a garbage glyph instead of a solid block.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (Pr3AuxClearTest)
@@ -103,17 +116,14 @@ public:
     }
 
 
-    // Verifies PR#3 leaves both main and aux text page 1 cleared,
-    // so 80-col rendering doesn't show garbage in the aux columns.
-    //
-    // FIXME: aux $0480 (cursor save cell -- the byte the //e cursor-
-    // blink routine reads / restores in the spot the cursor lands at
-    // after CR/LF following PR#3) is left at its PRNG-randomized value
-    // because Casso's //e cursor-blink loop never runs (likely a VBL
-    // interrupt or similar timer not yet wired). The cursor is
-    // therefore invisible in 80-col mode -- separate bug, separate
-    // fix. Whitelist that one cell so this test gates the Decode4K
-    // alt-set correctness in isolation.
+    // Verifies PR#3 leaves aux text page 1 cleared. Every cell must be
+    // $A0 (inverse-space) EXCEPT aux $0480 -- after PR#3 the //e
+    // firmware echoes a CR/LF and then BASIC reprints its prompt
+    // character ']' = $5D | $80 = $DD at column 0 of row 1, which in
+    // 80-col interleaved layout is aux $0480. So aux $0480 = $DD is
+    // the *prompt*, not garbage. The static cursor that follows the
+    // prompt lives at column 1 of row 1 = main $0480 (see the
+    // companion Pr3_StaticCursor_Lands_At_Main0480 test).
     TEST_METHOD (Pr3_Clears_AuxTextPage1_AllRows)
     {
         HeadlessHost   host;
@@ -140,7 +150,7 @@ public:
             for (int memCol = 0; memCol < 40; memCol++)
             {
                 Word a = static_cast<Word> (rowBase + memCol);
-                if (a == 0x0480) continue;
+                if (a == 0x0480) continue;     // BASIC prompt ']' lands here
                 if (auxBuf[a] != 0xA0) rowBad++;
             }
             if (rowBad > 0)
@@ -153,5 +163,54 @@ public:
         }
 
         Assert::AreEqual (0, totalBad, msg);
+    }
+
+
+    // Verifies the BASIC prompt and static cursor land where they
+    // should after PR#3 + Return. With 80-col mode and 80STORE active,
+    // the row-1 cells interleave aux/main: col 0 -> aux $0480,
+    // col 1 -> main $0480, col 2 -> aux $0481, etc.
+    //
+    //   - aux $0480 must be $DD (the ']' prompt = $5D | $80)
+    //   - main $0480 must be $20 (the inverse-space cursor character;
+    //     with ALTCHARSET=1 this glyph is rendered as a solid block
+    //     and is the visible cursor)
+    //   - $057B (OURCH, 80-col cursor column) must be $01 (cursor sits
+    //     immediately after the prompt)
+    //   - $25 (CV, cursor row) must be $01 (row 1)
+    //
+    // Pre-fix to commit 60b13a6 (Decode4K alt-set bug), $20 in the alt
+    // set was loaded from the wrong half of the ROM and rendered as a
+    // garbage glyph, which made the cursor "invisible" -- not because
+    // the firmware failed to draw it, but because the glyph it drew
+    // was incorrectly decoded. After 60b13a6 the cursor is a clean
+    // solid block. This test pins the byte-level state so the cursor
+    // can't silently regress.
+    TEST_METHOD (Pr3_StaticCursor_Lands_At_Main0480)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+
+        HRESULT  hr = host.BuildAppleIIe (core);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        core.PowerCycle ();
+        core.RunCycles (kColdBootCycles);
+
+        size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
+        Assert::AreEqual (size_t (5), consumed);
+
+        Byte * auxBuf = core.mmu->GetAuxBuffer ();
+        Assert::IsNotNull (auxBuf);
+
+        Byte   prompt   = auxBuf[0x0480];
+        Byte   cursor   = core.bus->ReadByte (0x0480);
+        Byte   ourch    = core.bus->ReadByte (0x057B);
+        Byte   cv       = core.bus->ReadByte (0x0025);
+
+        Assert::AreEqual (Byte (0xDD), prompt, L"aux $0480 must be the ']' prompt ($DD)");
+        Assert::AreEqual (Byte (0x20), cursor, L"main $0480 must be inverse-space ($20) cursor");
+        Assert::AreEqual (Byte (0x01), ourch,  L"$057B (OURCH) must be col 1 (after prompt)");
+        Assert::AreEqual (Byte (0x01), cv,     L"$25 (CV) must be row 1");
     }
 };

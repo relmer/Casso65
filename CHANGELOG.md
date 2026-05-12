@@ -18,6 +18,28 @@ Entries before versioning was introduced use dates only.
   also emits `casso-rocks.dsk` next to the source for direct GUI use.
   Replaces the project's previous reliance on the copyrighted DOS 3.3
   master image for end-to-end boot validation.
+- New `Pr3AuxClearTest::Pr3_StaticCursor_Lands_At_Main0480` pins the
+  byte-level state of the //e PR#3 cursor: prompt `]` ($DD) at aux
+  $0480, inverse-space cursor character ($20) at main $0480, OURCH=1,
+  CV=1. Prevents silent regression of the cursor-cell write that
+  commit `60b13a6` (Decode4K alt-set fix) made visible.
+
+### Docs (cursor-blink follow-up)
+- The `Pr3AuxClearTest::Pr3_Clears_AuxTextPage1_AllRows` FIXME
+  comment used to claim aux $0480 was a "cursor save cell" left at
+  PRNG noise because Casso's "//e cursor-blink loop never runs". An
+  end-to-end ROM scan ($C100-$FFFC: every byte of the //e enhanced
+  firmware) found **no `LDA $C019`, no `EOR #$40`, no `ORA #$40`** —
+  the //e firmware in PR#3 mode does not poll RDVBLBAR and does not
+  XOR the inverse bit anywhere, so there is no software cursor-blink
+  loop to "be missing". The cursor in stock-no-mouse-card //e PR#3
+  mode is *static*: the firmware writes $20 (inverse-space) to the
+  cursor cell once on entry to BASICIN, and that cell is rendered as
+  a solid block by the 80-col text mode + ALTCHARSET=1 path. Aux
+  $0480 holds the BASIC prompt `]` (= $5D | $80 = $DD), not a cursor
+  cell — the cursor cell is column 1 of row 1 = main $0480 in 80-col
+  interleaved layout. The comment now reflects this; the new
+  `Pr3_StaticCursor_Lands_At_Main0480` test asserts the right cells.
 
 ### Changed (CI)
 - `Disks/` (local disk image cache, may contain copyrighted images)
