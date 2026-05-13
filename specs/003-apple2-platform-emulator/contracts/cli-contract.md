@@ -30,9 +30,9 @@ Casso.exe --machine <name> [--disk1 <path>] [--disk2 <path>]
 
 | Name | Config File | Description |
 |------|-------------|-------------|
-| `apple2` | `Machines/apple2.json` | Apple II (original) with Integer BASIC ROM |
-| `apple2plus` | `Machines/apple2plus.json` | Apple II+ with Applesoft BASIC ROM |
-| `apple2e` | `Machines/apple2e.json` | Apple IIe with 128KB RAM, 65C02, 80-column |
+| `apple2` | `Machines/Apple2.json` | Apple II (original) with Integer BASIC ROM |
+| `apple2plus` | `Machines/Apple2Plus.json` | Apple II+ with Applesoft BASIC ROM |
+| `apple2e` | `Machines/Apple2e.json` | Apple IIe with 128KB RAM, 65C02, 80-column |
 
 ### Examples
 

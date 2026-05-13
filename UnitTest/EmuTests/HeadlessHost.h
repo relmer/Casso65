@@ -62,7 +62,7 @@ struct EmulatorCore
 
     // Phase 7 (T067/T069): full //e machine wiring is populated by
     // HeadlessHost::BuildAppleIIe so integration tests can drive a real
-    // cold boot through `apple2e.rom`. ][/][+ kinds leave these unset.
+    // cold boot through `Apple2e.rom`. ][/][+ kinds leave these unset.
     std::unique_ptr<MemoryBus>                 bus;
     std::unique_ptr<RamDevice>                 mainRam;
     std::unique_ptr<VideoTiming>               videoTiming;

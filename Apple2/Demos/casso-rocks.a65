@@ -1,7 +1,7 @@
 ; ============================================================================
 ;  casso-rocks.a65 — minimal bootable Apple //e demo disk
 ;
-;  Loaded by the //e disk2.rom slot 6 boot firmware: the boot ROM reads
+;  Loaded by the //e Disk2.rom slot 6 boot firmware: the boot ROM reads
 ;  track 0 sector 0 (256 bytes from file offset 0) into RAM at $0800-$08FF
 ;  and JMPs to $0801. Our code takes over from there.
 ;
@@ -9,7 +9,7 @@
 ;  spaces ($A0), write "CASSO ROCKS!" centered on row 12, then halt in an
 ;  infinite loop. Tested headlessly by
 ;  `BootDiskTests::CassoRocks_DemoDisk_PrintsBanner`, which gates the
-;  full boot path: real disk2.rom reading our nibblized .dsk image,
+;  full boot path: real Disk2.rom reading our nibblized .dsk image,
 ;  decoding sector 0 via the LSS, JMPing into our code, our code
 ;  clearing screen RAM and writing the banner, the framebuffer scraper
 ;  finding "CASSO ROCKS!" on the rendered text page.

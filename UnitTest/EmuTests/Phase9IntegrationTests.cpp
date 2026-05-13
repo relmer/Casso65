@@ -12,7 +12,7 @@ namespace
     static constexpr Word   kSlot6RomBase     = 0xC600;
     static constexpr Word   kIntCxRomOff      = 0xC006;
     static constexpr Word   kIntCxRomOn       = 0xC007;
-    static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of disk2.rom: LDX #$20
+    static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of Disk2.rom: LDX #$20
 }
 
 
@@ -25,10 +25,10 @@ namespace
 //
 //  Phase 9 / T088. Verifies slot 6 ROM unshadow (audit C1) end-to-end on
 //  the headless //e: when INTCXROM=0, reads in $C600-$C6FF return the
-//  disk2.rom bytes that the CxxxRomRouter holds for slot 6; when
+//  Disk2.rom bytes that the CxxxRomRouter holds for slot 6; when
 //  INTCXROM=1, the same address falls through to internal ROM.
 //
-//  Each test attaches disk2.rom explicitly via mmu->AttachSlotRom (6, ...)
+//  Each test attaches Disk2.rom explicitly via mmu->AttachSlotRom (6, ...)
 //  rather than relying on HeadlessHost::BuildAppleIIe -- the //e monitor's
 //  auto-boot scan would otherwise pick up the Disk II signature and divert
 //  cold-boot tests in other phases.
@@ -50,7 +50,7 @@ public:
             return hr;
         }
 
-        hr = core.fixtures->OpenFixture ("disk2.rom", slot6Rom);
+        hr = core.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
         if (FAILED (hr))
         {
             return hr;
@@ -77,7 +77,7 @@ public:
         Assert::AreEqual (
             static_cast<int> (kDisk2RomFirst),
             static_cast<int> (firstByte),
-            L"$C600 with INTCXROM=0 must surface disk2.rom (LDX #$20 = $A2)");
+            L"$C600 with INTCXROM=0 must surface Disk2.rom (LDX #$20 = $A2)");
     }
 
 

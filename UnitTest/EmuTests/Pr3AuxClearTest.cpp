@@ -76,10 +76,10 @@ public:
 
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
-        fs::path romPath = FindRomPath ("ROMs/apple2e-enhanced-video.rom");
+        fs::path romPath = FindRomPath ("ROMs/Apple2e_Video.rom");
         if (romPath.empty () || !fs::exists (romPath))
         {
-            Logger::WriteMessage ("SKIPPED: ROMs/apple2e-enhanced-video.rom "
+            Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
                                   "not present (CI runners do not provision "
                                   "Apple-owned ROMs).\n");
             return;
@@ -87,7 +87,7 @@ public:
 
         CharacterRomData rom;
         HRESULT hr = rom.LoadFromFile (romPath.string ());
-        Assert::IsTrue (SUCCEEDED (hr), L"Must load apple2e-enhanced-video.rom");
+        Assert::IsTrue (SUCCEEDED (hr), L"Must load Apple2e_Video.rom");
 
         for (int y = 0; y < 8; y++)
         {

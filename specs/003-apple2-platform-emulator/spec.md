@@ -445,7 +445,7 @@ Machine configs are JSON files stored in `Casso/Machines/`. Each file defines th
     "clockSpeed": 1023000,
     "memory": [
         { "type": "ram",  "start": "0x0000", "end": "0xBFFF" },
-        { "type": "rom",  "file": "apple2plus.rom", "start": "0xD000", "end": "0xFFFF" }
+        { "type": "rom",  "file": "Apple2Plus.rom", "start": "0xD000", "end": "0xFFFF" }
     ],
     "devices": [
         { "type": "apple2-keyboard",      "address": "0xC000" },
@@ -475,7 +475,7 @@ Machine configs are JSON files stored in `Casso/Machines/`. Each file defines th
     "memory": [
         { "type": "ram",  "start": "0x0000", "end": "0xBFFF" },
         { "type": "ram",  "start": "0x0000", "end": "0xBFFF", "bank": "aux" },
-        { "type": "rom",  "file": "apple2e.rom",      "start": "0xC100", "end": "0xFFFF" },
+        { "type": "rom",  "file": "Apple2e.rom",      "start": "0xC100", "end": "0xFFFF" },
         { "type": "rom",  "file": "apple2e-char.rom",  "start": "0x0000", "end": "0x07FF", "target": "chargen" }
     ],
     "devices": [
@@ -576,7 +576,7 @@ These two machines are architecturally identical — same 6502 CPU, same 48KB RA
 | Aspect | Apple II | Apple II+ |
 |--------|----------|-----------|
 | System ROM | Integer BASIC + Monitor | Applesoft BASIC + Monitor |
-| ROM file | `apple2.rom` | `apple2plus.rom` |
+| ROM file | `Apple2.rom` | `Apple2Plus.rom` |
 | BASIC dialect | Integer BASIC (faster, integer-only) | Applesoft BASIC (floating-point, standard) |
 | Config name | `apple2` | `apple2plus` |
 
@@ -608,7 +608,7 @@ The Apple IIe is a significant hardware upgrade. These differences require disti
     "clockSpeed": 1023000,
     "memory": [
         { "type": "ram",  "start": "0x0000", "end": "0xBFFF" },
-        { "type": "rom",  "file": "apple2.rom", "start": "0xD000", "end": "0xFFFF" }
+        { "type": "rom",  "file": "Apple2.rom", "start": "0xD000", "end": "0xFFFF" }
     ],
     "devices": [
         { "type": "apple2-keyboard",      "address": "0xC000" },
@@ -691,9 +691,9 @@ Casso.sln
 └── Casso/        NEW — Win32 GUI application
     ├── Casso.vcxproj
     ├── Machines/      JSON machine config files
-    │   ├── apple2.json
-    │   ├── apple2plus.json
-    │   └── apple2e.json
+    │   ├── Apple2.json
+    │   ├── Apple2Plus.json
+    │   └── Apple2e.json
     ├── ROMs/          ROM images (gitignored)
     └── (source files)
 ```

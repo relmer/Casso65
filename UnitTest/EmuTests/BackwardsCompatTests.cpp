@@ -125,23 +125,23 @@ namespace
 
         expectedSize = kDiskRomSize;
 
-        if (filename == "apple2plus.rom" || filename == "apple2.rom")
+        if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
         {
             expectedSize = kRom12K;
         }
-        else if (filename == "apple2e.rom" || filename == "apple2e-enhanced.rom")
+        else if (filename == "Apple2e.rom" || filename == "Apple2eEnhanced.rom")
         {
             expectedSize = kRom16K;
         }
-        else if (filename == "disk2.rom")
+        else if (filename == "Disk2.rom")
         {
             expectedSize = kDiskRomSize;
         }
-        else if (filename == "apple2-video.rom")
+        else if (filename == "Apple2_Video.rom")
         {
             expectedSize = kCharRomSize;
         }
-        else if (filename == "apple2e-enhanced-video.rom")
+        else if (filename == "Apple2e_Video.rom")
         {
             expectedSize = kEnhancedCharRomSize;
         }
@@ -215,7 +215,7 @@ namespace
 //
 //  Two distinct surfaces are pinned here:
 //
-//    1. JSON pin — `Machines/apple2.json` and `Machines/apple2plus.json`
+//    1. JSON pin — `Machines/Apple2.json` and `Machines/Apple2Plus.json`
 //       remain byte-identical to their pre-feature shape; their device
 //       lists contain ONLY the original ][/][+ device types and explicitly
 //       NONE of the //e-specific types (apple2e-keyboard,
@@ -258,9 +258,9 @@ public:
         std::vector<fs::path>   searchPaths;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2.json");
+        json = ReadMachineJson ("Apple2.json");
         Assert::IsFalse (json.empty (),
-            L"Machines/apple2.json must be reachable from the test cwd");
+            L"Machines/Apple2.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
 
@@ -268,11 +268,11 @@ public:
                                         config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
-            L"apple2.json must parse cleanly through the production loader");
+            L"Apple2.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ]["), config.name,
-            L"apple2.json name must remain 'Apple ]['");
+            L"Apple2.json name must remain 'Apple ]['");
         Assert::AreEqual (std::string ("6502"), config.cpu,
-            L"apple2.json CPU must remain '6502'");
+            L"Apple2.json CPU must remain '6502'");
     }
 
 
@@ -290,9 +290,9 @@ public:
         std::vector<fs::path>   searchPaths;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2plus.json");
+        json = ReadMachineJson ("Apple2Plus.json");
         Assert::IsFalse (json.empty (),
-            L"Machines/apple2plus.json must be reachable from the test cwd");
+            L"Machines/Apple2Plus.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
 
@@ -300,11 +300,11 @@ public:
                                         config, error);
 
         Assert::IsTrue (SUCCEEDED (hr),
-            L"apple2plus.json must parse cleanly through the production loader");
+            L"Apple2Plus.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ][ plus"), config.name,
-            L"apple2plus.json name must remain 'Apple ][ plus'");
+            L"Apple2Plus.json name must remain 'Apple ][ plus'");
         Assert::AreEqual (std::string ("6502"), config.cpu,
-            L"apple2plus.json CPU must remain '6502'");
+            L"Apple2Plus.json CPU must remain '6502'");
     }
 
 
@@ -324,7 +324,7 @@ public:
         std::vector<fs::path>   searchPaths;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2.json");
+        json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
         hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
@@ -332,13 +332,13 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
-            L"apple2.json must NOT include apple2e-mmu (composition pin)");
+            L"Apple2.json must NOT include apple2e-mmu (composition pin)");
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-keyboard"),
-            L"apple2.json must NOT include apple2e-keyboard");
+            L"Apple2.json must NOT include apple2e-keyboard");
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-softswitches"),
-            L"apple2.json must NOT include apple2e-softswitches");
+            L"Apple2.json must NOT include apple2e-softswitches");
         Assert::IsFalse (HasInternalDeviceType (config, "language-card"),
-            L"apple2.json must NOT include language-card (//e-only here)");
+            L"Apple2.json must NOT include language-card (//e-only here)");
     }
 
 
@@ -356,7 +356,7 @@ public:
         std::vector<fs::path>   searchPaths;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2plus.json");
+        json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
         hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
@@ -364,13 +364,13 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
-            L"apple2plus.json must NOT include apple2e-mmu");
+            L"Apple2Plus.json must NOT include apple2e-mmu");
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-keyboard"),
-            L"apple2plus.json must NOT include apple2e-keyboard");
+            L"Apple2Plus.json must NOT include apple2e-keyboard");
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-softswitches"),
-            L"apple2plus.json must NOT include apple2e-softswitches");
+            L"Apple2Plus.json must NOT include apple2e-softswitches");
         Assert::IsFalse (HasInternalDeviceType (config, "language-card"),
-            L"apple2plus.json must NOT include language-card");
+            L"Apple2Plus.json must NOT include language-card");
     }
 
 
@@ -392,7 +392,7 @@ public:
         size_t                  i;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2.json");
+        json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
         hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
@@ -400,25 +400,25 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::AreEqual (size_t (1), config.ram.size (),
-            L"apple2.json must declare exactly one RAM region (no aux bank)");
+            L"Apple2.json must declare exactly one RAM region (no aux bank)");
         Assert::AreEqual (Word (0x0000), config.ram[0].address,
-            L"apple2.json RAM region 0 must start at $0000");
+            L"Apple2.json RAM region 0 must start at $0000");
         Assert::AreEqual (kAppleIIRamSize, config.ram[0].size,
-            L"apple2.json RAM region 0 must be $C000 bytes");
+            L"Apple2.json RAM region 0 must be $C000 bytes");
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
-            L"apple2.json system ROM must remain at $D000");
+            L"Apple2.json system ROM must remain at $D000");
 
         Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size (),
-            L"apple2.json must list exactly 3 video modes (text40/lores/hires)");
+            L"Apple2.json must list exactly 3 video modes (text40/lores/hires)");
 
         for (i = 0; i < config.videoConfig.modes.size (); i++)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 config.videoConfig.modes[i],
-                L"apple2.json must NOT include 80-col text mode");
+                L"Apple2.json must NOT include 80-col text mode");
             Assert::AreNotEqual (std::string ("apple2-doublehires"),
                 config.videoConfig.modes[i],
-                L"apple2.json must NOT include double-hires mode");
+                L"Apple2.json must NOT include double-hires mode");
         }
     }
 
@@ -438,7 +438,7 @@ public:
         size_t                  i;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2plus.json");
+        json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
         hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
@@ -446,22 +446,22 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::AreEqual (size_t (1), config.ram.size (),
-            L"apple2plus.json must declare exactly one RAM region");
+            L"Apple2Plus.json must declare exactly one RAM region");
         Assert::AreEqual (kAppleIIRamSize, config.ram[0].size,
-            L"apple2plus.json RAM region must be $C000 bytes");
+            L"Apple2Plus.json RAM region must be $C000 bytes");
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
-            L"apple2plus.json system ROM must remain at $D000");
+            L"Apple2Plus.json system ROM must remain at $D000");
         Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size (),
-            L"apple2plus.json must list exactly 3 video modes");
+            L"Apple2Plus.json must list exactly 3 video modes");
 
         for (i = 0; i < config.videoConfig.modes.size (); i++)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 config.videoConfig.modes[i],
-                L"apple2plus.json must NOT include 80-col text mode");
+                L"Apple2Plus.json must NOT include 80-col text mode");
             Assert::AreNotEqual (std::string ("apple2-doublehires"),
                 config.videoConfig.modes[i],
-                L"apple2plus.json must NOT include double-hires mode");
+                L"Apple2Plus.json must NOT include double-hires mode");
         }
     }
 
@@ -482,7 +482,7 @@ public:
         std::vector<fs::path>   searchPaths;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2.json");
+        json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
         hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
@@ -490,19 +490,19 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
-            L"apple2.json keyboard type must remain apple2-uppercase");
+            L"Apple2.json keyboard type must remain apple2-uppercase");
 
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-keyboard"),
-            L"apple2.json must keep apple2-keyboard");
+            L"Apple2.json must keep apple2-keyboard");
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-speaker"),
-            L"apple2.json must keep apple2-speaker");
+            L"Apple2.json must keep apple2-speaker");
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-softswitches"),
-            L"apple2.json must keep apple2-softswitches");
+            L"Apple2.json must keep apple2-softswitches");
 
         Assert::AreEqual (size_t (3), config.internalDevices.size (),
-            L"apple2.json internalDevices count must remain exactly 3");
+            L"Apple2.json internalDevices count must remain exactly 3");
         Assert::AreEqual (size_t (0), config.slots.size (),
-            L"apple2.json must declare zero slot devices by default");
+            L"Apple2.json must declare zero slot devices by default");
     }
 
 
@@ -520,7 +520,7 @@ public:
         std::vector<fs::path>   searchPaths;
         HRESULT                 hr;
 
-        json = ReadMachineJson ("apple2plus.json");
+        json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
         hr = MachineConfigLoader::Load (json, searchPaths, MockResolveAll,
@@ -528,19 +528,19 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
-            L"apple2plus.json keyboard type must remain apple2-uppercase");
+            L"Apple2Plus.json keyboard type must remain apple2-uppercase");
 
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-keyboard"),
-            L"apple2plus.json must keep apple2-keyboard");
+            L"Apple2Plus.json must keep apple2-keyboard");
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-speaker"),
-            L"apple2plus.json must keep apple2-speaker");
+            L"Apple2Plus.json must keep apple2-speaker");
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-softswitches"),
-            L"apple2plus.json must keep apple2-softswitches");
+            L"Apple2Plus.json must keep apple2-softswitches");
 
         Assert::AreEqual (size_t (3), config.internalDevices.size (),
-            L"apple2plus.json internalDevices count must remain exactly 3");
+            L"Apple2Plus.json internalDevices count must remain exactly 3");
         Assert::AreEqual (size_t (0), config.slots.size (),
-            L"apple2plus.json must declare zero slot devices by default");
+            L"Apple2Plus.json must declare zero slot devices by default");
     }
 
 

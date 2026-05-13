@@ -8,18 +8,80 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.3.573] — 2026-05-13 — Friendly first-run bootstrap
+
 ### Added
+- **Friendly first-run boot disk.** When a machine config has a Disk
+  ][ controller (e.g. //e) and no disk is mounted in drive 1 from
+  the CLI, the registry, or the user's session, Casso now prompts
+  the user to download a stock Apple system master disk from the
+  Asimov archive (https://www.apple.asimov.net) — DOS 3.3 System
+  Master (680-0210-A, 1982) or ProDOS Users Disk (680-0224-C). Both
+  are size- and host-pinned. ][/][+ configs (which have no Disk ][
+  slot) are unaffected. A stale registry entry pointing at a
+  deleted disk is treated as "no disk" — the entry gets cleared
+  and the user is prompted again, instead of silently swallowing
+  the boot.
+- **Disk-image registry paths are now stored relative to `Casso.exe`.**
+  When the disk lives under or beside the exe (the common case for
+  the default `Disks/` peer dir), the per-machine `Disk1` /
+  `Disk2` registry values hold a path like `Disks\Foo.dsk` instead
+  of `D:\source\Casso\Disks\Foo.dsk`. The `Casso.exe` + `Disks/`
+  tree is now portable across moves. Disks the user explicitly
+  mounted from elsewhere (`E:\Games\Foo.dsk`) continue to be
+  remembered as absolute paths. Existing absolute entries are
+  read back as-is and rewritten relative on the next save.
+- **Per-machine registry helpers extracted to `Casso/DiskSettings.h/.cpp`**
+  so `Main.cpp` can read the saved disk before deciding whether to
+  offer a boot-disk download. Disk-path conversion lives there; the
+  registry layout (HKCU\Software\relmer\Casso\Machines\<machine>\
+  {Disk1,Disk2}) is unchanged.
+- **Apple-styled display strings throughout.** All user-visible
+  Apple references now use the styling Apple's marketing did
+  (`Apple ][`, `Apple ][+`, `Apple //e`, `Disk ][`). Comments still
+  use plain ASCII (`Apple II`) since they're developer-facing.
+- **Friendly first-run ROM bootstrap.** When a needed Apple ROM
+  image is missing, Casso now lists the missing files and offers to
+  download them from the AppleWin project in a single Yes/No dialog
+  (HTTPS via WinHTTP), instead of failing with a terse error and
+  exiting. The download placement honors the existing repo layout
+  when present, otherwise drops the files into `ROMs/` next to
+  `Casso.exe`. The set of ROMs Casso fetches is decided strictly
+  from the JSON config embedded in `Casso.exe` for the chosen
+  machine — if you've edited your on-disk `Machines/<machine>.json`
+  to add extra slot ROMs, sourcing those is on you. New
+  `AssetBootstrapTests` verify each shipped machine's required ROM
+  list and disk-controller status end-to-end (loads `Casso.exe` as
+  a resource module, parses its embedded JSON, asserts exact ROM
+  filenames + slot 6 disk-ii presence).
+- **Embedded default machine configs.** `Apple2.json`,
+  `Apple2Plus.json`, and `Apple2e.json` are now bundled as resources
+  in `Casso.exe` and extracted on first run when no `Machines/`
+  directory is found, so a loose `Casso.exe` is enough to get a
+  picker on screen.
 - **In-house bootable demo disk** under `Apple2/Demos/`. The
   `casso-rocks.a65` source assembles to a 45-byte sector-0 program
   that displays "CASSO ROCKS!" centered on the text screen. New
   `BootDiskTests::CassoRocks_DemoDisk_PrintsBanner` runtime-assembles
   the demo through Casso's own assembler, builds a synthetic `.dsk`,
-  boots through the real `disk2.rom`, and verifies the banner — and
+  boots through the real `Disk2.rom`, and verifies the banner — and
   also emits `casso-rocks.dsk` next to the source for direct GUI use.
   Replaces the project's previous reliance on the copyrighted DOS 3.3
   master image for end-to-end boot validation.
 
 ### Changed (CI)
+- **ROM and machine-config filenames now use `<MachineType>[_Suffix]`
+  casing**: `Apple2.rom`, `Apple2Plus.rom`, `Apple2e.rom`,
+  `Apple2_Video.rom`, `Apple2e_Video.rom`, `Disk2.rom` (and
+  `Apple2eEnhanced.rom` / `Disk2_13Sector.rom` in the AppleWin
+  catalog); machine configs renamed to `Machines/Apple2.json`,
+  `Apple2Plus.json`, `Apple2e.json`. Affects machine configs,
+  `scripts/FetchRoms.ps1`, the embedded resources + in-app
+  downloader catalog, fixtures, tests, and docs. Existing local
+  `ROMs/` directories should be renamed to match (case-only on
+  Windows requires a two-step `git mv`). The `--machine` CLI flag,
+  registry-stored last machine, and `fs::exists` lookups remain
+  case-insensitive on NTFS, so old values still resolve.
 - `Disks/` (local disk image cache, may contain copyrighted images)
   is now `.gitignore`d.
 - `CatalogReproductionTest` and `Pr3AuxClearTest` now resolve repo
@@ -80,7 +142,7 @@ Entries before versioning was introduced use dates only.
 
 ### Added (tests)
 - Real-ROM boot-decoder tests (`BootRomDecoderTests`) — drive the
-  actual `disk2.rom` slot 6 firmware on the emulated 6502 against
+  actual `Disk2.rom` slot 6 firmware on the emulated 6502 against
   synthetic disks; gates the on-disk format against the real Apple
   firmware's checksum routines.
 - Direct-bus readback tests (`DiskReadbackTests`) — all 35 tracks ×
@@ -123,8 +185,8 @@ IRQ/NMI infrastructure.
 ### Added (memory + Language Card — Phase 2 / 3)
 - **`AppleIIeMmu`** owns the //e bank-switching state (`RDRAMRD`,
   `RDRAMWRT`, `RDCXROM`, `RDC3ROM`, `RDALTZP`, `RD80STORE`, `RDPAGE2`,
-  `RDHIRES`) and replaces the legacy `AuxRamCard`. `apple2.json` and
-  `apple2plus.json` continue using their legacy banks; `apple2e.json` is
+  `RDHIRES`) and replaces the legacy `AuxRamCard`. `Apple2.json` and
+  `Apple2Plus.json` continue using their legacy banks; `Apple2e.json` is
   the only config that wires the MMU.
 - **64 KB auxiliary RAM** mapped through the MMU. Aux Zero Page / Stack
   toggled via `ALTZP`. 80STORE forces the page-2 / Hi-Res text + graphics
@@ -309,7 +371,7 @@ IRQ/NMI infrastructure.
 
 ### Added
 - **Character generator ROM loading** — text mode renderers now load the real
-  Apple character ROM file (`apple2-video.rom` for II/II+, `apple2e-enhanced-video.rom`
+  Apple character ROM file (`Apple2_Video.rom` for II/II+, `Apple2e_Video.rom`
   for the //e) instead of the embedded 96-character fallback. Fixes:
   - **//e cursor** is now visible (the cursor character was outside our embedded
     range)
@@ -331,7 +393,7 @@ IRQ/NMI infrastructure.
   - `characterRom` — character generator ROM (file only)
   - `internalDevices[]` — motherboard I/O (just `type`)
   - `slots[]` — expansion cards (`slot`, optional `device`, optional `rom`)
-  All three machine configs (`apple2.json`, `apple2plus.json`, `apple2e.json`)
+  All three machine configs (`Apple2.json`, `Apple2Plus.json`, `Apple2e.json`)
   migrated to the new schema.
 - **ROM size validation** — system ROM file size now determines the end address
   automatically (no more start/end mismatch bugs)
@@ -343,7 +405,7 @@ IRQ/NMI infrastructure.
   Disk II 13-sector, Mockingboard, Mouse Interface, Parallel printer, Super Serial
   Card, ThunderClock Plus, HDC SmartPort, Hard Disk drivers, Apple //e Enhanced
   system ROM
-- **Apple //e Disk II slot ROM** — `disk2.rom` now loads at $C600-$C6FF (slot 6)
+- **Apple //e Disk II slot ROM** — `Disk2.rom` now loads at $C600-$C6FF (slot 6)
   via the new schema, satisfying the //e autostart scan
 
 ## [1.0.307] — 2026-05-04

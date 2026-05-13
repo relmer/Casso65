@@ -437,7 +437,7 @@ Any access (read **or** write) to `$C030` (also mirrored `$C030`–`$C03F` on so
 **Casso:** `CharacterRomData` handles 2KB (Apple II) and 4KB (//e enhanced) ROM files. `Decode4K()` uses `XOR 0xFF` bit inversion. Alt-char-set (MouseText) supported when 4KB ROM loaded.
 
 **Gaps:**
-- **[MINOR]** `Decode4K()` (`CharacterRomData.cpp:205–257`): The primary char set mapping for `chars[0x80..0xFF]` loads from offsets `0x400` and `0x600`. Needs cross-check against the specific apple2e-enhanced-video.rom layout (each real ROM file may differ). If offset calculation is off, the normal character set will be garbled.
+- **[MINOR]** `Decode4K()` (`CharacterRomData.cpp:205–257`): The primary char set mapping for `chars[0x80..0xFF]` loads from offsets `0x400` and `0x600`. Needs cross-check against the specific Apple2e_Video.rom layout (each real ROM file may differ). If offset calculation is off, the normal character set will be garbled.
 - **[NIT]** `GetGlyphRow()` bit order is "bit 0 = leftmost dot." The Apple //e character ROM (4KB) uses bit 0 = leftmost, but the 2KB Apple II ROM uses bit 6 = leftmost (reversed). `Decode2K()` reverses bits; `Decode4K()` does not reverse. Both comment and code should be verified against ROM dumps.
 
 ---
@@ -450,7 +450,7 @@ The Disk II controller is a Woz Machine (WM) state-machine-based GCR (6-and-2 en
 
 ### Casso Implementation
 
-`DiskIIController.cpp`: sector-based approach, nibblizes tracks on demand. Handles .DSK format. Slot 6 configured in `apple2e.json`. **TODO comment** in header: *"Slot ROM at $Cs00-$CsFF needs a separate device or dual-range registration for boot firmware (disk2.rom)."*
+`DiskIIController.cpp`: sector-based approach, nibblizes tracks on demand. Handles .DSK format. Slot 6 configured in `Apple2e.json`. **TODO comment** in header: *"Slot ROM at $Cs00-$CsFF needs a separate device or dual-range registration for boot firmware (Disk2.rom)."*
 
 ### Gaps / Bugs
 
@@ -472,7 +472,7 @@ The //e has a 16 KB ROM at `$C000`–`$FFFF` internal to the MMU/ROM chips. Layo
 - `$C800`–`$CFFF`: Peripheral expansion ROM (selected by INTC8ROM, activated by slot access)
 - `$D000`–`$FFFF`: System ROM or Language Card RAM
 
-The `apple2e.rom` file is 16 KB covering `$C000`–`$FFFF`.
+The `Apple2e.rom` file is 16 KB covering `$C000`–`$FFFF`.
 
 ### Casso Implementation
 
@@ -511,14 +511,14 @@ The most pragmatic fix: make `FindDevice()` use **last-wins** rather than first-
 
 ### Casso Implementation
 
-- `apple2e.json:3`: `"cpu": "6502"` — NMOS 6502 only.
+- `Apple2e.json:3`: `"cpu": "6502"` — NMOS 6502 only.
 - `EmuCpu` wraps `Cpu` from `CassoCore`. `Cpu` implements the standard 6502 instruction set (`InitializeGroup00/01/10/Misc`).
 - Cycle counting: instruction cycles tracked via `m_lastCycles` + `AddCycles()`. No mid-instruction cycle-accurate bus timing.
 - No IRQ handling visible in `EmuCpu` or `EmulatorShell`.
 
 ### Gaps / Bugs
 
-- **[MAJOR]** Enhanced //e should use a **65C02** CPU. Missing instructions include `BRA`, `PHX`, `PHY`, `PLX`, `PLY`, `STZ`, `TRB`, `TSB`, `BIT #imm`, and the indexed zero-page indirect addressing fix (`(zp,X)` wrap-around). ProDOS and much //e software uses 65C02 instructions on the Enhanced platform. Source: `apple2e.json:3`.
+- **[MAJOR]** Enhanced //e should use a **65C02** CPU. Missing instructions include `BRA`, `PHX`, `PHY`, `PLX`, `PLY`, `STZ`, `TRB`, `TSB`, `BIT #imm`, and the indexed zero-page indirect addressing fix (`(zp,X)` wrap-around). ProDOS and much //e software uses 65C02 instructions on the Enhanced platform. Source: `Apple2e.json:3`.
 - **[MAJOR]** No IRQ support. The 80-col card firmware uses VBL-driven IRQs on some configurations. ProDOS uses IRQs for clock cards and mouse interface.
 - **[MINOR]** No NMI support. Not used by standard //e but absence is notable.
 - **[MINOR]** `EmuCpu::InitForEmulation()` randomizes main RAM (`$0000`–`$BFFF`) but then **zeroes `$0800`–`$0BFF`** (text page 2) to avoid visual artifacts from 80STORE (`EmuCpu.cpp:113`). This comment admits incomplete 80STORE handling. Once RAMRD/RAMWRT and ALTZP are fixed, this workaround should be removed.
@@ -638,7 +638,7 @@ All gaps consolidated by severity, highest priority first.
 | M6 | LC pre-write requires same address twice (should be any two odd-addr reads) | `LanguageCard.cpp:95` |
 | M7 | LC write to odd-addr switch doesn't reset pre-write state | `LanguageCard.cpp:53` |
 | M8 | Double hi-res is a rendering stub — only main memory, monochrome | `AppleDoubleHiResMode.cpp:52` |
-| M9 | Enhanced //e should use 65C02 CPU (BRA, PHX/PLX, STZ, TRB, TSB, etc.) | `apple2e.json:3` |
+| M9 | Enhanced //e should use 65C02 CPU (BRA, PHX/PLX, STZ, TRB, TSB, etc.) | `Apple2e.json:3` |
 | M10 | No IRQ support — 80-col card VBL interrupt and ProDOS IRQs absent | `EmuCpu.h` |
 | M11 | Soft reset doesn't reset CPU registers (SP, P flags) | `EmulatorShell.cpp:1456` |
 | M12 | Mixed-mode text overlay always 40-col; should use 80-col when 80COL active | `EmulatorShell.cpp:1779` |

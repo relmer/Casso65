@@ -21,7 +21,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  calls and bus reads of $C0E0-$C0EF (slot 6).
 //
 //  This complements BootRomDecoderTests: those exercise the on-disk
-//  format against the real disk2.rom firmware as a spec oracle. These
+//  format against the real Disk2.rom firmware as a spec oracle. These
 //  exercise the runtime path -- phase stepping, multi-track reads,
 //  multi-sector reads, motor on/off cycles -- in a way the boot ROM
 //  tests can't (the boot ROM only reads sector 0 of track 0 with

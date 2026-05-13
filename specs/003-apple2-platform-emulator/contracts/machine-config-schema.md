@@ -200,10 +200,10 @@ The slot ROM auto-maps to address `$C000 + slot * 0x100`. Slot device I/O auto-m
     ],
     "systemRom": {
         "address": "0xC000",
-        "file": "apple2e.rom"
+        "file": "Apple2e.rom"
     },
     "characterRom": {
-        "file": "apple2e-enhanced-video.rom"
+        "file": "Apple2e_Video.rom"
     },
     "internalDevices": [
         { "type": "apple2e-keyboard" },
@@ -213,7 +213,7 @@ The slot ROM auto-maps to address `$C000 + slot * 0x100`. Slot device I/O auto-m
         { "type": "language-card" }
     ],
     "slots": [
-        { "slot": 6, "device": "disk-ii", "rom": "disk2.rom" }
+        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
     ],
     "video": {
         "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]

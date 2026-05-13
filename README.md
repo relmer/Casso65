@@ -1,13 +1,18 @@
 # Casso
 
 [![CI](https://github.com/relmer/Casso/actions/workflows/ci.yml/badge.svg?branch=master&event=push)](https://github.com/relmer/Casso/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/github/license/relmer/Casso)](LICENSE)
+[![License: MIT](https://img.shields.io/github/license/relmer/Casso?cacheSeconds=300)](LICENSE)
+<!--
+[![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
+-->
 
 ## About
 
-![Casso Apple II Emulator](Assets/Apple%20%5D%5B%20GR%20Color%20Bands.png)
-
 Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS Technology 6502 microprocessor — the chip behind the Apple II, Commodore 64, NES, and Atari 2600.
+
+![Casso emulating an Apple //e booting DOS 3.3](Assets/Apple%202e%20DOS%203.3%20boot.png)
+
+![Casso Apple II Emulator](Assets/Apple%20%5D%5B%20GR%20Color%20Bands.png)
 
 The project includes:
 
@@ -102,7 +107,7 @@ distributed with this project. A script is included to download them from the
 .\ARM64\Debug\Casso.exe
 
 # Run with a specific machine config
-.\ARM64\Debug\Casso.exe --machine Machines\apple2e.json
+.\ARM64\Debug\Casso.exe --machine Machines\Apple2e.json
 ```
 
 The `ROMs/` directory is gitignored. Available machine configs are in `Machines/`.

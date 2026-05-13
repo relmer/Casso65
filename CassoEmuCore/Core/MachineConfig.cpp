@@ -453,6 +453,93 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CollectRomFiles
+//
+//  Light-weight pass that returns the relative ROM filenames
+//  referenced by a machine config (systemRom.file, characterRom.file,
+//  and any slots[].rom). Filenames are returned without "ROMs/"
+//  prefix and without resolution. Used for pre-flight existence
+//  checks (e.g. to offer the user a download).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::CollectRomFiles (
+    const string   & jsonText,
+    vector<string> & outFiles,
+    string         & outError)
+{
+    HRESULT             hr             = S_OK;
+    JsonValue           root;
+    JsonParseError      parseError;
+    const JsonValue   * pSystemRom     = nullptr;
+    const JsonValue   * pCharRom       = nullptr;
+    const JsonValue   * pSlots         = nullptr;
+    string              file;
+    HRESULT             hrOpt          = S_OK;
+    size_t              idx            = 0;
+
+    outFiles.clear();
+
+    hr = JsonParser::Parse (jsonText, root, parseError);
+
+    if (FAILED (hr))
+    {
+        outError = format ("JSON parse error at line {}, column {}: {}",
+                           parseError.line, parseError.column, parseError.message);
+    }
+
+    CHR (hr);
+
+    hrOpt = root.GetObject ("systemRom", pSystemRom);
+
+    if (SUCCEEDED (hrOpt))
+    {
+        HRESULT hrFile = pSystemRom->GetString ("file", file);
+
+        if (SUCCEEDED (hrFile) && !file.empty())
+        {
+            outFiles.push_back (file);
+        }
+    }
+
+    hrOpt = root.GetObject ("characterRom", pCharRom);
+
+    if (SUCCEEDED (hrOpt))
+    {
+        HRESULT hrFile = pCharRom->GetString ("file", file);
+
+        if (SUCCEEDED (hrFile) && !file.empty())
+        {
+            outFiles.push_back (file);
+        }
+    }
+
+    hrOpt = root.GetArray ("slots", pSlots);
+
+    if (SUCCEEDED (hrOpt))
+    {
+        for (idx = 0; idx < pSlots->ArraySize(); idx++)
+        {
+            const JsonValue & entry  = pSlots->ArrayAt (idx);
+            HRESULT           hrFile = entry.GetString ("rom", file);
+
+            if (SUCCEEDED (hrFile) && !file.empty())
+            {
+                outFiles.push_back (file);
+            }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Load
 //
 ////////////////////////////////////////////////////////////////////////////////

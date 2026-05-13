@@ -43,3 +43,9 @@
 
 // Accelerator table
 #define IDR_ACCELERATOR             101
+
+// Embedded default machine configs (RCDATA) — extracted to disk on
+// first run when the user has no Machines/ folder.
+#define IDR_MACHINE_APPLE2          200
+#define IDR_MACHINE_APPLE2PLUS      201
+#define IDR_MACHINE_APPLE2E         202

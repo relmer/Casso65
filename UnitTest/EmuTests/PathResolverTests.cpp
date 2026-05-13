@@ -82,7 +82,7 @@ public:
         }
 
         std::vector<fs::path> paths = { repoRoot, fs::path ("C:/nonexistent") };
-        fs::path result = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        fs::path result = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
 
         Assert::IsFalse (result.empty ());
         Assert::IsTrue (fs::exists (result));
@@ -104,7 +104,7 @@ public:
         }
 
         std::vector<fs::path> paths = { fs::path ("C:/nonexistent"), repoRoot };
-        fs::path result = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        fs::path result = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
 
         Assert::IsFalse (result.empty ());
         Assert::IsTrue (fs::exists (result));
@@ -143,12 +143,12 @@ public:
 
         std::vector<fs::path> paths = { repoRoot };
 
-        fs::path configFound = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        fs::path configFound = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
         Assert::IsFalse (configFound.empty ());
 
         // ROMs/ may or may not exist in the test environment,
         // but the search itself should not crash
-        PathResolver::FindFile (paths, "ROMs/apple2plus.rom");
+        PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom");
     }
 
 private:
@@ -160,14 +160,14 @@ private:
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        fs::path found = PathResolver::FindFile (paths, "machines/apple2plus.json");
+        fs::path found = PathResolver::FindFile (paths, "Machines/Apple2Plus.json");
 
         if (found.empty ())
         {
             return {};
         }
 
-        // Return the repo root (two levels up from machines/apple2plus.json)
+        // Return the repo root (two levels up from Machines/Apple2Plus.json)
         return found.parent_path ().parent_path ();
     }
 };

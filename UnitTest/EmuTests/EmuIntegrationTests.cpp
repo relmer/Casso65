@@ -300,12 +300,12 @@ public:
 
     TEST_METHOD (RealRom_ResetVector_IfAvailable)
     {
-        // If apple2plus.rom is available, load it and verify reset vector
+        // If Apple2Plus.rom is available, load it and verify reset vector
         auto paths = PathResolver::BuildSearchPaths (
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        std::string romPath = PathResolver::FindFile (paths, "ROMs/apple2plus.rom").string ();
+        std::string romPath = PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom").string ();
 
         if (romPath.empty ())
         {
@@ -350,7 +350,7 @@ public:
             PathResolver::GetExecutableDirectory (),
             PathResolver::GetWorkingDirectory ());
 
-        std::string romPath = PathResolver::FindFile (paths, "ROMs/apple2plus.rom").string ();
+        std::string romPath = PathResolver::FindFile (paths, "ROMs/Apple2Plus.rom").string ();
 
         if (romPath.empty ())
         {

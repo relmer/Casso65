@@ -11,10 +11,10 @@
     ],
     "systemRom": {
         "address": "0xD000",
-        "file": "apple2.rom"
+        "file": "Apple2.rom"
     },
     "characterRom": {
-        "file": "apple2-video.rom"
+        "file": "Apple2_Video.rom"
     },
     "internalDevices": [
         { "type": "apple2-keyboard" },

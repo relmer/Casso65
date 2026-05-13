@@ -74,6 +74,46 @@ fs::path PathResolver::FindFile (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindOrCreateAssetDir
+//
+//  Find an existing directory matching `relativeDir` within
+//  `searchPaths`. If none is found, return `fallbackBase /
+//  relativeDir` (creating it on disk). Used to honor the existing
+//  repo layout when present, or to bootstrap loose-exe layouts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path PathResolver::FindOrCreateAssetDir (
+    const vector<fs::path> & searchPaths,
+    const fs::path         & relativeDir,
+    const fs::path         & fallbackBase)
+{
+    fs::path           target;
+    error_code         ec;
+
+    
+
+    for (const auto & base : searchPaths)
+    {
+        fs::path candidate = base / relativeDir;
+
+        if (fs::is_directory (candidate, ec))
+        {
+            return candidate;
+        }
+    }
+
+    target = fallbackBase / relativeDir;
+    fs::create_directories (target, ec);
+    return target;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetExecutableDirectory
 //
 ////////////////////////////////////////////////////////////////////////////////

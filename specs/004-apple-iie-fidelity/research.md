@@ -204,7 +204,7 @@ Rationale / Alternatives considered**.
   visible at $C100-$C7FF and $C300 obeys SLOTC3ROM). $C800-$CFFF tracks
   INTC8ROM with the documented disable-on-read-of-$CFFF rule. $D000-$FFFF
   participates in LC bank/RAM/ROM selection per LC state. The 16 KB
-  `apple2e.rom` is loaded into `RomDevice` instances mapped accordingly.
+  `Apple2e.rom` is loaded into `RomDevice` instances mapped accordingly.
 - **Rationale**: FR-026..FR-029, audit §8.
 
 ## 17. Backward-compat strategy for ][ and ][+

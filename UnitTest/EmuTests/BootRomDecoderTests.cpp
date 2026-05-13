@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  End-to-end spec-conformance tests for the disk pipeline. Builds a
 //  synthetic .dsk image whose track 0 sectors carry known data patterns,
 //  nibblizes it through NibblizationLayer, mounts it on a //e + Disk II
-//  harness, then runs the *actual* disk2.rom boot firmware on the
+//  harness, then runs the *actual* Disk2.rom boot firmware on the
 //  emulated 6502 until it has loaded sector 0 into RAM. Asserts that the
 //  bytes the real boot ROM decoded into RAM match the original raw
 //  source bytes.
@@ -123,7 +123,7 @@ namespace
 
         core.diskController->SetExternalDisk (kDrive1, external);
 
-        // Surface the disk2.rom slot ROM at $C600 (CxxxRomRouter /
+        // Surface the Disk2.rom slot ROM at $C600 (CxxxRomRouter /
         // INTCXROM=0; audit C1).
         core.bus->WriteByte (kIntCxRomOff, 0);
 
@@ -260,7 +260,7 @@ namespace
                 L"ROM only leaves $C6xx after a sector read where address-"
                 L"field, V/T/S, and data-field checksums all matched -- so "
                 L"this means Casso's nibblized output is failing the spec-"
-                L"conformance check the real Apple disk2.rom firmware "
+                L"conformance check the real Apple Disk2.rom firmware "
                 L"applies. See %%TEMP%%\\bootrom-trace.log for PC trace.",
                 patternName, (unsigned long long) kSectorReadCycles);
             Assert::Fail (msg);
@@ -278,7 +278,7 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  The disk2.rom slot-6 boot firmware will JMP to the loaded
+    //  The Disk2.rom slot-6 boot firmware will JMP to the loaded
     //  bootstrap at $0801 ONLY after every checksum gate (address
     //  field volume/track/sector/checksum, then data field running-XOR
     //  checksum) verifies. So the simplest spec-conformance check is

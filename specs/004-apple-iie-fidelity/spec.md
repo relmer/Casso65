@@ -25,7 +25,7 @@ A retro-computing user launches the Casso emulator, selects the "Apple //e" mach
 
 **Acceptance Scenarios**:
 
-1. **Given** a fresh Apple //e machine configuration with the official `apple2e.rom`, **When** the emulator is powered on, **Then** the machine reaches the Applesoft `]` prompt within the equivalent of one real //e boot cycle and the text screen shows the standard "Apple //e" banner.
+1. **Given** a fresh Apple //e machine configuration with the official `Apple2e.rom`, **When** the emulator is powered on, **Then** the machine reaches the Applesoft `]` prompt within the equivalent of one real //e boot cycle and the text screen shows the standard "Apple //e" banner.
 2. **Given** the //e is at the BASIC prompt, **When** the user injects the keystrokes `HOME` then Return then `PRINT "HELLO"` then Return, **Then** the text screen scrape shows `HELLO` followed by the prompt on the next line.
 3. **Given** the //e is at the BASIC prompt, **When** the user injects `PR#3` followed by Return, **Then** the screen switches to 80-column mode (RD80VID reads as set, the 80STORE soft switch is engaged by firmware as required) and subsequent text output occupies all 80 columns correctly across main and auxiliary text memory.
 4. **Given** the //e has booted, **When** the user presses the Open Apple, Closed Apple, and Shift modifier keys, **Then** the corresponding status reads at $C061, $C062, and $C063 reflect those key states.
@@ -195,7 +195,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 - **FR-026**: The internal/peripheral ROM mapping MUST honor INTCXROM (internal $C100-$CFFF ROM vs slot ROMs) and SLOTC3ROM (when 0, the //e 80-column firmware is mapped at $C300; when 1, slot 3's card ROM is mapped) per the //e specification.
 - **FR-027**: The $C800-$CFFF expansion ROM window MUST track INTC8ROM correctly, including the access pattern that disables it.
 - **FR-028**: Slot 6's ROM ($C600-$C6FF) MUST be reachable when expected (no longer masked by an over-broad internal-ROM shadow), enabling disk boot.
-- **FR-029**: The 16 KB `apple2e.rom` MUST be mapped into $C000-$FFFF correctly per the //e ROM image layout.
+- **FR-029**: The 16 KB `Apple2e.rom` MUST be mapped into $C000-$FFFF correctly per the //e ROM image layout.
 
 #### CPU and IRQ infrastructure (audit §9)
 
@@ -251,7 +251,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 ### Key Entities
 
-- **Machine Configuration (Apple //e)**: A composed definition selecting the 6502 CPU, //e memory bus, //e soft-switch bank (layered over ][+/][), //e keyboard, speaker, //e video subsystem with character ROM, two Disk II drives in slot 6, the `apple2e.rom`, and the IRQ controller. Coexists with the existing Apple ][ and ][+ configurations.
+- **Machine Configuration (Apple //e)**: A composed definition selecting the 6502 CPU, //e memory bus, //e soft-switch bank (layered over ][+/][), //e keyboard, speaker, //e video subsystem with character ROM, two Disk II drives in slot 6, the `Apple2e.rom`, and the IRQ controller. Coexists with the existing Apple ][ and ][+ configurations.
 - **Soft-Switch Bank**: A layered registry of $C000-$C0FF read/write handlers contributed by each layer (][ base, ][+ additions, //e additions). Resolves which handler services each address based on the active machine.
 - **Memory Bus (with //e MMU)**: Routes CPU reads and writes through the soft-switch state (RAMRD, RAMWRT, ALTZP, 80STORE, PAGE2, HIRES, INTCXROM, SLOTC3ROM, INTC8ROM, BSRBANK2, BSRREADRAM, BSRWRITERAM) to one of: main RAM, aux RAM, main LC RAM bank 1, main LC RAM bank 2, aux LC RAM bank 1, aux LC RAM bank 2, internal ROM, slot ROM, expansion ROM.
 - **Language Card State Machine**: Pre-write arming via two consecutive odd reads; write-resets-arming; bank selection; RAM-read vs ROM-read selection; preserves contents across soft reset.
@@ -263,7 +263,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 - **Speaker**: Toggles on $C030 access and feeds the audio generator; in tests, fed to a mock audio sink.
 - **CPU (6502, pluggable)**: Behind a CPU interface so a 65C02 (or other) variant can be substituted. Exposes an IRQ input line driven by the interrupt controller.
 - **Interrupt Controller**: Aggregates device IRQ assertions and drives the CPU IRQ line. Empty of asserters in this feature, ready for clock/mouse/Mockingboard later.
-- **ROM Mapper**: Resolves the $C000-$FFFF ROM/RAM landscape per INTCXROM, SLOTC3ROM, INTC8ROM, slot card ROMs, expansion ROM window, LC RAM/ROM, and the `apple2e.rom` image.
+- **ROM Mapper**: Resolves the $C000-$FFFF ROM/RAM landscape per INTCXROM, SLOTC3ROM, INTC8ROM, slot card ROMs, expansion ROM window, LC RAM/ROM, and the `Apple2e.rom` image.
 - **Headless Test Harness**: Owns a //e instance with mocked window/audio/keyboard/mouse/host-IO; provides keystroke injection, text-screen scrape, framebuffer hash, fixture-disk mount, and assertion utilities.
 - **Test Fixtures (in-repo)**: A DOS 3.3 disk, a ProDOS disk, a WOZ disk, a public-domain copy-protected disk, and any small reference framebuffer hashes / expected memory snapshots.
 
@@ -294,7 +294,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 ## Assumptions
 
-- The official `apple2e.rom` (16 KB, $C000-$FFFF layout) and the //e character ROM (including ALTCHARSET) are available to the emulator at runtime through the existing ROM-loading mechanism. Tests that need ROM behavior either use a bundled, redistributable ROM fixture or stub the relevant ROM bytes deterministically.
+- The official `Apple2e.rom` (16 KB, $C000-$FFFF layout) and the //e character ROM (including ALTCHARSET) are available to the emulator at runtime through the existing ROM-loading mechanism. Tests that need ROM behavior either use a bundled, redistributable ROM fixture or stub the relevant ROM bytes deterministically.
 - Bundled disk fixtures will be either public-domain or original to this project. The "simple copy-protected disk" fixture will be a public-domain image suitable for redistribution.
 - "Approximately 1% of one host CPU core" is interpreted as the average over a multi-second window on a representative modern host (single recent x64/ARM64 core in the multi-GHz class), not a strict per-instant cap. The performance test will define the exact sampling protocol.
 - The "two consecutive odd reads" Language Card pre-write semantics align with AppleWin's implementation, which the audit cites as the reference. Where AppleWin and Sather disagree on an obscure detail, AppleWin's observed real-hardware behavior wins.

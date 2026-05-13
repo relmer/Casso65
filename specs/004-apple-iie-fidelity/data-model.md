@@ -288,14 +288,14 @@ verify CPU IRQ dispatch and the controller's aggregation.
 
 ## Machine assembly (Apple //e)
 
-`Machines/apple2e.json` (modified) declares:
+`Machines/Apple2e.json` (modified) declares:
 
 - `Cpu6502` (via `ICpu`)
 - `InterruptController`
 - `MemoryBus`
 - `Prng` (seed configurable)
 - `RamDevice` × 2 (main 64K, aux 64K)
-- `RomDevice` (apple2e.rom 16K)
+- `RomDevice` (Apple2e.rom 16K)
 - `AppleIIeMmu`
 - `AppleSoftSwitchBank` (][ base, layered)
 - `AppleIIeSoftSwitchBank` (composed atop)
@@ -307,7 +307,7 @@ verify CPU IRQ dispatch and the controller's aggregation.
 - `VideoOutput` with: `AppleTextMode`, `Apple80ColTextMode`, `AppleLoResMode`,
   `AppleHiResMode`, `AppleDoubleHiResMode`
 
-`Machines/apple2.json` and `Machines/apple2plus.json` are NOT modified.
+`Machines/Apple2.json` and `Machines/Apple2Plus.json` are NOT modified.
 
 ---
 

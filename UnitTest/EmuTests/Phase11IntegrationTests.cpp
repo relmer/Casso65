@@ -101,7 +101,7 @@ namespace
 
         core.diskController->SetExternalDisk (kDrive1, external);
 
-        // Ensure INTCXROM=0 so $C600 surfaces the disk2.rom boot ROM
+        // Ensure INTCXROM=0 so $C600 surfaces the Disk2.rom boot ROM
         // (CxxxRomRouter unshadowed per audit C1).
         core.bus->WriteByte (kIntCxRomOff, 0);
 

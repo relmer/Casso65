@@ -111,7 +111,7 @@ public:
                 "cyclesPerScanline": 65
             },
             "ram": [],
-            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [],
             "video": { "modes": [] },
             "keyboard": { "type": "test" }
@@ -177,7 +177,7 @@ public:
                 "cyclesPerScanline": 65
             },
             "ram": [],
-            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [],
             "slots": [
                 { "slot": 8, "device": "disk-ii" }
@@ -210,7 +210,7 @@ public:
                 "cyclesPerScanline": 65
             },
             "ram": [],
-            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [],
             "slots": [
                 { "slot": 6 }
@@ -260,6 +260,79 @@ public:
             L"Should have 3 video modes");
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  CollectRomFiles
+    //
+    //  CollectRomFiles is the pre-flight pass AssetBootstrap uses to
+    //  decide which ROM files (if any) need downloading. Lock down
+    //  exactly which references it picks up so the in-app downloader
+    //  can never silently miss a ROM the loader will later require.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (CollectRomFiles_SystemRomOnly_ReturnsOneFile)
+    {
+        std::string              json = MinimalJson ();
+        std::vector<std::string> files;
+        std::string              error;
+
+        HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
+
+        Assert::IsTrue (SUCCEEDED (hr),
+            std::format (L"CollectRomFiles should succeed: {}",
+                std::wstring (error.begin (), error.end ())).c_str ());
+        Assert::AreEqual (size_t (1), files.size (),
+            L"Minimal config has only systemRom");
+        Assert::AreEqual (std::string ("Apple2Plus.rom"), files[0],
+            L"systemRom.file must be returned");
+    }
+
+    TEST_METHOD (CollectRomFiles_WithCharacterRom_ReturnsBoth)
+    {
+        std::string              json  = JsonWithCharRom ();
+        std::vector<std::string> files;
+        std::string              error;
+
+        HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (size_t (2), files.size (),
+            L"systemRom + characterRom = 2 files");
+        Assert::AreEqual (std::string ("Apple2.rom"),       files[0]);
+        Assert::AreEqual (std::string ("Apple2_Video.rom"), files[1]);
+    }
+
+    TEST_METHOD (CollectRomFiles_WithSlotRoms_IncludesAll)
+    {
+        std::string              json  = JsonWithSlotRom ();
+        std::vector<std::string> files;
+        std::string              error;
+
+        HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual (size_t (3), files.size (),
+            L"system + character + 1 slot ROM = 3 files");
+        Assert::AreEqual (std::string ("Apple2e.rom"),       files[0]);
+        Assert::AreEqual (std::string ("Apple2e_Video.rom"), files[1]);
+        Assert::AreEqual (std::string ("Disk2.rom"),         files[2]);
+    }
+
+    TEST_METHOD (CollectRomFiles_MalformedJson_ReturnsError)
+    {
+        std::string              json  = "{ not valid json";
+        std::vector<std::string> files;
+        std::string              error;
+
+        HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
+
+        Assert::IsTrue (FAILED (hr),
+            L"Malformed JSON must surface as an error");
+        Assert::IsTrue (files.empty (),
+            L"On parse failure no files should be reported");
+    }
+
 private:
 
     // Mock resolver that creates a temporary file of the expected size for the
@@ -274,23 +347,23 @@ private:
         std::string filename = relativePath.filename ().string ();
         size_t      expectedSize = 0;
 
-        if (filename == "apple2plus.rom" || filename == "apple2.rom")
+        if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
         {
             expectedSize = 12288;
         }
-        else if (filename == "apple2e.rom" || filename == "apple2e-enhanced.rom")
+        else if (filename == "Apple2e.rom" || filename == "Apple2eEnhanced.rom")
         {
             expectedSize = 16384;
         }
-        else if (filename == "disk2.rom")
+        else if (filename == "Disk2.rom")
         {
             expectedSize = 256;
         }
-        else if (filename == "apple2-video.rom")
+        else if (filename == "Apple2_Video.rom")
         {
             expectedSize = 2048;
         }
-        else if (filename == "apple2e-enhanced-video.rom")
+        else if (filename == "Apple2e_Video.rom")
         {
             expectedSize = 4096;
         }
@@ -348,7 +421,7 @@ private:
             "ram": [
                 { "address": "0x0000", "size": "0xC000" }
             ],
-            "systemRom": { "address": "0xD000", "file": "apple2plus.rom" },
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [
                 { "type": "apple2-keyboard" },
                 { "type": "apple2-speaker" },
@@ -373,8 +446,49 @@ private:
                 { "address": "0x0000", "size": "0xC000" },
                 { "address": "0x0000", "size": "0xC000", "bank": "aux" }
             ],
-            "systemRom": { "address": "0xC000", "file": "apple2e.rom" },
+            "systemRom": { "address": "0xC000", "file": "Apple2e.rom" },
             "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "apple2e-full" }
+        })";
+    }
+
+    static std::string JsonWithCharRom ()
+    {
+        return R"({
+            "name": "TestII",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom":    { "address": "0xD000", "file": "Apple2.rom" },
+            "characterRom": {                      "file": "Apple2_Video.rom" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "apple2-uppercase" }
+        })";
+    }
+
+    static std::string JsonWithSlotRom ()
+    {
+        return R"({
+            "name": "TestIIeWithDisk",
+            "cpu": "6502",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom":    { "address": "0xC000", "file": "Apple2e.rom" },
+            "characterRom": {                      "file": "Apple2e_Video.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+            ],
             "video": { "modes": [] },
             "keyboard": { "type": "apple2e-full" }
         })";

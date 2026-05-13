@@ -47,9 +47,9 @@ ROM images are copyrighted and not distributed with the project. Place them in:
 
 ```
 Casso/ROMs/
-├── apple2.rom           # Apple II (Integer BASIC) — 12KB
-├── apple2plus.rom       # Apple II+ (Applesoft BASIC) — 12KB
-├── apple2e.rom          # Apple IIe system ROM
+├── Apple2.rom           # Apple II (Integer BASIC) — 12KB
+├── Apple2Plus.rom       # Apple II+ (Applesoft BASIC) — 12KB
+├── Apple2e.rom          # Apple IIe system ROM
 └── apple2e-char.rom     # Apple IIe character generator ROM
 ```
 
@@ -156,7 +156,7 @@ Casso/                  # Win32 GUI application (flat structure)
 ├── WasapiAudio.h/.cpp       # WASAPI shared-mode audio (4 ComPtr members)
 ├── MenuSystem.h/.cpp        # Table-driven Win32 menu creation
 ├── DebugConsole.h/.cpp      # Debug log (derives from Window, lazy-init, Show/Hide)
-├── Machines/    # apple2.json, apple2plus.json, apple2e.json
+├── Machines/    # Apple2.json, Apple2Plus.json, Apple2e.json
 ├── ROMs/        # (gitignored) user-supplied ROM images
 └── shaders/     # VertexShader.hlsl, PixelShader.hlsl (compiled at build time)
 ```

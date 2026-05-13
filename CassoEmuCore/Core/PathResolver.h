@@ -23,6 +23,10 @@ public:
     // Returns the full resolved path, or empty path if not found.
     static fs::path FindFile (const vector<fs::path> & searchPaths, const fs::path & relativePath);
 
+    static fs::path FindOrCreateAssetDir (const vector<fs::path> & searchPaths,
+                                          const fs::path         & relativeDir,
+                                          const fs::path         & fallbackBase);
+
     // Get the executable's directory
     static fs::path GetExecutableDirectory ();
 

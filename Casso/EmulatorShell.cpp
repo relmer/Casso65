@@ -17,6 +17,8 @@
 #include "Core/Prng.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
+#include "DiskSettings.h"
+#include "UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
 #include "Video/AppleTextMode.h"
@@ -39,76 +41,6 @@
     "language='*'\"")
 
 static constexpr LPCWSTR kLastMachineValue = L"LastMachine";
-
-// Per-machine UI state lives under HKCU\Software\relmer\Casso\Machines\{machine}.
-// Disk paths under that subkey use the simple value names "Disk1" / "Disk2".
-// Future per-machine state (window size, speed mode, write-protect flags)
-// can land alongside without colliding across machines.
-static constexpr LPCWSTR kMachinesRoot       = L"Machines";
-static constexpr LPCWSTR kDiskValueNames[2]  = { L"Disk1", L"Disk2" };
-
-static wstring MakeMachineSubkey (const wstring & machineName)
-{
-    wstring  sub = kMachinesRoot;
-
-    if (!machineName.empty ())
-    {
-        sub += L"\\";
-        sub += machineName;
-    }
-
-    return sub;
-}
-
-// Pre-hierarchy value name (Disk1.apple2e). Kept for one-shot migration
-// of users who already have a saved disk under the flat layout from the
-// previous build -- read from the legacy slot if the new slot is empty,
-// then re-write into the new slot. Old value isn't deleted (harmless).
-static wstring MakeLegacyDiskValueName (int drive, const wstring & machineName)
-{
-    wstring  name;
-
-    name = (drive == 0) ? L"Disk1." : L"Disk2.";
-    name += machineName;
-    return name;
-}
-
-static HRESULT ReadSavedDiskPath (int drive, const wstring & machineName, wstring & outPath)
-{
-    HRESULT  hr     = S_OK;
-    wstring  subkey = MakeMachineSubkey (machineName);
-
-    outPath.clear ();
-
-    hr = RegistrySettings::ReadString (subkey.c_str (), kDiskValueNames[drive], outPath);
-
-    if (hr == S_FALSE || (hr == S_OK && outPath.empty ()))
-    {
-        // Fall back to the legacy flat-namespace value from the prior
-        // build. If found, copy it forward to the hierarchical layout
-        // so subsequent reads hit the new location.
-        wstring  legacy;
-        HRESULT  hrLegacy = RegistrySettings::ReadString (
-            MakeLegacyDiskValueName (drive, machineName).c_str (), legacy);
-
-        if (hrLegacy == S_OK && !legacy.empty ())
-        {
-            outPath = legacy;
-            HRESULT hrMigrate = RegistrySettings::WriteString (
-                subkey.c_str (), kDiskValueNames[drive], legacy);
-            IGNORE_RETURN_VALUE (hrMigrate, S_OK);
-            hr = S_OK;
-        }
-    }
-
-    return hr;
-}
-
-static HRESULT WriteSavedDiskPath (int drive, const wstring & machineName, const wstring & path)
-{
-    wstring  subkey = MakeMachineSubkey (machineName);
-    return RegistrySettings::WriteString (subkey.c_str (), kDiskValueNames[drive], path);
-}
 
 
 
@@ -1568,7 +1500,7 @@ void EmulatorShell::MountCommandLineDisks (
     if (resolvedDisk1.empty () && !m_currentMachineName.empty ())
     {
         wstring  saved;
-        HRESULT  hrRead = ReadSavedDiskPath (0, m_currentMachineName, saved);
+        HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (0, m_currentMachineName, saved);
 
         if (hrRead == S_OK && !saved.empty ())
         {
@@ -1579,7 +1511,7 @@ void EmulatorShell::MountCommandLineDisks (
     if (resolvedDisk2.empty () && !m_currentMachineName.empty ())
     {
         wstring  saved;
-        HRESULT  hrRead = ReadSavedDiskPath (1, m_currentMachineName, saved);
+        HRESULT  hrRead = DiskSettings::ReadSavedDiskPath (1, m_currentMachineName, saved);
 
         if (hrRead == S_OK && !saved.empty ())
         {
@@ -1673,7 +1605,7 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
     if (!m_currentMachineName.empty ())
     {
         wstring  wPath = fs::path (path).wstring ();
-        HRESULT  hrReg = WriteSavedDiskPath (drive, m_currentMachineName, wPath);
+        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, wPath);
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 
@@ -1709,7 +1641,7 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
     // empty in this slot.
     if (!m_currentMachineName.empty ())
     {
-        HRESULT  hrReg = WriteSavedDiskPath (drive, m_currentMachineName, L"");
+        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, L"");
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 }
@@ -3461,13 +3393,13 @@ void EmulatorShell::OnHelpCommand (int id)
         {
             MessageBoxW (m_hwnd,
                 L"PC Key Mapping:\n\n"
-                L"Arrow Keys -> Apple II cursor movement\n"
+                L"Arrow Keys -> Apple ][ cursor movement\n"
                 L"Enter -> Return\n"
                 L"Escape -> Escape\n"
                 L"Delete -> Delete\n"
                 L"Ctrl+Reset -> Warm Reset\n"
-                L"Left Alt -> Open Apple (IIe)\n"
-                L"Right Alt -> Closed Apple (IIe)\n\n"
+                L"Left Alt -> Open Apple (//e)\n"
+                L"Right Alt -> Closed Apple (//e)\n\n"
                 L"Emulator Controls:\n"
                 L"Ctrl+R -> Reset\n"
                 L"Ctrl+Alt+R -> Autoboot Reset (cold boot from disk)\n"
@@ -3484,11 +3416,11 @@ void EmulatorShell::OnHelpCommand (int id)
         case IDM_HELP_ABOUT:
         {
             MessageBoxW (m_hwnd,
-                L"Casso Apple II Emulator\n"
+                L"Casso Apple ][ Emulator\n"
                 L"Version " _CRT_WIDE (VERSION_STRING) L"\n"
                 L"Built " _CRT_WIDE (VERSION_BUILD_TIMESTAMP) L"\n\n"
-                L"An Apple II platform emulator built on the\n"
-                L"Casso 6502 assembler/emulator project.\n\n"
+                L"An Apple ][ / ][+ / //e platform emulator built on\n"
+                L"the Casso 6502 assembler/emulator project.\n\n"
                 L"https://github.com/relmer/Casso",
                 L"About Casso", MB_ICONINFORMATION | MB_OK);
             break;
@@ -3517,7 +3449,9 @@ void EmulatorShell::UpdateWindowTitle()
 
     if (!m_config.name.empty())
     {
-        title += L" \u2014 ";
+        title += L' ';
+        title += s_kchEmDash;
+        title += L' ';
 
         // Convert machine name to wide string
         wideName = fs::path (m_config.name).wstring();

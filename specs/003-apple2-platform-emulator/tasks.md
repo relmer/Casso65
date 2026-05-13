@@ -81,7 +81,7 @@
 - [X] T026 [P] [US1] Embed Apple II/II+ character generator glyphs as `const Byte[]` array (2KB, 96 characters) in `Casso/Video/CharacterRom.h` per FR-028
 - [X] T027 [US1] Implement `AppleTextMode` in `Casso/Video/AppleTextMode.h/.cpp` — `VideoOutput` implementation for 40×24 text rendering, interleaved row address calculation (`base + 128*(row%8) + 40*(row/8)`), character ROM lookup from `CharacterRom.h`, normal/inverse/flash character modes, cursor blink, `Render(videoRam, framebuffer, 560, 384)` writing 2×-scaled RGBA pixels, `GetActivePageAddress(page2)` returning $0400 or $0800
 - [X] T028 [US1] Implement `VideoOutput` interface in `Casso/Video/VideoOutput.h` — abstract base with `Render(const Byte*, uint32_t*, int, int)` and `GetActivePageAddress(bool)` pure virtual methods
-- [X] T029 [US1] Create `Casso/Machines/apple2plus.json` machine config per spec.md example — name "Apple II+", cpu "6502", clockSpeed 1023000, RAM $0000–$BFFF, ROM $D000–$FFFF from `apple2plus.rom`, keyboard/speaker/softswitches/language-card/disk-ii devices, video modes text40/lores/hires, keyboard type apple2-uppercase
+- [X] T029 [US1] Create `Casso/Machines/Apple2Plus.json` machine config per spec.md example — name "Apple II+", cpu "6502", clockSpeed 1023000, RAM $0000–$BFFF, ROM $D000–$FFFF from `Apple2Plus.rom`, keyboard/speaker/softswitches/language-card/disk-ii devices, video modes text40/lores/hires, keyboard type apple2-uppercase
 - [X] T030 [US1] Register `AppleKeyboard`, `AppleSoftSwitchBank` factories and `AppleTextMode` video mode in `RegisterBuiltinDevices()` in `Casso/Core/ComponentRegistry.cpp`
 - [X] T031 [US1] Wire keyboard input from `WM_KEYDOWN`/`WM_CHAR` Win32 messages through `EmulatorShell` to `AppleKeyboard` device — translate PC key codes to Apple II ASCII, handle Ctrl+Reset (warm reset via reset vector per FR-032), integrate into frame loop
 - [X] T032 [US1] Implement emulation timing in `EmulatorShell` — execute ~17,050 CPU cycles per frame via `EmuCpu::StepOne()` loop, select active `VideoOutput` based on soft switch state, call `Render()` to fill framebuffer, `UploadAndPresent()`, `QueryPerformanceCounter`-based frame timing at ~60 fps, speed synchronization with idle time insertion
@@ -176,7 +176,7 @@
 - [X] T056 [P] [US6] Implement `AppleIIeSoftSwitchBank` in `Casso/Devices/AppleIIeSoftSwitchBank.h/.cpp` — extends `AppleSoftSwitchBank` with IIe-specific switches: 80-column mode ($C00C/$C00D), character set select ($C00E/$C00F), double hi-res ($C05E/$C05F), page 1/2 also selects main/aux for $0400/$2000 regions, IOU disable/enable ($C07E/$C07F), static `Create` factory
 - [X] T057 [P] [US6] Implement `Apple80ColTextMode` in `Casso/Video/Apple80ColTextMode.h/.cpp` — `VideoOutput` for 80×24 text, interleaved main/aux memory reading (even columns from aux, odd from main or vice versa), Apple IIe character ROM lookup (loaded from `apple2e-char.rom` file per config, includes MouseText and lowercase), `Render` to 560×384 framebuffer
 - [X] T058 [P] [US6] Implement `AppleDoubleHiResMode` in `Casso/Video/AppleDoubleHiResMode.h/.cpp` — `VideoOutput` for 560×192 double hi-res from interleaved main/aux hi-res memory, 16-color palette, 7 bits per byte from alternating aux/main bytes across each scanline, `Render` and `GetActivePageAddress`
-- [X] T059 [US6] Create `Casso/Machines/apple2e.json` machine config per spec.md example — name "Apple IIe", cpu "6502", RAM $0000–$BFFF main + aux bank, ROM from apple2e.rom ($C100–$FFFF) + apple2e-char.rom (chargen target), devices: apple2e-keyboard, speaker, apple2e-softswitches, aux-ram-card, language-card, disk-ii slot 6, video modes: text40/text80/lores/hires/doublehires, keyboard type apple2e-full
+- [X] T059 [US6] Create `Casso/Machines/Apple2e.json` machine config per spec.md example — name "Apple IIe", cpu "6502", RAM $0000–$BFFF main + aux bank, ROM from Apple2e.rom ($C100–$FFFF) + apple2e-char.rom (chargen target), devices: apple2e-keyboard, speaker, apple2e-softswitches, aux-ram-card, language-card, disk-ii slot 6, video modes: text40/text80/lores/hires/doublehires, keyboard type apple2e-full
 - [X] T060 [US6] Register `AppleIIeKeyboard`, `AuxRamCard`, `AppleIIeSoftSwitchBank`, `Apple80ColTextMode`, `AppleDoubleHiResMode` factories in `RegisterBuiltinDevices()` in `Casso/Core/ComponentRegistry.cpp`
 - [X] T061 [US6] Update `EmulatorShell` video mode selection to handle IIe-specific modes — 80-column text when `80colMode` soft switch active, double hi-res when `doubleHiRes` and `hiresMode` both active, ensure `AuxRamCard` bank switching interacts correctly with video renderers reading from aux memory
 
@@ -192,7 +192,7 @@
 
 ### Implementation for User Story 7
 
-- [X] T062 [US7] Create `Casso/Machines/apple2.json` machine config for original Apple II — identical to apple2plus.json except name "Apple II" and ROM file `apple2.rom` (Integer BASIC) per FR-026 and spec.md Apple II config example
+- [X] T062 [US7] Create `Casso/Machines/Apple2.json` machine config for original Apple II — identical to Apple2Plus.json except name "Apple II" and ROM file `Apple2.rom` (Integer BASIC) per FR-026 and spec.md Apple II config example
 - [X] T063 [US7] Implement machine config discovery in `Main.cpp` — scan `Machines/` directory for `.json` files, list available machine names in error messages when `--machine` argument is invalid or missing per cli-contract.md
 - [X] T064 [US7] Validate complete config error reporting path — test all error conditions from cli-contract.md: missing `--machine`, unknown machine name, JSON parse error with line/column, missing ROM file with expected path, invalid .dsk file size, overlapping device addresses naming both devices, unknown device type listing registered types
 - [X] T065 [US7] Validate component registry extensibility — ensure a new device type can be registered and referenced from a config file without modifying EmulatorShell, MemoryBus, or existing machine configs per SC-008
@@ -283,7 +283,7 @@ Task: "Implement Apple80ColTextMode in Casso/Video/Apple80ColTextMode.h/.cpp"
 Task: "Implement AppleDoubleHiResMode in Casso/Video/AppleDoubleHiResMode.h/.cpp"
 
 # Then sequentially:
-Task: "Create apple2e.json machine config"
+Task: "Create Apple2e.json machine config"
 Task: "Register all IIe factories"
 Task: "Update EmulatorShell for IIe video mode selection"
 ```

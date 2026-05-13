@@ -11,6 +11,7 @@
 #include <audioclient.h>
 #include <commdlg.h>
 #include <commctrl.h>
+#include <winhttp.h>
 
 #include <crtdbg.h>
 #include <shellapi.h>
@@ -27,8 +28,10 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <vector>

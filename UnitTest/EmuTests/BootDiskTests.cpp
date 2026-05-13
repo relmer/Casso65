@@ -36,7 +36,7 @@ namespace fs = std::filesystem;
 //  on the rendered text screen.
 //
 //  Exercises: Assembler -> NibblizationLayer -> DiskImageStore ->
-//  DiskIIController -> DiskIINibbleEngine -> disk2.rom slot 6 boot ->
+//  DiskIIController -> DiskIINibbleEngine -> Disk2.rom slot 6 boot ->
 //  6502 CPU executing our code -> MMU text-page write -> renderer's
 //  text-screen scraper.
 //

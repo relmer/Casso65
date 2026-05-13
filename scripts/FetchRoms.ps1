@@ -8,12 +8,12 @@
     images are copyrighted by Apple and not distributed with this project.
 
     Files downloaded:
-      - Apple II ROM         (12 KB) → apple2.rom
-      - Apple II+ ROM        (12 KB) → apple2plus.rom
-      - Apple IIe ROM        (16 KB) → apple2e.rom
-      - Apple II Video ROM   (2 KB)  → apple2-video.rom   (character generator)
-      - Apple IIe Video ROM  (4 KB)  → apple2e-video.rom  (character generator + MouseText)
-      - Disk II Boot ROM     (256 B) → disk2.rom           (slot 6 boot firmware)
+      - Apple II ROM         (12 KB) → Apple2.rom
+      - Apple II+ ROM        (12 KB) → Apple2Plus.rom
+      - Apple IIe ROM        (16 KB) → Apple2e.rom
+      - Apple II Video ROM   (2 KB)  → Apple2_Video.rom   (character generator)
+      - Apple IIe Video ROM  (4 KB)  → Apple2e_Video.rom  (character generator + MouseText)
+      - Disk II Boot ROM     (256 B) → Disk2.rom           (slot 6 boot firmware)
 
     Source: https://github.com/AppleWin/AppleWin/tree/master/resource
 
@@ -39,14 +39,14 @@ $baseUrl = 'https://raw.githubusercontent.com/AppleWin/AppleWin/master/resource'
 
 # Map: AppleWin filename → our filename
 $romFiles = @(
-    @{ Source = 'Apple2.rom';                  Dest = 'apple2.rom';              Size = 12288;  Desc = 'Apple II ROM (Integer BASIC)' },
-    @{ Source = 'Apple2_Plus.rom';             Dest = 'apple2plus.rom';          Size = 12288;  Desc = 'Apple II+ ROM (Applesoft BASIC)' },
-    @{ Source = 'Apple2e.rom';                 Dest = 'apple2e.rom';             Size = 16384;  Desc = 'Apple IIe ROM' },
-    @{ Source = 'Apple2e_Enhanced.rom';        Dest = 'apple2e-enhanced.rom';    Size = 16384;  Desc = 'Apple IIe Enhanced ROM (65C02)' },
-    @{ Source = 'Apple2_Video.rom';            Dest = 'apple2-video.rom';        Size = 2048;   Desc = 'Apple II/II+ Character Generator ROM' },
-    @{ Source = 'Apple2e_Enhanced_Video.rom';  Dest = 'apple2e-enhanced-video.rom'; Size = 4096; Desc = 'Apple IIe Character Generator ROM (used for both Original and Enhanced IIe)' },
-    @{ Source = 'DISK2.rom';                   Dest = 'disk2.rom';               Size = 256;    Desc = 'Disk II Boot ROM (slot 6)' },
-    @{ Source = 'DISK2-13sector.rom';          Dest = 'disk2-13sector.rom';      Size = 256;    Desc = 'Disk II Boot ROM (13-sector original)' },
+    @{ Source = 'Apple2.rom';                  Dest = 'Apple2.rom';              Size = 12288;  Desc = 'Apple II ROM (Integer BASIC)' },
+    @{ Source = 'Apple2_Plus.rom';             Dest = 'Apple2Plus.rom';          Size = 12288;  Desc = 'Apple II+ ROM (Applesoft BASIC)' },
+    @{ Source = 'Apple2e.rom';                 Dest = 'Apple2e.rom';             Size = 16384;  Desc = 'Apple IIe ROM' },
+    @{ Source = 'Apple2e_Enhanced.rom';        Dest = 'Apple2eEnhanced.rom';     Size = 16384;  Desc = 'Apple IIe Enhanced ROM (65C02)' },
+    @{ Source = 'Apple2_Video.rom';            Dest = 'Apple2_Video.rom';        Size = 2048;   Desc = 'Apple II/II+ Character Generator ROM' },
+    @{ Source = 'Apple2e_Enhanced_Video.rom';  Dest = 'Apple2e_Video.rom';       Size = 4096;   Desc = 'Apple IIe Character Generator ROM (used for both Original and Enhanced IIe)' },
+    @{ Source = 'DISK2.rom';                   Dest = 'Disk2.rom';               Size = 256;    Desc = 'Disk II Boot ROM (slot 6)' },
+    @{ Source = 'DISK2-13sector.rom';          Dest = 'Disk2_13Sector.rom';      Size = 256;    Desc = 'Disk II Boot ROM (13-sector original)' },
     @{ Source = 'Mockingboard-D.rom';          Dest = 'mockingboard-d.rom';      Size = 2048;   Desc = 'Mockingboard sound card slot ROM' },
     @{ Source = 'MouseInterface.rom';          Dest = 'mouse-interface.rom';     Size = 2048;   Desc = 'Apple Mouse Interface card slot ROM' },
     @{ Source = 'Parallel.rom';                Dest = 'parallel.rom';            Size = 256;    Desc = 'Parallel Printer Interface card slot ROM' },

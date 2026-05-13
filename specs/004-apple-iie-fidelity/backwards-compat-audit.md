@@ -20,33 +20,33 @@ their pre-feature shape. They are owned by the Phase 003 platform
 emulator feature and the Phase 004 feature has no business modifying
 them. If a Phase 004 commit had to change either file, that would be a
 direct violation of FR-040 (composition over branching) — the //e
-configuration lives in its own file (`apple2e.json`) and the //e build
+configuration lives in its own file (`Apple2e.json`) and the //e build
 path is a *separate* composition.
 
 ### 1.1 Files
 
 | File                          | Status   | Notes                                              |
 | ----------------------------- | -------- | -------------------------------------------------- |
-| `Machines/apple2.json`        | **Pinned** | ][ device list, RAM map, video modes, keyboard. |
-| `Machines/apple2plus.json`    | **Pinned** | ][+ device list, RAM map, video modes, keyboard.|
-| `Machines/apple2e.json`       | Growable (//e) | Owned by feature 004; can change freely.   |
+| `Machines/Apple2.json`        | **Pinned** | ][ device list, RAM map, video modes, keyboard. |
+| `Machines/Apple2Plus.json`    | **Pinned** | ][+ device list, RAM map, video modes, keyboard.|
+| `Machines/Apple2e.json`       | Growable (//e) | Owned by feature 004; can change freely.   |
 
 ### 1.2 Verification
 
-`git diff master -- Machines/apple2.json Machines/apple2plus.json`
+`git diff master -- Machines/Apple2.json Machines/Apple2Plus.json`
 returns the **empty diff** at HEAD = `880d459`. Neither file has been
 modified by any commit on the `004-apple-iie-fidelity` branch:
 
 ```
-$ git log master..HEAD --oneline -- Machines/apple2.json Machines/apple2plus.json
+$ git log master..HEAD --oneline -- Machines/Apple2.json Machines/Apple2Plus.json
 (no commits)
 ```
 
 The pinned blob hashes (from `git ls-tree master`) are:
 
 ```
-ad7e61603ebe1f09e6e3fb3403d1c9474741700f  Machines/apple2.json
-fe218ad7c443b4dde832849787171d196a08f834  Machines/apple2plus.json
+ad7e61603ebe1f09e6e3fb3403d1c9474741700f  Machines/Apple2.json
+fe218ad7c443b4dde832849787171d196a08f834  Machines/Apple2Plus.json
 ```
 
 These hashes MUST match at every Phase 14+ checkpoint. If they ever
@@ -228,7 +228,7 @@ You may not:
 
 - Remove a pre-existing ][/][+ test method.
 - Weaken an existing assertion (e.g. demote `AreEqual` to `IsTrue`).
-- Modify `Machines/apple2.json` or `Machines/apple2plus.json` from
+- Modify `Machines/Apple2.json` or `Machines/Apple2Plus.json` from
   this feature branch.
 - Add ][/][+-specific code paths that bypass the ][/][+ test gate.
 
@@ -238,7 +238,7 @@ You may not:
 
 At Phase 14 GATE (T122), the following must hold:
 
-1. `git diff master -- Machines/apple2.json Machines/apple2plus.json`
+1. `git diff master -- Machines/Apple2.json Machines/Apple2Plus.json`
    produces empty output.
 2. The full UnitTest suite passes on x64 Debug, x64 Release, ARM64
    Debug, ARM64 Release.

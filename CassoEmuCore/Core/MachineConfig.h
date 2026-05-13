@@ -219,16 +219,20 @@ public:
     using FileResolver = function<fs::path (const vector<fs::path> &,
                                             const fs::path &)>;
 
-    static HRESULT Load (const string           & jsonText,
-                         const vector<fs::path> & searchPaths,
-                         MachineConfig          & outConfig,
-                         string                 & outError);
-
-    static HRESULT Load (const string           & jsonText,
-                         const vector<fs::path> & searchPaths,
-                         const FileResolver     & resolver,
-                         MachineConfig          & outConfig,
-                         string                 & outError);
+    static HRESULT Load            (const string           & jsonText,
+                                    const vector<fs::path> & searchPaths,
+                                    MachineConfig          & outConfig,
+                                    string                 & outError);
+           
+    static HRESULT Load            (const string           & jsonText,
+                                    const vector<fs::path> & searchPaths,
+                                    const FileResolver     & resolver,
+                                    MachineConfig          & outConfig,
+                                    string                 & outError);
+           
+    static HRESULT CollectRomFiles (const string           & jsonText,
+                                    vector<string>         & outFiles,
+                                    string                 & outError);
 
 private:
     template <typename T>

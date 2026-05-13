@@ -13,7 +13,7 @@ namespace
     static constexpr Word    kCxxxRomEnd       = 0xCFFF;
     static constexpr Word    kLcRomStart       = 0xD000;
     static constexpr Word    kRamEnd           = 0xBFFF;
-    static constexpr size_t  kSystemRomSize    = 0x4000;     // 16 KiB apple2e.rom
+    static constexpr size_t  kSystemRomSize    = 0x4000;     // 16 KiB Apple2e.rom
     static constexpr size_t  kCxxxRomSize      = 0x0F00;     // $C100-$CFFF (3840 bytes)
     static constexpr size_t  kLcRomSize        = 0x3000;     // $D000-$FFFF (12 KiB)
     static constexpr size_t  kCxxxRomOffset    = kCxxxRomStart - kSystemRomStart;
@@ -96,7 +96,7 @@ HRESULT HeadlessHost::BuildAppleIIPlus (EmulatorCore & outCore)
 //
 //  HeadlessHost::BuildAppleIIe
 //
-//  Wires a full //e from `apple2e.rom` (loaded via the IFixtureProvider
+//  Wires a full //e from `Apple2e.rom` (loaded via the IFixtureProvider
 //  -- no host filesystem access). Mirrors the production wiring order
 //  from EmulatorShell::Initialize so the deterministic harness sees the
 //  same memory map / banking semantics the real shell exposes:
@@ -105,7 +105,7 @@ HRESULT HeadlessHost::BuildAppleIIPlus (EmulatorCore & outCore)
 //    2. Internal devices (keyboard, speaker, soft switches, language card)
 //    3. Sibling pointers (kbd/ss/speaker/mmu/lc/videoTiming cross-wiring)
 //    4. mmu->Initialize -- adds CxxxRomRouter to the bus, rebinds page table
-//    5. Carve apple2e.rom into the LC ($D000-$FFFF) and the CxxxRomRouter
+//    5. Carve Apple2e.rom into the LC ($D000-$FFFF) and the CxxxRomRouter
 //       ($C100-$CFFF). The system-rom RomDevice is intentionally NOT added
 //       to the bus -- the LC bank intercepts $D000-$FFFF and the CxxxRomRouter
 //       owns $C100-$CFFF (audit C8 carryover).
@@ -131,7 +131,7 @@ HRESULT HeadlessHost::BuildAppleIIe (EmulatorCore & outCore)
         goto Error;
     }
 
-    hr = outCore.fixtures->OpenFixture ("apple2e.rom", romBytes);
+    hr = outCore.fixtures->OpenFixture ("Apple2e.rom", romBytes);
     if (FAILED (hr))
     {
         goto Error;
@@ -235,7 +235,7 @@ Error:
 //  HeadlessHost::BuildAppleIIeWithDiskII
 //
 //  Phase 11 (T097-T104). Extends BuildAppleIIe by attaching the Disk II
-//  boot ROM (disk2.rom) to slot 6 via mmu->AttachSlotRom and adding a
+//  boot ROM (Disk2.rom) to slot 6 via mmu->AttachSlotRom and adding a
 //  DiskIIController + DiskImageStore to outCore. Tests then mount
 //  synthetic disks via the store and call core.RunCycles to drive the
 //  controller in lock-step with the CPU. No third-party disk software is
@@ -254,7 +254,7 @@ HRESULT HeadlessHost::BuildAppleIIeWithDiskII (EmulatorCore & outCore)
         goto Error;
     }
 
-    hr = outCore.fixtures->OpenFixture ("disk2.rom", slot6Rom);
+    hr = outCore.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
     if (FAILED (hr))
     {
         goto Error;

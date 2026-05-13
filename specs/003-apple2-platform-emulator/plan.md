@@ -144,9 +144,9 @@ Casso.sln                          # Updated — adds CassoEmuCore and Casso pro
     ├── resource.h                   #   Win32 resource IDs
     ├── Casso.rc                #   Menu accelerators, icon, version info
     ├── Machines/                    #   JSON machine config files
-    │   ├── apple2.json
-    │   ├── apple2plus.json
-    │   └── apple2e.json
+    │   ├── Apple2.json
+    │   ├── Apple2Plus.json
+    │   └── Apple2e.json
     ├── ROMs/                        #   ROM images (gitignored)
     └── shaders/                     #   HLSL shaders (compiled at build time via FXC)
         ├── VertexShader.hlsl
