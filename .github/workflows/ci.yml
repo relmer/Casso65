@@ -92,13 +92,17 @@ jobs:
         run: |
           $tag = '${{ steps.ver.outputs.tag }}'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $rc = $LASTEXITCODE
+          if ($rc -eq 0) {
             Write-Host "Release $tag already exists -- skipping."
             "exists=true"  | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           } else {
             Write-Host "Release $tag does not exist -- will publish."
             "exists=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           }
+          # Reset $LASTEXITCODE: gh's lookup-failure exit propagates as the
+          # step's exit code if we don't explicitly clear it.
+          $global:LASTEXITCODE = 0
 
       - name: Add MSBuild to PATH
         if: steps.check.outputs.exists != 'true'
