@@ -210,27 +210,55 @@ private:
         if (exePath.empty())
         {
             Assert::Fail (L"Casso.exe not found next to the test DLL");
+            return jsonText;
         }
 
         hExe = LoadLibraryExW (exePath.wstring().c_str(),
                                nullptr,
                                LOAD_LIBRARY_AS_IMAGE_RESOURCE | LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE);
-        Assert::IsNotNull (hExe,
-            std::format (L"LoadLibraryExW failed for {}",
-                         exePath.wstring()).c_str());
+
+        if (hExe == nullptr)
+        {
+            Assert::Fail (std::format (L"LoadLibraryExW failed for {}",
+                                       exePath.wstring()).c_str());
+            return jsonText;
+        }
 
         hRes = FindResourceW (hExe, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-        Assert::IsNotNull (hRes,
-            L"Embedded RCDATA resource not found in Casso.exe");
+
+        if (hRes == nullptr)
+        {
+            FreeLibrary (hExe);
+            Assert::Fail (L"Embedded RCDATA resource not found in Casso.exe");
+            return jsonText;
+        }
 
         size = SizeofResource (hExe, hRes);
-        Assert::IsTrue (size > 0, L"Embedded resource is empty");
+
+        if (size == 0)
+        {
+            FreeLibrary (hExe);
+            Assert::Fail (L"Embedded resource is empty");
+            return jsonText;
+        }
 
         hMem = LoadResource (hExe, hRes);
-        Assert::IsNotNull (hMem, L"LoadResource failed");
+
+        if (hMem == nullptr)
+        {
+            FreeLibrary (hExe);
+            Assert::Fail (L"LoadResource failed");
+            return jsonText;
+        }
 
         data = LockResource (hMem);
-        Assert::IsNotNull (data, L"LockResource failed");
+
+        if (data == nullptr)
+        {
+            FreeLibrary (hExe);
+            Assert::Fail (L"LockResource failed");
+            return jsonText;
+        }
 
         jsonText.assign (static_cast<const char *> (data), size);
 
