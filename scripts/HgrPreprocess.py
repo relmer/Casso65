@@ -40,6 +40,23 @@ HGR_BYTES      = 8192
 ROW_BYTES      = 40
 PIXELS_PER_BYTE = 7
 
+# LoRes (40x48 16-colour graphics, sharing text-page-1 RAM at $0400-$07FF).
+# 24 text rows; each row's byte packs two LoRes pixel rows as (high
+# nibble << 4) | low nibble. Only the first 40 columns of each text
+# row are visible -- the remaining 88 bytes per 128-byte chunk are
+# "screen holes" and can be left as zero on disk.
+LORES_PAGE_BYTES   = 1024
+LORES_TEXT_ROWS    = 24
+LORES_PIXEL_ROWS   = 48
+LORES_VISIBLE_COLS = 40
+LORES_COLORS       = 16
+
+# DHGR (560x192 in monochrome, 140x192 in 16-colour mode). Uses HGR
+# page 1 on BOTH main and aux RAM, with aux supplying even-x byte
+# columns and main supplying odd-x. The framebuffer for one half is
+# the same 8 KB layout as standard HGR.
+DHGR_COLORS        = 16
+
 # Default source-image crop, picked to capture the cassowary's full
 # casque + head + neck + wattles from the standard portrait photo
 # (`Assets/3a Mrs Cassowary closeup 8167.jpg`, 880x1600). Pass --crop
@@ -253,7 +270,80 @@ def generate_color_bands_hgr ():
     return bytes (out)
 
 
-def paint_title (canvas, text, top_y=4, font_size=18, stroke_width=0):
+def generate_lores_bars_lores ():
+    # Synthesise the 1 KB text-page-1 ($0400-$07FF) content for a
+    # LoRes 16-colour bar test. The screen is partitioned into 16
+    # vertical bands of ~12 LoRes scanlines (one per palette index
+    # 0..15). Each text-screen byte holds two stacked LoRes pixel
+    # rows packed as low / high nibble; we compute the byte for
+    # each of the 24 text rows so the two LoRes rows it contains
+    # sit at the correct band.
+    #
+    # Used by the bootable demo disk to verify the renderer's
+    # 16-entry LoRes palette (AppleLoResMode::kLoResColors) is
+    # wired up correctly after the R/B byte-order fix.
+    out = bytearray (LORES_PAGE_BYTES)
+
+    for text_row in range (LORES_TEXT_ROWS):
+        # The two LoRes pixel rows packed into this text row.
+        top_row = 2 * text_row
+        bot_row = 2 * text_row + 1
+        top_c   = (top_row * LORES_COLORS) // LORES_PIXEL_ROWS
+        bot_c   = (bot_row * LORES_COLORS) // LORES_PIXEL_ROWS
+        byte    = ((bot_c & 0x0F) << 4) | (top_c & 0x0F)
+
+        # Apple text-screen base for row R = $0400 + 128*(R%8) + 40*(R/8).
+        # We're writing the page-relative offset (caller stamps the
+        # whole 1 KB into $0400-$07FF verbatim).
+        base = 128 * (text_row & 7) + 40 * (text_row >> 3)
+        for col in range (LORES_VISIBLE_COLS):
+            out[base + col] = byte
+
+    return bytes (out)
+
+
+def generate_dhgr_bands ():
+    # Synthesise the 8 KB main + 8 KB aux pages of a DHGR 16-colour
+    # bar test. Each colour gets a 12-scanline horizontal band, top
+    # to bottom in palette index order 0..15. DHGR packs 7 pixels
+    # per byte across an aux+main pair (aux holds even-x byte
+    # columns, main holds odd-x; together one byte-pair covers 14
+    # contiguous pixels), and 4 consecutive pixels make one 16-colour
+    # "cell" with the colour nibble in LSB-first bit order. So a
+    # solid stripe of colour C wants every pixel in that row to read
+    # out as bit `(P % 4)` of C, where P is the absolute pixel index.
+    #
+    # Used by the bootable demo disk to verify the DHGR 16-entry
+    # palette (AppleDoubleHiResMode::kDhrColors) is wired up
+    # correctly after the R/B byte-order fix.
+    aux  = bytearray (HGR_BYTES)
+    main = bytearray (HGR_BYTES)
+
+    rows_per_band = HGR_HEIGHT // DHGR_COLORS
+
+    for row in range (HGR_HEIGHT):
+        c = min (row // rows_per_band, DHGR_COLORS - 1)
+        c_bits = [(c >> i) & 1 for i in range (4)]
+
+        base = hgr_row_offset (row)
+        for byte_pair in range (ROW_BYTES):
+            # Pixel indices spanned by aux byte (P=14b..14b+6) and
+            # main byte (P=14b+7..14b+13). LSB-first within each byte.
+            aux_pixel0  = byte_pair * 14
+            main_pixel0 = byte_pair * 14 + 7
+
+            aux_byte  = 0
+            main_byte = 0
+            for bit in range (7):
+                if c_bits[(aux_pixel0  + bit) % 4]:
+                    aux_byte  |= (1 << bit)
+                if c_bits[(main_pixel0 + bit) % 4]:
+                    main_byte |= (1 << bit)
+
+            aux [base + byte_pair] = aux_byte
+            main[base + byte_pair] = main_byte
+
+    return bytes (aux), bytes (main)
     # Paint a centered title across the top of the 280x192 canvas in
     # white. We try a few common Windows TrueType fonts at the
     # requested size; whatever we draw goes through the same colour
@@ -361,10 +451,18 @@ def main ():
     parser.add_argument ("--input",  default=None,
                          help="source image path (omit when --pattern is given)")
     parser.add_argument ("--output", required=True, help="raw HGR framebuffer output path")
-    parser.add_argument ("--pattern", choices=("bands",), default=None,
+    parser.add_argument ("--pattern",
+                         choices=("bands", "lores-bars", "dhgr-bands-aux", "dhgr-bands-main"),
+                         default=None,
                          help="emit a synthetic test pattern instead of "
-                              "encoding an image. 'bands' = 6 horizontal "
-                              "bands of black/violet/green/white/blue/orange")
+                              "encoding an image. Options: 'bands' (HGR "
+                              "6-colour stripes, 8 KB), 'lores-bars' "
+                              "(LoRes 16-colour stripes packed into text "
+                              "page 1, 1 KB), 'dhgr-bands-aux' / "
+                              "'dhgr-bands-main' (DHGR 16-colour stripes, "
+                              "8 KB each side; ship both onto separate "
+                              "disk tracks then RAMWRT-toggle when "
+                              "loading)")
     parser.add_argument ("--crop",   type=parse_crop, default=DEFAULT_CROP,
                          help="optional source-image crop box "
                               "'left,top,right,bottom' applied before fitting "
@@ -392,6 +490,12 @@ def main ():
 
     if args.pattern == "bands":
         data = generate_color_bands_hgr ()
+    elif args.pattern == "lores-bars":
+        data = generate_lores_bars_lores ()
+    elif args.pattern == "dhgr-bands-aux":
+        data, _ = generate_dhgr_bands ()
+    elif args.pattern == "dhgr-bands-main":
+        _, data = generate_dhgr_bands ()
     else:
         if args.input is None:
             print ("error: either --input or --pattern is required",
@@ -415,8 +519,15 @@ def main ():
 
         data = image_to_hgr (img)
 
-    if len (data) != HGR_BYTES:
-        print (f"error: expected {HGR_BYTES} bytes of HGR, got {len (data)}",
+    # Size check varies by pattern.
+    expected_size = None
+    if args.pattern == "lores-bars":
+        expected_size = LORES_PAGE_BYTES
+    elif args.pattern in (None, "bands", "dhgr-bands-aux", "dhgr-bands-main"):
+        expected_size = HGR_BYTES
+
+    if expected_size is not None and len (data) != expected_size:
+        print (f"error: expected {expected_size} bytes, got {len (data)}",
                file=sys.stderr)
         return 1
 

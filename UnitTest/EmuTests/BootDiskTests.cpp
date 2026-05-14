@@ -54,6 +54,7 @@ namespace
 {
     static constexpr int     kMaxAncestorWalk     = 10;
     static constexpr size_t  kHgrPayloadSize      = 8192;
+    static constexpr size_t  kLoresPayloadSize    = 1024;
     static constexpr size_t  kSectorByteSize      = 256;
     static constexpr int     kSectorsPerTrack     = 16;
     static constexpr Word    kHgrBase             = 0x2000;
@@ -108,16 +109,19 @@ public:
 
     TEST_METHOD (CassoRocks_DemoDisk_DisplaysHgrCassowary)
     {
-        fs::path  src        = FindRepoFile ("Apple2/Demos/casso-rocks.a65");
-        fs::path  stage2Src  = FindRepoFile ("Apple2/Demos/casso-rocks-stage2.a65");
-        fs::path  hgrPath    = FindRepoFile ("Apple2/Demos/cassowary.hgr");
-        fs::path  bandsPath  = FindRepoFile ("Apple2/Demos/test-bands.hgr");
+        fs::path  src           = FindRepoFile ("Apple2/Demos/casso-rocks.a65");
+        fs::path  stage2Src     = FindRepoFile ("Apple2/Demos/casso-rocks-stage2.a65");
+        fs::path  hgrPath       = FindRepoFile ("Apple2/Demos/cassowary.hgr");
+        fs::path  bandsPath     = FindRepoFile ("Apple2/Demos/test-bands.hgr");
+        fs::path  loresPath     = FindRepoFile ("Apple2/Demos/lores-bars.lores");
 
         if (src.empty () || stage2Src.empty () ||
-            hgrPath.empty () || bandsPath.empty ())
+            hgrPath.empty () || bandsPath.empty () ||
+            loresPath.empty ())
         {
-            Logger::WriteMessage ("SKIPPED: Apple2/Demos/casso-rocks*.a65, "
-                                  "cassowary.hgr, or test-bands.hgr not "
+            Logger::WriteMessage ("SKIPPED: one or more demo-disk source "
+                                  "files (casso-rocks*.a65, cassowary.hgr, "
+                                  "test-bands.hgr, lores-bars.lores) not "
                                   "found in this checkout.\n");
             return;
         }
@@ -130,10 +134,13 @@ public:
 
         std::vector<Byte>  hgrPayload   = ReadFileBytes (hgrPath);
         std::vector<Byte>  bandsPayload = ReadFileBytes (bandsPath);
+        std::vector<Byte>  loresPayload = ReadFileBytes (loresPath);
         Assert::AreEqual (kHgrPayloadSize, hgrPayload.size (),
-            L"cassowary.hgr must be exactly 8192 bytes (raw HGR framebuffer)");
+            L"cassowary.hgr must be exactly 8192 bytes");
         Assert::AreEqual (kHgrPayloadSize, bandsPayload.size (),
-            L"test-bands.hgr must be exactly 8192 bytes (raw HGR framebuffer)");
+            L"test-bands.hgr must be exactly 8192 bytes");
+        Assert::AreEqual (kLoresPayloadSize, loresPayload.size (),
+            L"lores-bars.lores must be exactly 1024 bytes");
 
         Cpu             cpu;
         Assembler       assembler (cpu.GetInstructionSet ());
@@ -175,21 +182,27 @@ public:
 
         // Build a 143360-byte raw .dsk image:
         //   - File offset 1..N (track 0 sector 0 minus the first byte):
-        //     stage 1 boot code (loaded by disk2.rom into $0801+).
+        //     stage 1 boot code.
         //   - Tracks 1+2 (file offsets $1000..$3000): 8 KB cassowary
         //     framebuffer.
-        //   - Track 3 (file offset $3000..$4000): 16 identical copies
-        //     of stage 2 code, one per sector. Stage 1 reads track 3
-        //     with DBASE=$09 and lands stage 2 at $0A00 (and at every
-        //     other page in $0900-$18FF, but only $0A00 matters).
-        //   - Tracks 4+5 (file offsets $4000..$6000): 8 KB synthetic
-        //     test pattern (6 NTSC artefact colour bands).
+        //   - Track 3 logical sector 0 (file offset $3000): stage 2
+        //     code (lands at $1000).
+        //     Track 3 logical sectors 1..4 (file offsets via LtoP):
+        //     1 KB LoRes test pattern (lands at $1100-$14FF, then
+        //     gets memcpy'd into text page 1 when stage 2 cycles
+        //     into LoRes mode).
+        //   - Tracks 4+5 (file offsets $4000..$6000): 8 KB HGR test
+        //     bands (mode 1 of the cycle).
+        //   - Tracks 6+7 (file offsets $6000..$8000): 8 KB DHGR aux
+        //     pattern (loaded into aux $2000-$3FFF via RAMWRT during
+        //     stage 2 init).
+        //   - Tracks 8+9 (file offsets $8000..$A000): 8 KB DHGR main
+        //     pattern (loaded into main $2000-$3FFF when stage 2
+        //     cycles into DHGR mode -- overwrites cassowary, which
+        //     is one-way OK for this demo).
         //   The HGR payloads use the DOS 3.3 logical-to-physical
-        //   interleave so that when our RWTS reads logical sector S of
-        //   track T it gets exactly payload[((T-startTrack)*16+S)*256..].
-        //   The nibblizer puts logical sector S's data at file offset
-        //   (T*16 + kDsk_LtoP[S])*256, so we apply the inverse mapping
-        //   when stitching the payload in.
+        //   interleave so that when our RWTS reads logical sector S
+        //   of track T it gets exactly payload[((T-startTrack)*16+S)*256..].
         static constexpr int  kDsk_LtoP[16] =
         {
             0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
@@ -202,17 +215,30 @@ public:
             raw[1 + i] = asmResult.bytes[i];
         }
 
-        // Track 3: paint every sector with stage 2 code so that
-        // whichever sector arrives first under stage 1's RWTS, the
-        // 256 bytes that land at $0A00 are the stage 2 entry point.
-        for (int sector = 0; sector < kSectorsPerTrack; sector++)
+        // Track 3 logical sector 0 -> stage 2 code at $1000.
+        // Track 3 logical sectors 1-4 -> LoRes pattern at $1100-$14FF.
+        // Use the LtoP mapping so the on-disk physical layout the
+        // nibblizer produces matches what stage 1's RWTS expects to
+        // read out by logical address.
+        auto StampTrack3Sector = [&] (int logicalSector,
+                                      const Byte * data, size_t len)
         {
-            size_t  fileOffset = static_cast<size_t> (3 * kSectorsPerTrack + sector)
-                                 * kSectorByteSize;
-            for (size_t i = 0; i < stage2Result.bytes.size (); i++)
+            size_t  fileOffset = static_cast<size_t> (
+                3 * kSectorsPerTrack + kDsk_LtoP[logicalSector])
+                * kSectorByteSize;
+            for (size_t i = 0; i < len; i++)
             {
-                raw[fileOffset + i] = stage2Result.bytes[i];
+                raw[fileOffset + i] = data[i];
             }
+        };
+
+        StampTrack3Sector (0, stage2Result.bytes.data (),
+                              stage2Result.bytes.size ());
+        for (int sector = 0; sector < 4; sector++)
+        {
+            StampTrack3Sector (1 + sector,
+                               loresPayload.data () + sector * kSectorByteSize,
+                               kSectorByteSize);
         }
 
         // Stitch a payload across 2 tracks starting at startTrack.
@@ -240,8 +266,8 @@ public:
             }
         };
 
-        StitchPayload (1, hgrPayload);   // tracks 1+2 -> cassowary at $2000
-        StitchPayload (4, bandsPayload); // tracks 4+5 -> test bands at $4000
+        StitchPayload (1, hgrPayload);       // tracks 1+2 -> cassowary @ $2000
+        StitchPayload (4, bandsPayload);     // tracks 4+5 -> HGR bands @ $4000
 
         HeadlessHost  host;
         EmulatorCore  core;
@@ -260,6 +286,7 @@ public:
         core.diskController->SetExternalDisk (0, img);
 
         core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
+
         core.cpu->SetPC (kBootEntry);
 
         core.RunCycles (kDemoCycleBudget);
@@ -328,24 +355,54 @@ public:
         VerifyPage (0x2000, hgrPayload,   L"HGR page 1 (cassowary)");
         VerifyPage (0x4000, bandsPayload, L"HGR page 2 (test bands)");
 
-        // ----- Verify keystroke toggles PAGE2 -----
-        // Inject keystrokes through the keyboard latch ($C000 bit 7 set
-        // = key available). Stage 2's polling loop wakes up, toggles
-        // the SMC-patched soft-switch operand, clears the strobe, and
-        // returns to polling.
+        // ----- Cycle through the 3 display modes with keystrokes -----
         Assert::IsNotNull (core.keyboard.get (), L"AppleKeyboard must be present");
 
+        // Keystroke 1 -> mode 1 (HGR2 bands).
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (200'000ULL);
-
         Assert::IsTrue (ss->IsPage2 (),
-            L"After one keystroke the demo must flip to PAGE2 (test bands)");
+            L"Mode 1 must enable PAGE2 (HGR test bands visible)");
+        Assert::IsTrue (ss->IsHiresMode (),
+            L"Mode 1 must keep HIRES on");
 
+        // Keystroke 2 -> mode 2 (LoRes test). Copy stamps text page 1.
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (200'000ULL);
-
+        Assert::IsFalse (ss->IsHiresMode (),
+            L"Mode 2 must clear HIRES (LoRes is text-page graphics)");
+        Assert::IsTrue (ss->IsGraphicsMode (),
+            L"Mode 2 must keep TEXT off");
         Assert::IsFalse (ss->IsPage2 (),
-            L"After a second keystroke the demo must flip back to PAGE1");
+            L"Mode 2 must clear PAGE2");
+
+        // Spot-check the LoRes pattern landed in text page 1.
+        for (size_t i = 0; i < kLoresPayloadSize; i++)
+        {
+            Byte  actual = core.bus->ReadByte (
+                static_cast<Word> (0x0400 + i));
+            Byte  e      = loresPayload[i];
+            if (actual != e)
+            {
+                wchar_t  msg[256] = {};
+                swprintf_s (msg, L"LoRes pattern copy mismatch at $%04X: "
+                                 L"expected $%02X, got $%02X.",
+                            static_cast<unsigned> (0x0400 + i),
+                            static_cast<unsigned> (e),
+                            static_cast<unsigned> (actual));
+                Assert::Fail (msg);
+            }
+        }
+
+        // Keystroke 3 -> past last mode -> JMP $E000 (Applesoft cold start).
+        core.keyboard->KeyPressRaw (' ');
+        core.RunCycles (50'000ULL);
+        // Cold start runs through a bunch of ROM init before reaching the
+        // BASIC ready prompt; what we really want to assert is that we're
+        // executing somewhere in the Applesoft / monitor ROM ($D000+).
+        Assert::IsTrue (core.cpu->GetPC () >= 0xD000,
+            L"After cycling past last mode, demo must JMP into ROM "
+            L"($D000+, typically the Applesoft cold start at $E000)");
 
         // Side effect: emit the .dsk alongside the source so the demo can
         // also be booted in the GUI without re-running the test. Best-

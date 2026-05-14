@@ -1,70 +1,128 @@
 ; ============================================================================
 ;  casso-rocks-stage2.a65 — second-stage loader for the casso-rocks demo
 ;
-;  Loaded by stage 1 (casso-rocks.a65) from track 0 sector 1 of the demo
-;  disk. Stage 1 reads all of track 0 to $0900-$18FF, which lands sector
-;  1 of track 0 at $0A00. Stage 1 then JMPs to $0A00.
+;  Loaded by stage 1 (casso-rocks.a65) into $1000-$1FFF: stage 1 reads
+;  track 3 (with DBASE=$10) which lands sector S at page $10+S. Sector 0
+;  of track 3 contains this stage 2 code (entered at $1000); sectors 1-4
+;  contain the 1 KB precomputed LoRes test pattern (lands at $1100-$14FF
+;  and gets memcpy'd into text page 1 when the user cycles to LoRes mode).
 ;
-;  At entry, the disk head is at track 3 (stage 1 left it there after
-;  reading the per-sector copies of stage 2), HGR page 1
-;  ($2000-$3FFF) holds the cassowary framebuffer, and X = $60 (slot
-;  6 << 4) for indexed soft-switch reads on the disk controller.
+;  At entry, the disk head is at track 3, HGR page 1 ($2000-$3FFF) holds
+;  the cassowary framebuffer, and X = $60 (slot 6 << 4) for indexed
+;  soft-switch reads on the disk controller.
 ;
 ;  Stage 2:
-;    1. Steps to track 4, reads it into $4000-$4FFF (top half of HGR
-;       page 2). The 6-colour test bands framebuffer lives on tracks 4+5.
-;    2. Steps to track 5, reads it into $5000-$5FFF (bottom half).
-;    3. Flips TXTOFF + HIRESON so the cassowary on HGR1 becomes visible.
-;    4. Polls the keyboard. Each keystroke flips PAGE2 between page 1
-;       (cassowary) and page 2 (test bands), and clears the strobe.
-;       Self-modifying code on the BIT-soft-switch instruction lets the
-;       toggle live in two bytes (the low operand byte alternates
-;       between $54 / $55), keeping the loop short enough to fit
-;       comfortably within the 256-byte stage 2 sector.
+;
+;    Init phase:
+;      1. Loads tracks 4+5 into main $4000-$5FFF (HGR test bands for
+;         the HGR2 mode of the cycle).
+;      2. Flips TXTOFF + HIRESON + PG2OFF so the cassowary becomes
+;         visible. This is mode 0 of the cycle.
+;
+;    Polling loop:
+;      Each keystroke advances the mode by 1. ESC ($9B) exits to
+;      Applesoft cold start at any time. Past the last mode (LoRes),
+;      next keystroke also exits.
+;
+;      Modes:
+;        0 = HGR1: cassowary on main page 1 ($2000-$3FFF)
+;        1 = HGR2: 6-colour bands on main page 2 ($4000-$5FFF)
+;        2 = LoRes (GR): 16-colour bars on text page 1 ($0400-$07FF)
+;
+;    Exit:
+;      JMP $E000 lands at the //e Applesoft cold start (gives the
+;      `]` prompt).
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines via
 ;  hard-coded entry-point addresses (stage 1 lives at $0801-$08FF).
 ;  Both files must be edited in lockstep if either is moved.
+;
+;  DHGR is not (yet) part of the cycle: the //e RWTS in stage 1 uses
+;  pages $02-$03 as a secondary-nibble scratch buffer, which conflicts
+;  with running disk reads under RAMWRT-on (so we can't load aux RAM
+;  directly via the RWTS). A future revision could add DHGR by loading
+;  the aux pattern into main $6000-$7FFF and then memcpy'ing it to aux
+;  RAM with RAMWRT toggled around the copy only.
 ; ============================================================================
 
     .org $1000
 
 ; -- I/O & soft switches ----------------------------------------------------
-KBD     = $C000            ; keyboard data + strobe (bit 7)
-STROBE  = $C010            ; clear keyboard strobe (any access)
-TXTOFF  = $C050
-PG2OFF  = $C054            ; PAGE2 OFF; the PAGE2 ON variant ($C055)
-                           ; is reached via SMC-toggling the low byte
-                           ; of the operand of `bit PG2OFF` below
-HIRESON = $C057
+KBD       = $C000          ; keyboard data + strobe (bit 7)
+STROBE    = $C010          ; clear keyboard strobe (any access)
+TXTOFF    = $C050
+MIXOFF    = $C052
+PG2OFF    = $C054
+PG2ON     = $C055
+HIRESOFF  = $C056
+HIRESON   = $C057
 
 ; -- Stage 1 entry points (must match casso-rocks.a65 exactly) -------------
 S1_LOAD_A    = $0817       ; sta DBASE / step head a / jmp read_track
 S1_LOAD_B    = $0828       ; sta DBASE / step head b / jmp read_track
 
+; -- Zero page ---------------------------------------------------
+MODE      = $46            ; current display mode (0..2)
+
 
 start
-    ; Step from track 3 to track 4 (odd-to-even uses load_b), read it
-    ; into HGR page 2 top half ($4000-$4FFF).
+    ; --- Init: load HGR2 bands into main $4000-$5FFF -----------------------
     lda #$40
-    jsr S1_LOAD_B
-
-    ; Step from track 4 to track 5 (even-to-odd uses load_a), read it
-    ; into HGR page 2 bottom half ($5000-$5FFF).
+    jsr S1_LOAD_B          ; tracks 3 -> 4 (odd->even)
     lda #$50
-    jsr S1_LOAD_A
+    jsr S1_LOAD_A          ; tracks 4 -> 5 (even->odd)
 
-    ; Flip into HGR1 mode -- cassowary visible on page 1.
+    ; --- Init: show HGR1 cassowary (mode 0) --------------------------------
     bit TXTOFF
     bit HIRESON
+    bit MIXOFF
+    bit PG2OFF
+    lda #0
+    sta MODE
 
 poll
     lda KBD
     bpl poll
+    cmp #$9B               ; ESC?
+    beq do_exit
     bit STROBE
-    lda patched+1
-    eor #1
-    sta patched+1
-patched
-    bit PG2OFF             ; SMC: low byte of operand toggles $54 <-> $55
+
+    inc MODE
+    lda MODE
+    cmp #1
+    beq mode_hgr2
+    cmp #2
+    beq mode_lores
+    ; fall through (past mode 2) -> exit
+
+do_exit
+    jmp $E000              ; Applesoft cold start
+
+
+mode_hgr2
+    ; HGR + page 2 visible. HIRES is already on from mode 0; just
+    ; flip PAGE2.
+    bit PG2ON
+    jmp poll
+
+
+mode_lores
+    ; Copy 1 KB LoRes pattern from $1100-$14FF to $0400-$07FF, then
+    ; switch to LoRes display (TEXT off, HIRES off, MIXED off,
+    ; PAGE2 off). All four 256-byte copies done in a single loop
+    ; with X as the offset (low byte of each address).
+    bit PG2OFF
+    bit HIRESOFF
+    ldx #0
+copy_lo
+    lda $1100,x
+    sta $0400,x
+    lda $1200,x
+    sta $0500,x
+    lda $1300,x
+    sta $0600,x
+    lda $1400,x
+    sta $0700,x
+    inx
+    bne copy_lo
     jmp poll

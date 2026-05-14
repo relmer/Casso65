@@ -6,6 +6,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.618] — 2026-05-14 — LoRes test pattern + ESC-to-BASIC exit
+
+### Added (demo)
+- **LoRes (Apple `GR`) 16-colour bar test pattern.** New
+  `scripts/HgrPreprocess.py --pattern lores-bars` emits a 1 KB
+  text-page-1 ($0400-$07FF) image with 16 horizontal stripes of
+  LoRes palette indices 0..15. The pattern is shipped on the
+  bootable demo disk on track 3 logical sectors 1-4 (which stage
+  1 of casso-rocks reads to $1100-$14FF as part of staging
+  stage 2).
+- **Demo cycle now walks the standard Apple //e graphics modes
+  with one keystroke each, then exits to Applesoft.** Stage 2
+  starts in HGR1 (cassowary), advances on each keystroke through
+  HGR2 (the existing 6-colour bands), GR (the new LoRes bars),
+  and on the next keystroke `JMP $E000` lands at Applesoft cold
+  start (`]` prompt). Pressing **ESC** at any time also exits.
+  Verified end-to-end in
+  `BootDiskTests::CassoRocks_DemoDisk_DisplaysHgrCassowary`.
+
+### Notes
+- DHGR is intentionally not part of this cycle yet. Loading the
+  DHGR aux page via stage 1's RWTS doesn't work directly: stage 1
+  uses zero-page-adjacent pages $02-$03 as a 6-and-2 secondary-
+  nibble buffer (writes via `STA $0256,Y` then reads back via
+  `LDA $0300,Y`), and forcing RAMWRT-on around the disk read
+  would route those scratch writes to aux while the reads still
+  come from main, scrambling the expand. A clean way to add DHGR
+  later would be to load the aux pattern into a main-RAM scratch
+  area first (e.g. $6000-$7FFF) and then memcpy it to aux with
+  RAMWRT toggled around just the copy.
+- The //e text mode is monochrome on stock hardware (no per-glyph
+  colour), so there's no "TEXT" colour test to add.
+
 ## [1.3.603] — 2026-05-14 — HGR colour fix + 6-colour test pattern + 2-stage demo
 
 ### Fixed (video)
