@@ -3,18 +3,32 @@
 ;
 ;  Loaded by the //e Disk2.rom slot 6 boot firmware: the boot ROM reads
 ;  track 0 sector 0 (256 bytes from file offset 0) into RAM at $0800-$08FF
-;  and JMPs to $0801. Our code takes over from there and:
+;  and JMPs to $0801. Stage 1 (this file) takes over from there:
 ;
-;    1. Steps the head from track 0 to track 1, then to track 2.
-;    2. Reads all 16 sectors of each track in physical-arrival order
-;       (no DOS-style sector matching), parses each address mark to
-;       know which logical sector arrived, then decodes the data field
-;       directly into the matching $20+sector page (track 1) or
-;       $30+sector page (track 2). After 32 reads HGR page 1
-;       ($2000-$3FFF) holds the cassowary framebuffer.
-;    3. Flips the //e soft switches to enable HGR1 (TEXT off, MIXED
-;       off, PAGE2 off, HIRES on).
-;    4. Spins forever, leaving the cassowary on screen.
+;    1. Steps the head to track 1 + 2 and reads them into HGR page 1 at
+;       $2000-$3FFF (cassowary framebuffer).
+;    2. Steps to track 3 and reads all 16 sectors with DBASE=$10 into
+;       $1000-$1FFF. Track 3 holds 16 identical copies of the stage 2
+;       code, so every sector lands stage 2 at the same place. The
+;       copy at $1000 is the canonical entry point (stage 1's
+;       read_sector merges DHI via DBASE | sector, so DBASE must have
+;       its low nibble = 0; $10 fits and uses otherwise-unused main RAM).
+;    3. JMPs to stage 2 at $1000.
+;
+;  Stage 2 (assembled and shipped as a separate sector — see
+;  casso-rocks-stage2.a65 alongside this file) then:
+;
+;    4. Steps to tracks 4+5 and reads them into HGR page 2 at
+;       $4000-$5FFF (synthetic 6-colour test bands framebuffer).
+;    5. Flips TXTOFF + HIRESON so cassowary is visible.
+;    6. Polls the keyboard. Each keystroke flips PAGE2 between page 1
+;       (cassowary) and page 2 (test bands), and clears the strobe.
+;
+;  Stage 2 calls back into stage 1's still-resident subroutines
+;  (load_a, load_b, read_track, read_sector, chk, wait_d5_aa). The
+;  fixed addresses of those entry points are hard-coded in stage 2
+;  via the labels exported below, so the two assemblies must move
+;  together if either is edited.
 ;
 ;  Self-contained: doesn't rely on any //e firmware ROM entry points
 ;  beyond the disk2.rom boot firmware. The only piece of disk2.rom we
@@ -27,10 +41,6 @@
     .org $0801
 
 ; -- I/O & soft switches ----------------------------------------------------
-TXTOFF  = $C050
-MIXOFF  = $C052
-PG2OFF  = $C054
-HIRESON = $C057
 DATA    = $C08C            ; Q6L (slot 6 indexed via X=$60)
 NIBL    = $02D6            ; disk2.rom decode table[raw_nibble]
 
@@ -38,7 +48,7 @@ NIBL    = $02D6            ; disk2.rom decode table[raw_nibble]
 DLO     = $26              ; ($26),Y dest pointer lo (always 0)
 DHI     = $27              ; ($26),Y dest pointer hi (page)
 SECW    = $3C              ; saved Y across read loops
-DBASE   = $3D              ; per-track DHI base ($20 or $30)
+DBASE   = $3D              ; per-track DHI base ($20, $30, $40, $50, $09)
 COUNT   = $40              ; sectors-remaining-on-track counter
 TMP     = $41              ; chk + expand scratch
 
@@ -50,36 +60,48 @@ start
     lda #0
     sta DLO
 
-    ; --- Step head: track 0 -> track 1 (4 phase ops) -----------------------
+    ; Step to track 1 + 2, read cassowary into HGR page 1.
+    lda #$20
+    jsr load_a
+    lda #$30
+    jsr load_b
+
+    ; Step to track 3, read it into $1000-$1FFF. Every sector of track
+    ; 3 contains identical stage 2 code, so the page at $1000 is
+    ; guaranteed to be the stage 2 entry point regardless of which
+    ; physical sector the head landed on first. DBASE must have its
+    ; low nibble = 0 because read_sector merges DHI = DBASE | sector
+    ; via OR (cheaper than ADD); $10 satisfies this and falls in
+    ; otherwise-unused main RAM.
+    lda #$10
+    jsr load_a
+
+    ; Hand control to stage 2 at $1000.
+    jmp $1000
+
+
+; ----------------------------------------------------------------------------
+; load_a / load_b -- step the head one track and read all 16 sectors of the
+;                    new track into RAM at the page given by A on entry.
+;                    load_a advances 0->1 / 2->3 (even-to-odd track),
+;                    load_b advances 1->2 / 3->4 (odd-to-even). Both fall
+;                    through into read_track via tail-call (jmp).
+; ----------------------------------------------------------------------------
+load_a
+    sta DBASE
     lda $C083,x            ; phase 1 ON
     lda $C080,x            ; phase 0 OFF
     lda $C085,x            ; phase 2 ON
     lda $C082,x            ; phase 1 OFF
+    jmp read_track
 
-    ; --- Read 16 sectors of track 1 -> $2000-$2FFF -------------------------
-    lda #$20
+load_b
     sta DBASE
-    jsr read_track
-
-    ; --- Step head: track 1 -> track 2 (4 phase ops) -----------------------
     lda $C087,x            ; phase 3 ON
     lda $C084,x            ; phase 2 OFF
     lda $C081,x            ; phase 0 ON
     lda $C086,x            ; phase 3 OFF
-
-    ; --- Read 16 sectors of track 2 -> $3000-$3FFF -------------------------
-    lda #$30
-    sta DBASE
-    jsr read_track
-
-    ; --- Switch the //e to HGR1 mode ---------------------------------------
-    ; PowerCycle leaves the soft switches at TEXT on, MIXED off, PAGE2 off,
-    ; HIRES off; flipping just TXTOFF and HIRESON is enough.
-    bit TXTOFF
-    bit HIRESON
-
-spin
-    jmp spin
+    jmp read_track
 
 
 ; ----------------------------------------------------------------------------
@@ -102,12 +124,38 @@ chk_w
 ;               page offset (DHI = DBASE + sector). Caller sets DBASE.
 ; ----------------------------------------------------------------------------
 read_track
-    lda #16
+    ; Read more than 16 sectors so we tolerate the odd missed sector
+    ; that can happen when the LSS hasn't fully resynced after a head
+    ; step (read_sector spins forever on garbage nibbles until it
+    ; finds a real D5/AA/96 mark, but the FIRST sector it picks up
+    ; can occasionally be a corrupted/phantom address mark that
+    ; consumes one slot in the loop without storing valid data).
+    ; Reading 18 ensures every logical sector comes around at least
+    ; once even if 1-2 slots are wasted on phantoms; duplicates just
+    ; overwrite the same destination page with identical bytes.
+    lda #18
     sta COUNT
 rt_lp
     jsr read_sector
     dec COUNT
     bne rt_lp
+    rts
+
+
+; ----------------------------------------------------------------------------
+; wait_d5_aa -- spin until the next disk nibble is $D5 then the next is $AA.
+;               Caller does the third-nibble compare directly. Used by both
+;               the address-mark prologue ($D5 $AA $96) and the data
+;               prologue ($D5 $AA $AD), so the only divergent byte stays
+;               at the call site and the shared "find $D5 $AA" lives once.
+; ----------------------------------------------------------------------------
+wait_d5_aa
+    lda #$D5
+    jsr chk
+    bne wait_d5_aa
+    lda #$AA
+    jsr chk
+    bne wait_d5_aa
     rts
 
 
@@ -120,12 +168,7 @@ rt_lp
 ; ----------------------------------------------------------------------------
 read_sector
 sc_d5
-    lda #$D5
-    jsr chk
-    bne sc_d5
-    lda #$AA
-    jsr chk
-    bne sc_d5
+    jsr wait_d5_aa
     lda #$96
     jsr chk
     bne sc_d5
@@ -150,27 +193,22 @@ rsl
     bpl rsl
     and TMP
 
-    ; A = sector number 0..15. DBASE is $20 or $30 (low nibble = 0), so
-    ; OR-merging is equivalent to ADD here and one byte cheaper.
+    ; A = sector number 0..15. DBASE is $20, $30, $40, or $50 (low nibble
+    ; = 0), so OR-merging is equivalent to ADD here and one byte cheaper.
     ora DBASE
     sta DHI
 
-    ; skip 2 checksum nibbles
-sk2a
+    ; skip 2 checksum nibbles (Y-loop saves bytes vs two unrolled waits)
+    ldy #2
+sk2
     lda DATA,x
-    bpl sk2a
-sk2b
-    lda DATA,x
-    bpl sk2b
+    bpl sk2
+    dey
+    bne sk2
 
     ; wait for D5 AA AD data prologue
 dd5
-    lda #$D5
-    jsr chk
-    bne dd5
-    lda #$AA
-    jsr chk
-    bne dd5
+    jsr wait_d5_aa
     lda #$AD
     jsr chk
     bne dd5

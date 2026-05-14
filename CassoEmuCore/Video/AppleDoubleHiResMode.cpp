@@ -18,17 +18,21 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Apple //e DHGR 16-color palette in R8G8B8A8 byte layout. Same byte-
+// ordering caveat and same fix as AppleLoResMode::kLoResColors —
+// see that file for the full explanation. The 4 entries previously
+// rendering as red shades are corrected here too.
 static const uint32_t kDhrColors[16] =
 {
     0xFF000000,   //  0: Black
-    0xFF0000DD,   //  1: Magenta
-    0xFF000099,   //  2: Dark Blue
+    0xFF6622DD,   //  1: Magenta   (was 0xFF0000DD; rendered as deep red)
+    0xFF990000,   //  2: Dark Blue (was 0xFF000099; rendered as dark red)
     0xFF4400DD,   //  3: Purple
     0xFF002200,   //  4: Dark Green
     0xFF555555,   //  5: Grey 1
     0xFFCC2200,   //  6: Medium Blue
-    0xFFFF4499,   //  7: Light Blue
-    0xFF000066,   //  8: Brown
+    0xFFFFAA66,   //  7: Light Blue (was 0xFFFF4499; rendered as bluish purple)
+    0xFF005588,   //  8: Brown      (was 0xFF000066; rendered as dark red)
     0xFF0044FF,   //  9: Orange
     0xFFAAAAAA,   // 10: Grey 2
     0xFF8888FF,   // 11: Pink

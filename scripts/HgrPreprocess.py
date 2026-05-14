@@ -78,42 +78,57 @@ def colour_distance_sq (a, b):
 
 
 def nearest_hgr_target (src):
-    # Classify source pixel into one of the 6 distinct HGR-rendered
-    # colours by sRGB distance, with one bias: WHITE only wins on
-    # pixels that are both very bright AND very desaturated.
-    # Otherwise prefer the closest chromatic colour. This keeps the
-    # cassowary's pale-but-blue head from collapsing to solid white.
+    # Hue-based classification into the 6 HGR rendered colours. Plain
+    # RGB Euclidean distance gets confused by desaturated colours --
+    # e.g. the cassowary's brown casque (~140,90,80, R approximately
+    # B) lands closer to HGR_VIOLET (170,30,220, lots of B) than to
+    # HGR_ORANGE (255,130,30) by sRGB distance, so the casque was
+    # rendering purple. Routing by which channel dominates (warm vs
+    # cool, then green) recovers brown -> orange / blue-grey -> blue
+    # without distorting the saturated colours.
     r, g, b = src
     luma    = (r + g + b) // 3
     chroma  = max (r, g, b) - min (r, g, b)
 
-    # Hard bright + grey = WHITE. Otherwise pick the nearest chromatic
-    # colour (or BLACK).
+    # Hard neutral cases first.
     if luma >= 220 and chroma <= 30:
         return "WHITE"
+    if luma <= 35:
+        return "BLACK"
+    if chroma <= 20:
+        # Truly grey pixel. Tip to WHITE if bright, BLACK if dark.
+        return "WHITE" if luma >= 140 else "BLACK"
 
-    candidates = (
-        ("BLACK",  HGR_BLACK ),
-        ("VIOLET", HGR_VIOLET),
-        ("GREEN",  HGR_GREEN ),
-        ("BLUE",   HGR_BLUE  ),
-        ("ORANGE", HGR_ORANGE),
-    )
-    best_name = "BLACK"
-    best_err  = None
-    for name, ref in candidates:
-        err = colour_distance_sq (src, ref)
-        if best_err is None or err < best_err:
-            best_err  = err
-            best_name = name
+    # Dominant-channel routing. Note "approximately equal" tolerances
+    # so a pixel with R=B+8 still counts as warm rather than purple.
+    eq_tol = 18
 
-    # Very dim pixels: keep them BLACK rather than smearing a chromatic
-    # speckle through dark feathers / shadow.
-    if luma < 50 and best_name != "BLACK":
-        if colour_distance_sq (src, HGR_BLACK) < best_err * 2:
-            return "BLACK"
+    if g > r + eq_tol and g > b + eq_tol:
+        return "GREEN"
 
-    return best_name
+    warm = r > b + eq_tol           # R noticeably > B  -> warm hue
+    cool = b > r + eq_tol           # B noticeably > R  -> cool hue
+    purple = (not warm) and (not cool) and (r > g) and (b > g)
+
+    if purple:
+        return "VIOLET"
+    if warm:
+        # Warm: brown, red, orange. Only fall to VIOLET if the pixel
+        # is genuinely magenta-ish (lots of red AND lots of blue with
+        # green much lower).
+        if b > g + eq_tol and r >= b - eq_tol:
+            return "VIOLET"
+        return "ORANGE"
+    if cool:
+        # Cool: any blue dominance ends up here. Pure violet is rare
+        # in nature; only redirect if both R and B are high but G is
+        # very low.
+        if r > g + eq_tol and b > r - eq_tol:
+            return "VIOLET"
+        return "BLUE"
+
+    # Fallback: green-ish desaturated.
+    return "GREEN"
 
 
 def encode_byte (pixels, row, col_byte):
@@ -182,6 +197,58 @@ def image_to_hgr (img):
         base = hgr_row_offset (row)
         for col_byte in range (ROW_BYTES):
             out[base + col_byte] = encode_byte (pixels, row, col_byte)
+
+    return bytes (out)
+
+
+def generate_color_bands_hgr ():
+    # Synthesise an 8 KB HGR test pattern that exercises every NTSC
+    # artefact colour Casso's renderer can produce. Top-to-bottom:
+    # 6 horizontal bands of 32 scanlines each, in order
+    # BLACK / VIOLET / GREEN / WHITE / BLUE / ORANGE.
+    #
+    # Within each band, every byte is filled with a value that puts
+    # ON pixels at exactly the right absolute-x parity for the target
+    # colour, accounting for the byte<->x parity flip on every odd
+    # byte index (since 7 is odd, byte N starts at x=7N which
+    # alternates parity).
+    #
+    # Diagnostic value: this is the canonical "if the renderer writes
+    # bytes in the wrong layout, blue<->orange and violet<->green
+    # show up swapped" test image. Used by the bootable demo disk
+    # alongside the cassowary so a key swap toggles between an
+    # organic colour image and a synthetic palette reference.
+    out = bytearray (HGR_BYTES)
+
+    # (band name, even-byte value, odd-byte value).
+    # For solid colour stripes the rule is:
+    #   target colour at all absolute x of parity P -> ON when
+    #   (N + b) parity = P, where N is the byte index in the row
+    #   and b is the bit index within the byte. Because 7 is odd,
+    #   even byte indices have b parity = x parity, odd byte
+    #   indices have b parity = inverted x parity. So even-byte
+    #   and odd-byte fills swap their bit masks.
+    PATTERN_EVEN_X    = 0x55  # bits 0,2,4,6 -> even b
+    PATTERN_ODD_X     = 0x2A  # bits 1,3,5   -> odd  b
+    PATTERN_ALL_ON    = 0x7F  # adjacent ON -> renders as WHITE
+
+    bands = [
+        ("BLACK",  0x00,                       0x00                      ),
+        ("VIOLET", PATTERN_EVEN_X,             PATTERN_ODD_X             ),
+        ("GREEN",  PATTERN_ODD_X,              PATTERN_EVEN_X            ),
+        ("WHITE",  PATTERN_ALL_ON,             PATTERN_ALL_ON            ),
+        ("BLUE",   PATTERN_EVEN_X | 0x80,      PATTERN_ODD_X  | 0x80     ),
+        ("ORANGE", PATTERN_ODD_X  | 0x80,      PATTERN_EVEN_X | 0x80     ),
+    ]
+
+    band_height = HGR_HEIGHT // len (bands)
+    for band_idx, (_name, even_b, odd_b) in enumerate (bands):
+        y0 = band_idx * band_height
+        y1 = (band_idx + 1) * band_height if band_idx < len (bands) - 1 else HGR_HEIGHT
+        for y in range (y0, y1):
+            base = hgr_row_offset (y)
+            for col in range (ROW_BYTES):
+                out[base + col] = even_b if (col & 1) == 0 else odd_b
 
     return bytes (out)
 
@@ -291,8 +358,13 @@ def parse_crop (s):
 
 def main ():
     parser = argparse.ArgumentParser (description=__doc__)
-    parser.add_argument ("--input",  required=True, help="source image path")
+    parser.add_argument ("--input",  default=None,
+                         help="source image path (omit when --pattern is given)")
     parser.add_argument ("--output", required=True, help="raw HGR framebuffer output path")
+    parser.add_argument ("--pattern", choices=("bands",), default=None,
+                         help="emit a synthetic test pattern instead of "
+                              "encoding an image. 'bands' = 6 horizontal "
+                              "bands of black/violet/green/white/blue/orange")
     parser.add_argument ("--crop",   type=parse_crop, default=DEFAULT_CROP,
                          help="optional source-image crop box "
                               "'left,top,right,bottom' applied before fitting "
@@ -316,24 +388,32 @@ def main ():
                               "(default: 0; bump to 1 for a heavier look)")
     args = parser.parse_args ()
 
-    src = Path (args.input)
     dst = Path (args.output)
 
-    if not src.is_file ():
-        print (f"error: source image not found: {src}", file=sys.stderr)
-        return 1
+    if args.pattern == "bands":
+        data = generate_color_bands_hgr ()
+    else:
+        if args.input is None:
+            print ("error: either --input or --pattern is required",
+                   file=sys.stderr)
+            return 1
 
-    img = crop_and_fit (src, args.crop,
-                        letterbox=not args.no_letterbox,
-                        title=args.title or None,
-                        title_size=args.title_size,
-                        title_stroke=args.title_stroke)
+        src = Path (args.input)
+        if not src.is_file ():
+            print (f"error: source image not found: {src}", file=sys.stderr)
+            return 1
 
-    if args.preview:
-        Path (args.preview).parent.mkdir (parents=True, exist_ok=True)
-        img.save (args.preview)
+        img = crop_and_fit (src, args.crop,
+                            letterbox=not args.no_letterbox,
+                            title=args.title or None,
+                            title_size=args.title_size,
+                            title_stroke=args.title_stroke)
 
-    data = image_to_hgr (img)
+        if args.preview:
+            Path (args.preview).parent.mkdir (parents=True, exist_ok=True)
+            img.save (args.preview)
+
+        data = image_to_hgr (img)
 
     if len (data) != HGR_BYTES:
         print (f"error: expected {HGR_BYTES} bytes of HGR, got {len (data)}",

@@ -27,18 +27,19 @@ static constexpr uint32_t kGreen = 0xFF00FF00u;
 static constexpr uint32_t kBlack = 0xFF000000u;
 static constexpr uint32_t kWhite = 0xFFFFFFFFu;
 
-// Lo-res color table (must match AppleLoResMode.cpp exactly)
+// Lo-res color table (must match AppleLoResMode.cpp exactly — both use
+// R8G8B8A8 byte layout matching the swap chain format)
 static const uint32_t kExpectedLoRes[16] =
 {
     0xFF000000,   //  0: Black
-    0xFF0000DD,   //  1: Magenta
-    0xFF000099,   //  2: Dark Blue
+    0xFF6622DD,   //  1: Magenta
+    0xFF990000,   //  2: Dark Blue
     0xFF4400DD,   //  3: Purple
     0xFF002200,   //  4: Dark Green
     0xFF555555,   //  5: Grey 1
     0xFFCC2200,   //  6: Medium Blue
-    0xFFFF4499,   //  7: Light Blue
-    0xFF000066,   //  8: Brown
+    0xFFFFAA66,   //  7: Light Blue
+    0xFF005588,   //  8: Brown
     0xFF0044FF,   //  9: Orange
     0xFFAAAAAA,   // 10: Grey 2
     0xFF8888FF,   // 11: Pink
@@ -590,7 +591,13 @@ public:
         uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data (), fb.size ());
 
         // Golden hash captured from initial deterministic render.
-        constexpr uint64_t kExpected = 0xB7CB79E10850A425ULL;
+        // Updated 2026-05-13 alongside the DHR palette byte-layout fix
+        // (4 entries — Magenta, Dark Blue, Light Blue, Brown — were
+        // stored with R/B bytes swapped relative to the R8G8B8A8 swap-
+        // chain format and rendered as red shades on screen). Fixing
+        // the palette shifts the rendered pixel bytes for any pattern
+        // that exercises those colour indices, which moves the hash.
+        constexpr uint64_t kExpected = 0x10F5139C2F025325ULL;
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str ());

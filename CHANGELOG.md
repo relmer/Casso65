@@ -6,6 +6,87 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.603] — 2026-05-14 — HGR colour fix + 6-colour test pattern + 2-stage demo
+
+### Fixed (video)
+- **HGR/LoRes/DHGR colour palettes were rendering with R and B swapped**
+  due to a byte-layout mismatch between the `0xAARRGGBB` notation
+  used in `CassoEmuCore/Video/NtscColorTable.h`,
+  `AppleLoResMode.cpp`, and `AppleDoubleHiResMode.cpp` and the
+  `DXGI_FORMAT_R8G8B8A8_UNORM` swap-chain format set by
+  `D3DRenderer.cpp`. Symptom: HGR `BLUE` rendered as orange and
+  vice versa (anything in the //e's blue/orange palette pair came
+  out swapped); LoRes and DHGR colour indices 1 (Magenta), 2 (Dark
+  Blue), 7 (Light Blue), 8 (Brown) all rendered as red shades.
+  Violet/Green and the greys happened to be R/B-symmetric and
+  rendered correctly by accident, hiding the bug from any HGR
+  content that didn't lean on the blue/orange pair.
+  Constants are now stored in R8G8B8A8 byte layout (so the
+  little-endian `uint32_t` literal reads as `0xAA BB GG RR`).
+  Affected golden-hash tests (`DhrTestPattern_HashMatches_Golden`,
+  `US4_MixedMode_80Col_GoldenOutput`) and pixel-equality tests
+  (`Render_SinglePixelPalette*`, `HiRes_NTSCArtifact_*`,
+  `LoRes_TopBottomNybbles_*`) were updated with the corrected
+  expected values.
+
+### Added (demo)
+- **Two-stage `casso-rocks` boot disk now toggles between the
+  cassowary and a synthetic 6-colour HGR test pattern on every
+  keystroke.** Stage 1 (boot sector) loads the cassowary into HGR
+  page 1 and reads track 3 (which holds 16 identical copies of
+  stage 2) into `$1000-$1FFF`, then JMPs to the canonical stage 2
+  copy at `$1000`. Stage 2 loads tracks 4+5 (the test bands) into
+  HGR page 2, flips into HGR1, and runs a tiny self-modifying-code
+  polling loop that flips PAGE2 between cassowary and bands on
+  each keystroke. Stage 2 calls back into stage 1's still-resident
+  RWTS subroutines (`load_a`, `load_b`, `read_track`,
+  `read_sector`, `chk`, `wait_d5_aa`) via hard-coded entry-point
+  addresses. Both source files (`Apple2/Demos/casso-rocks.a65` +
+  `casso-rocks-stage2.a65`) plus the regenerated `casso-rocks.dsk`
+  and the new `test-bands.hgr` framebuffer are committed.
+- **`scripts/HgrPreprocess.py --pattern bands`** generates an 8 KB
+  HGR framebuffer with 6 horizontal stripes
+  (black/violet/green/white/blue/orange) covering all NTSC artefact
+  colours the //e renderer can produce. Useful for diagnosing
+  palette / byte-layout issues end-to-end through the disk + RWTS
+  + renderer pipeline.
+
+### Fixed (RWTS)
+- **`read_track` in the casso-rocks demo now reads 18 sectors per
+  track instead of 16** so that a phantom address mark caused by
+  LSS resync immediately after a head step doesn't leave one real
+  sector unread. Duplicate reads of the same logical sector just
+  overwrite the destination page with identical bytes; the cost is
+  ~25 KCycles per track. Symptom before the fix: stage 2's first
+  read after the head step from track 3 to track 4 reliably
+  dropped logical sector 3, leaving 256 bytes of HGR page 2 as
+  random startup data. Only matters for boot-loader-style RWTS
+  that doesn't have the standard DOS 3.3 head-settle delay; real
+  DOS / ProDOS code is unaffected.
+
+### Fixed (shell)
+- **`Reset` and `Power Cycle` menu commands now re-read mounted slot-6
+  disk images from the host filesystem.** Previously a Reset left the
+  in-memory disk byte buffer untouched and a Power Cycle re-mounted
+  using the cached path but didn't pick up external rewrites in a way
+  the user could rely on (the dev workflow "regenerate `.dsk` outside
+  Casso, hit Reset/Power Cycle to see the new image" silently kept
+  showing the old image). Both menu commands now go through a new
+  `RemountSlot6Disks` helper that snapshots the per-drive source
+  paths and re-runs `MountDiskInSlot6` against each one, so the
+  controller picks up whatever the file currently contains. Reset
+  still preserves user RAM (real Apple ][ Ctrl-Reset semantics);
+  Power Cycle still re-seeds DRAM. Auto-flush of dirty in-memory
+  bytes still runs first so live writes aren't lost.
+
+### Changed (demo)
+- **Lighter title font in `scripts/HgrPreprocess.py`.** The previous
+  Segoe UI Semibold 18px was too chunky on the cassowary HGR;
+  defaulted to Segoe UI Regular 18px with no extra stroke. Two new
+  CLI flags expose tuning without editing the script:
+  `--title-size N` (default 18) and `--title-stroke N` (default 0;
+  bump to 1 for a heavier look).
+
 ## [1.3.582] — 2026-05-13 — Reset/PowerCycle reload disks; lighter title font
 
 ### Fixed (shell)
