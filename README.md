@@ -32,7 +32,7 @@ Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS T
 
 ![Casso emulating an Apple //e booting DOS 3.3](Assets/Apple%202e%20DOS%203.3%20boot.png)
 
-![Casso Apple II Emulator](Assets/Apple%20%5D%5B%20GR%20Color%20Bands.png)
+![Casso emulating an Apple //e showing the HGR cassowary demo](Assets/Apple%202e%20HGR%20Cassowary.png)
 
 The project includes:
 

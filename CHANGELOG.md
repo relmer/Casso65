@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.621] — 2026-05-14 — Demo: clear text page on exit + README screenshot
+
+### Fixed (demo)
+- **Exit to BASIC no longer leaves LoRes garbage on the text page.**
+  After cycling past the LoRes test pattern, page 1 still held the
+  LoRes byte pattern. Once we flipped back to TEXT mode those bytes
+  rendered as character codes — anything in `$40-$7F` is in the
+  flash range, so half the screen was blinking nonsense around the
+  `]` prompt. Stage 2 now clears `$0400-$07FF` to `$A0` (space)
+  before `JMP $E000`. Stage 2 size is now 125 bytes (still in one
+  sector).
+
+### Changed (docs)
+- **README screenshot updated** to show the HGR cassowary demo
+  instead of the older GR color-bands placeholder. Retired
+  `Assets/Apple ][ GR Color Bands.png`.
+
 ## [1.3.619] — 2026-05-14 — Demo: TEXT mode on exit + American spellings
 
 ### Fixed (demo)

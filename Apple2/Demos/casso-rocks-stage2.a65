@@ -98,14 +98,25 @@ poll
 
 do_exit
     ; Drop to Applesoft (`]` prompt). $E000 is the Applesoft cold-start
-    ; entry point but doesn't reset the video soft switches, so flip
-    ; back to TEXT (and clear HIRES/PAGE2 for good measure) first --
-    ; otherwise BASIC writes characters into text page 1 but the screen
-    ; is still rendering whatever graphics mode the user was in when
-    ; they pressed ESC.
+    ; entry point but doesn't reset the video soft switches OR clear
+    ; the text screen, so:
+    ;   1. Flip back to TEXT (and clear HIRES/PAGE2 for good measure).
+    ;   2. Stamp text page 1 with spaces ($A0) to wipe whatever LoRes
+    ;      pattern is still resident from mode 2 -- otherwise BASIC's
+    ;      cold start cuts a window on top of garbage.
+    ;   3. JMP $E000.
     bit TXTON
     bit PG2OFF
     bit HIRESOFF
+    ldx #0
+    lda #$A0
+clear_text
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne clear_text
     jmp $E000              ; Applesoft cold start
 
 
