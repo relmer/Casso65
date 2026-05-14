@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.575] — 2026-05-13 — //e PR#3 cursor investigation
+
+### Added (test)
+- New `Pr3AuxClearTest::Pr3_StaticCursor_Lands_At_Main0480` pins the
+  byte-level state of the //e PR#3 cursor cell as Casso currently
+  produces it: prompt `]` ($DD) at aux $0480, inverse-space ($20)
+  at main $0480, OURCH=1, CV=1.
+
+### Investigation (incomplete)
+- The `Pr3AuxClearTest::Pr3_Clears_AuxTextPage1_AllRows` FIXME
+  comment previously hypothesized that the //e cursor-blink loop
+  was "missing a VBL interrupt or 1MHz mouse-card clock". The
+  comment now reflects a wider-scope investigation: an end-to-end
+  scan of the main //e ROM ($C100-$FFFC) found no `LDA $C019`, no
+  `EOR #$40`, no `ORA #$40`. **However**, on real //e hardware in
+  80-column mode the cursor IS supposed to blink — that loop lives
+  in the 80-column firmware at $C300-$C3FF, which is bank-switched
+  in via the `INTC8ROM` / `SLOTC3ROM` soft switches when `PR#3` is
+  active and is NOT in the main-ROM scan range. The PC trace
+  observed spinning in main ROM's BASIC keyboard poll
+  ($CB15-$CB1E) instead of the slot-3 firmware suggests Casso's
+  bank-switch for the 80-column firmware isn't taking effect after
+  `PR#3` — that is the actual bug to chase next.
+
 ## [1.3.574] — 2026-05-13 — PowerCycle drive-state fix
 
 ### Fixed (disk)
