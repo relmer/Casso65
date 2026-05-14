@@ -149,10 +149,20 @@ void AppleTextMode::RenderRowRange (
 
             // Decode character mode from high bits
             // $00-$3F: Inverse
-            // $40-$7F: Flash
+            // $40-$7F: Flash (suppressed when ALTCHARSET=1 on //e)
             // $80-$FF: Normal
-            bool inverse = false;
-            bool flash   = false;
+            //
+            // The //e enhanced video ROM (Decode4K) stores inverse
+            // slots ($00-$3F) already in their inverse-rendered
+            // bitmap form (UTAIIe 8.2/8.3); the renderer must display
+            // them as-stored. ][/][+ (Decode2K) stores normal-form
+            // bitmaps and the renderer must XOR for inverse display.
+            // Flash slots ($40-$7F primary) alias the inverse bytes
+            // on //e -- the renderer's XOR is what flips between the
+            // stored-inverse and XORed-normal phase each blink.
+            bool isIIeRom = m_charRom.HasAltCharSet();
+            bool inverse  = false;
+            bool flash    = false;
 
             if (charCode < 0x40)
             {
@@ -160,10 +170,10 @@ void AppleTextMode::RenderRowRange (
             }
             else if (charCode < 0x80)
             {
-                flash = true;
+                flash = !m_altCharSet;
             }
 
-            bool showInverse = inverse || (flash && m_flashOn);
+            bool showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
             int  fbColOrigin = fbRowOrigin + col * charStride;
 
             // Render the 7x8 glyph scaled 2x to 14x16 in the framebuffer.

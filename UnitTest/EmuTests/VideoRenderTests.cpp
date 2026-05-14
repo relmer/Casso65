@@ -1,6 +1,7 @@
 #include "../CassoEmuCore/Pch.h"
 
 #include <CppUnitTest.h>
+#include <filesystem>
 
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
@@ -12,9 +13,11 @@
 #include "Video/AppleHiResMode.h"
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/CharacterRom.h"
+#include "Video/CharacterRomData.h"
 #include "Video/NtscColorTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+namespace fs = std::filesystem;
 
 
 static constexpr int kFbW = 560;
@@ -632,5 +635,150 @@ public:
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"80-col golden hash mismatch: got 0x{:016X}", hash).c_str ());
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  IIeRom_*_InverseSpace_RendersAsSolidBlock
+    //
+    //  Regression for the missing 80-col cursor: the //e firmware
+    //  draws the BASIC cursor as `$20` (inverse-space, expected to
+    //  render as a solid block). The //e enhanced video ROM stores
+    //  the inverse-range slots ($00-$3F, in BOTH primary and alt
+    //  sets) already in their visual / pre-inverted bitmap form
+    //  (UTAIIe Tables 8.2/8.3) -- so the renderer's XOR-inversion
+    //  path must NOT fire for the //e ROM; doing so re-inverts the
+    //  pre-inverted bitmap and produces an empty cell.
+    //
+    //  These tests load the real Apple2e_Video.rom via
+    //  CharacterRomData::LoadFromFile (skipping cleanly on CI
+    //  runners that don't provision Apple-owned ROMs) and assert
+    //  that an inverse-space cell renders as solid green pixels in
+    //  both 40-col and 80-col text modes.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static fs::path FindIIeCharRom()
+    {
+        fs::path  cursor = fs::current_path();
+
+        for (int depth = 0; depth < 8; depth++)
+        {
+            fs::path  candidate = cursor / "ROMs" / "Apple2e_Video.rom";
+
+            if (fs::exists (candidate))
+            {
+                return candidate;
+            }
+
+            if (cursor.parent_path() == cursor)
+            {
+                break;
+            }
+
+            cursor = cursor.parent_path();
+        }
+
+        return {};
+    }
+
+    TEST_METHOD (IIeRom_AppleTextMode_InverseSpace_RendersSolidBlock)
+    {
+        fs::path romPath = FindIIeCharRom();
+
+        if (romPath.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
+                                  "not present (CI runners do not provision "
+                                  "Apple-owned ROMs).\n");
+            return;
+        }
+
+        CharacterRomData rom;
+        HRESULT          hrLoad = rom.LoadFromFile (romPath.string());
+        Assert::IsTrue (SUCCEEDED (hrLoad), L"Must load Apple2e_Video.rom");
+        Assert::IsTrue (rom.HasAltCharSet(),
+            L"4K //e ROM must register as having alt-set");
+
+        // Place inverse-space at column 0 of row 0.
+        std::vector<Byte> mem (0x10000, 0xA0);
+        mem[0x0400] = 0x20;
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        AppleTextMode textMode (bus, rom);
+        textMode.SetPage2     (false);
+        textMode.SetAltCharSet (false);
+
+        std::vector<uint32_t> fb (kFbW * kFbH, 0);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
+
+        // 40-col cell origin: 14px wide, 16px tall (each char doubled).
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 14; x++)
+            {
+                Assert::AreEqual (kGreen, fb[y * kFbW + x],
+                    std::format (L"//e inverse-space at ({},{}) must be green "
+                                 L"(would be black if XOR-inversion ran "
+                                 L"against pre-inverted ROM byte)", x, y).c_str());
+            }
+        }
+    }
+
+    TEST_METHOD (IIeRom_Apple80ColTextMode_InverseSpace_RendersSolidBlock)
+    {
+        fs::path romPath = FindIIeCharRom();
+
+        if (romPath.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
+                                  "not present (CI runners do not provision "
+                                  "Apple-owned ROMs).\n");
+            return;
+        }
+
+        CharacterRomData rom;
+        HRESULT          hrLoad = rom.LoadFromFile (romPath.string());
+        Assert::IsTrue (SUCCEEDED (hrLoad), L"Must load Apple2e_Video.rom");
+
+        // Mirror the //e PR#3 cursor placement: prompt ']' ($DD) at
+        // aux $0480 (col 0 of row 1), inverse-space cursor ($20) at
+        // main $0480 (col 1 of row 1).
+        std::vector<Byte> mainMem (0x10000, 0xA0);
+        std::vector<Byte> auxMem  (0x10000, 0xA0);
+        mainMem[0x0480] = 0x20;
+        auxMem [0x0480] = 0xDD;
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        Apple80ColTextMode text80 (bus, rom);
+        text80.SetAuxMemory  (auxMem.data());
+        text80.SetAltCharSet (true);
+
+        std::vector<uint32_t> fb (kFbW * kFbH, 0);
+        text80.Render (mainMem.data(), fb.data(), kFbW, kFbH);
+
+        // 80-col cell origin: 7px wide. Row 1 in framebuffer:
+        // y = 1 * 8 * 2 .. 1 * 8 * 2 + 15 = 16..31.
+        // Col 1 in framebuffer: x = 1 * 7 .. 1 * 7 + 6 = 7..13.
+        constexpr int kCellW = 7;
+        constexpr int kCellH = 16;
+        constexpr int kRow   = 16;
+        constexpr int kCol   = 7;
+
+        for (int y = 0; y < kCellH; y++)
+        {
+            for (int x = 0; x < kCellW; x++)
+            {
+                Assert::AreEqual (kGreen, fb[(kRow + y) * kFbW + (kCol + x)],
+                    std::format (L"80-col cursor cell ({},{}) must be green",
+                                 kCol + x, kRow + y).c_str());
+            }
+        }
     }
 };

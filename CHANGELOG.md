@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.576] — 2026-05-13 — //e missing 80-col cursor fix
+
+### Fixed (video)
+- **The 80-col cursor (and any inverse-character cell) is now
+  visible on the //e.** The //e enhanced video ROM stores the
+  inverse-range slots ($00-$3F, in BOTH primary and alt sets)
+  already in their visual / pre-inverted bitmap form (UTAIIe
+  Tables 8.2/8.3 — slot $20 holds the bitmap of "inverse SPACE"
+  = solid block, not the bitmap of normal " "). The text-mode
+  renderers were applying their own XOR-inversion on top of that
+  (the ][/][+ Decode2K convention), which re-inverted the
+  pre-inverted bytes back to empty cells. Symptom: the BASIC
+  cursor at main $0480 (= $20, inverse-space) rendered as
+  invisible; any inverse-text screen output was blank. Fix:
+  detect the //e ROM via `CharacterRomData::HasAltCharSet()` and
+  skip the renderer's XOR-inversion for inverse slots when it's
+  loaded; flash slots ($40-$7F primary) keep their XOR-toggle
+  because those bytes alias the inverse range and the toggle is
+  what alternates between stored-inverse and XORed-normal phase.
+  Affects both `AppleTextMode` (40-col) and `Apple80ColTextMode`
+  (80-col). New `VideoRenderTests::IIeRom_AppleTextMode_*` and
+  `IIeRom_Apple80ColTextMode_InverseSpace_RendersSolidBlock` pin
+  the contract using the real `Apple2e_Video.rom`.
+
 ## [1.3.575] — 2026-05-13 — //e PR#3 cursor investigation
 
 ### Added (test)

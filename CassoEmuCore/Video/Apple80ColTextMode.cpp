@@ -149,10 +149,29 @@ void Apple80ColTextMode::RenderRowRange (
             // ALTCHARSET=0:  $00-$3F inverse, $40-$7F flash, $80-$FF normal.
             // ALTCHARSET=1:  $00-$3F inverse, $40-$7F MouseText (alt set, no flash),
             //                $80-$FF normal.
-            bool inverse = charCode < 0x40;
-            bool flash   = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
+            //
+            // The //e enhanced video ROM (Decode4K) stores the inverse
+            // slots ($00-$3F, in BOTH primary and alt sets) already in
+            // their inverse-rendered bitmap form (UTAIIe Tables
+            // 8.2/8.3). The flash slots ($40-$7F primary) alias the
+            // same bytes -- the toggle between inverse and normal phase
+            // is what the renderer's XOR achieves. So:
+            //
+            //   - //e ROM, inverse slot:  display as-stored (no XOR).
+            //   - //e ROM, flash slot:    XOR on the "normal" phase
+            //     of the blink (so we toggle stored-inverse vs XORed-
+            //     normal each ~16 frames).
+            //   - ][/][+ ROM:             XOR on inverse OR flash phase
+            //     (Decode2K stores normal-form bitmaps).
+            //
+            // Without the //e branch the cursor cell ($20 stored as a
+            // pre-inverted solid block) would be XOR'd back to empty
+            // -- the "missing 80-col cursor" symptom.
+            bool isIIeRom = m_charRom.HasAltCharSet();
+            bool inverse  = charCode < 0x40;
+            bool flash    = !m_altCharSet && (charCode >= 0x40) && (charCode < 0x80);
 
-            bool showInverse = inverse || (flash && m_flashOn);
+            bool showInverse = (inverse && !isIIeRom) || (flash && m_flashOn);
 
             for (int py = 0; py < kCharHeight; py++)
             {
