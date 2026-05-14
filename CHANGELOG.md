@@ -6,10 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.619] — 2026-05-14 — Demo: TEXT mode on exit + American spellings
+
+### Fixed (demo)
+- **Cycling past LoRes now actually drops to a usable BASIC prompt.**
+  The previous revision did `JMP $E000` (Applesoft cold start) but
+  Applesoft's cold start doesn't reset the video soft-switches, so
+  we landed at the `]` prompt with the screen still rendering as
+  LoRes graphics — characters typed afterward updated text page 1
+  but were invisible (or appeared as colored blocks). Now stage 2
+  flips `TXT` on (and clears `HIRES`/`PAGE2` for good measure)
+  before the `JMP $E000`.
+
+### Changed (docs / source)
+- **Spelling: standardized on American English** in source, comments,
+  CHANGELOG, and stage-2 demo header. Replaced `colour` →
+  `color`, `artefact` → `artifact`, `behaviour` → `behavior`,
+  `synthesise` → `synthesize` in newly authored content.
+
 ## [1.3.618] — 2026-05-14 — LoRes test pattern + ESC-to-BASIC exit
 
 ### Added (demo)
-- **LoRes (Apple `GR`) 16-colour bar test pattern.** New
+- **LoRes (Apple `GR`) 16-color bar test pattern.** New
   `scripts/HgrPreprocess.py --pattern lores-bars` emits a 1 KB
   text-page-1 ($0400-$07FF) image with 16 horizontal stripes of
   LoRes palette indices 0..15. The pattern is shipped on the
@@ -19,7 +37,7 @@ Entries before versioning was introduced use dates only.
 - **Demo cycle now walks the standard Apple //e graphics modes
   with one keystroke each, then exits to Applesoft.** Stage 2
   starts in HGR1 (cassowary), advances on each keystroke through
-  HGR2 (the existing 6-colour bands), GR (the new LoRes bars),
+  HGR2 (the existing 6-color bands), GR (the new LoRes bars),
   and on the next keystroke `JMP $E000` lands at Applesoft cold
   start (`]` prompt). Pressing **ESC** at any time also exits.
   Verified end-to-end in
@@ -37,19 +55,19 @@ Entries before versioning was introduced use dates only.
   area first (e.g. $6000-$7FFF) and then memcpy it to aux with
   RAMWRT toggled around just the copy.
 - The //e text mode is monochrome on stock hardware (no per-glyph
-  colour), so there's no "TEXT" colour test to add.
+  color), so there's no "TEXT" color test to add.
 
-## [1.3.603] — 2026-05-14 — HGR colour fix + 6-colour test pattern + 2-stage demo
+## [1.3.603] — 2026-05-14 — HGR color fix + 6-color test pattern + 2-stage demo
 
 ### Fixed (video)
-- **HGR/LoRes/DHGR colour palettes were rendering with R and B swapped**
+- **HGR/LoRes/DHGR color palettes were rendering with R and B swapped**
   due to a byte-layout mismatch between the `0xAARRGGBB` notation
   used in `CassoEmuCore/Video/NtscColorTable.h`,
   `AppleLoResMode.cpp`, and `AppleDoubleHiResMode.cpp` and the
   `DXGI_FORMAT_R8G8B8A8_UNORM` swap-chain format set by
   `D3DRenderer.cpp`. Symptom: HGR `BLUE` rendered as orange and
   vice versa (anything in the //e's blue/orange palette pair came
-  out swapped); LoRes and DHGR colour indices 1 (Magenta), 2 (Dark
+  out swapped); LoRes and DHGR color indices 1 (Magenta), 2 (Dark
   Blue), 7 (Light Blue), 8 (Brown) all rendered as red shades.
   Violet/Green and the greys happened to be R/B-symmetric and
   rendered correctly by accident, hiding the bug from any HGR
@@ -64,7 +82,7 @@ Entries before versioning was introduced use dates only.
 
 ### Added (demo)
 - **Two-stage `casso-rocks` boot disk now toggles between the
-  cassowary and a synthetic 6-colour HGR test pattern on every
+  cassowary and a synthetic 6-color HGR test pattern on every
   keystroke.** Stage 1 (boot sector) loads the cassowary into HGR
   page 1 and reads track 3 (which holds 16 identical copies of
   stage 2) into `$1000-$1FFF`, then JMPs to the canonical stage 2
@@ -79,8 +97,8 @@ Entries before versioning was introduced use dates only.
   and the new `test-bands.hgr` framebuffer are committed.
 - **`scripts/HgrPreprocess.py --pattern bands`** generates an 8 KB
   HGR framebuffer with 6 horizontal stripes
-  (black/violet/green/white/blue/orange) covering all NTSC artefact
-  colours the //e renderer can produce. Useful for diagnosing
+  (black/violet/green/white/blue/orange) covering all NTSC artifact
+  colors the //e renderer can produce. Useful for diagnosing
   palette / byte-layout issues end-to-end through the disk + RWTS
   + renderer pipeline.
 
@@ -155,20 +173,20 @@ Entries before versioning was introduced use dates only.
   can still be overridden with `--crop`.
 - **Per-byte HGR palette selection** in `scripts/HgrPreprocess.py`
   replaces the previous monochrome bit-pack. The encoder now
-  classifies each source pixel into the 6-colour HGR palette
+  classifies each source pixel into the 6-color HGR palette
   ({black, white, violet, green, blue, orange}), votes on a per-byte
   palette pair (bit 7 = 0 → violet+green, bit 7 = 1 → blue+orange,
-  with blue/orange weighted 2× so a single colour pixel doesn't lose
+  with blue/orange weighted 2× so a single color pixel doesn't lose
   to neighbouring leaf-greens), then places ON bits at the absolute
-  pixel positions whose NTSC artefact phase matches the target
-  colour. Result: the leafy background renders solid green, the
+  pixel positions whose NTSC artifact phase matches the target
+  color. Result: the leafy background renders solid green, the
   casque/wattles render orange/violet, and the head/neck reads as
   blue instead of every byte collapsing to a wash of white +
   green/violet stripes.
 - **Letterbox-fit** added to the preprocessor for portrait subjects:
   fit the cropped image entirely inside 280×192 with black side
   bars instead of further center-cropping to landscape, so the
-  cassowary keeps its full vertical proportion. Behaviour can be
+  cassowary keeps its full vertical proportion. Behavior can be
   reverted to the old fill-the-screen mode with `--no-letterbox`.
 
 ### Notes
@@ -176,8 +194,8 @@ Entries before versioning was introduced use dates only.
   within any 7-pixel column you get either {black, white, violet,
   green} OR {black, white, blue, orange}, never both. Thin features
   that straddle a palette boundary (a blue feather next to a green
-  leaf) will compromise — one or the other gets the right colour, or
-  both wash to white via NTSC artefacting. The encoder is a
+  leaf) will compromise — one or the other gets the right color, or
+  both wash to white via NTSC artifacting. The encoder is a
   best-effort first pass; future work could add Floyd-Steinberg
   error diffusion across byte boundaries.
 
@@ -552,7 +570,7 @@ IRQ/NMI infrastructure.
 - **`Apple80ColTextMode`** with `ALTCHARSET`, `FLASH` half-second blink
   cadence, and composed mixed-mode (top 160 lines graphics, bottom 32
   lines text) from a single shared character ROM source.
-- **`AppleDoubleHiResMode`** — 560×192 monochrome / 140×192 16-colour
+- **`AppleDoubleHiResMode`** — 560×192 monochrome / 140×192 16-color
   Double Hi-Res with proper aux/main interleave (aux byte first, then
   main, packing 7 pixels per byte pair). DHR mode-select gated on
   `RDHIRES & RD80VID & RDDHIRES`.
@@ -568,7 +586,7 @@ IRQ/NMI infrastructure.
 
 ### Added (backwards-compat — Phase 14)
 - `BackwardsCompatTests` regression-protect the unchanged Apple ][ and
-  ][+ behaviour: keyboard latch, soft-switch surface, video modes, no
+  ][+ behavior: keyboard latch, soft-switch surface, video modes, no
   MMU activity, no aux RAM, no IRQ controller. Audit log
   (`audit-backwards-compat.md`) documents the verification.
 
@@ -631,11 +649,11 @@ IRQ/NMI infrastructure.
   canonical owner of each flag (LanguageCard for BSRBANK2/BSRREADRAM, MMU for
   RDRAMRD/RDRAMWRT/RDCXROM/RDALTZP/RDC3ROM/RD80STORE, VideoTiming for
   RDVBLBAR, the bank for the display-mode flags), and bits 0-6 mirror the
-  keyboard latch (floating-bus behaviour).
+  keyboard latch (floating-bus behavior).
 - **`AppleIIeKeyboard` is now a `$C000-$C063` facade** that forwards
   non-owned addresses to its sibling devices (soft-switch bank for
   `$C00C-$C00F` / `$C011-$C01F` / `$C050-$C05F`; speaker for `$C030-$C03F`).
-  This preserves the unchanged ][/][+ behaviour where `AppleKeyboard` only
+  This preserves the unchanged ][/][+ behavior where `AppleKeyboard` only
   owns `$C000-$C01F`.
 
 ### Tests

@@ -16,7 +16,7 @@
 // DXGI_FORMAT_R8G8B8A8_UNORM swap chain set up in D3DRenderer.cpp). Byte 0
 // = R, byte 1 = G, byte 2 = B, byte 3 = A; the little-endian uint32_t hex
 // literal therefore reads as 0xAA BB GG RR. Most entries render their
-// labelled colour because their R/B components are symmetric (greys,
+// labelled color because their R/B components are symmetric (greys,
 // pure-green, pure-red ranges); the 4 entries previously rendering as
 // some shade of red (Magenta, Dark Blue, Light Blue, Brown) are
 // corrected here.

@@ -15,11 +15,11 @@
 #         + 128  * ((row >> 3) & 7)
 #         +  40  * (row >> 6)
 #  Each byte stores 7 horizontal pixels in bits 0..6 (LSB = leftmost).
-#  Bit 7 picks the colour palette pair: 0 = violet+green, 1 = blue+orange.
-#  Within a byte, even-bit pixels (0,2,4,6) take the "phase A" colour
-#  (violet or blue), odd-bit pixels (1,3,5) take the "phase B" colour
+#  Bit 7 picks the color palette pair: 0 = violet+green, 1 = blue+orange.
+#  Within a byte, even-bit pixels (0,2,4,6) take the "phase A" color
+#  (violet or blue), odd-bit pixels (1,3,5) take the "phase B" color
 #  (green or orange). Two adjacent ON pixels appear as white due to NTSC
-#  composite artefacting, two adjacent OFF pixels appear as black.
+#  composite artifacting, two adjacent OFF pixels appear as black.
 #
 #  Determinism: PIL.Image.resize with a fixed resampling filter and our
 #  own pure-python quantizer are deterministic across Pillow >= 9 on the
@@ -40,7 +40,7 @@ HGR_BYTES      = 8192
 ROW_BYTES      = 40
 PIXELS_PER_BYTE = 7
 
-# LoRes (40x48 16-colour graphics, sharing text-page-1 RAM at $0400-$07FF).
+# LoRes (40x48 16-color graphics, sharing text-page-1 RAM at $0400-$07FF).
 # 24 text rows; each row's byte packs two LoRes pixel rows as (high
 # nibble << 4) | low nibble. Only the first 40 columns of each text
 # row are visible -- the remaining 88 bytes per 128-byte chunk are
@@ -51,7 +51,7 @@ LORES_PIXEL_ROWS   = 48
 LORES_VISIBLE_COLS = 40
 LORES_COLORS       = 16
 
-# DHGR (560x192 in monochrome, 140x192 in 16-colour mode). Uses HGR
+# DHGR (560x192 in monochrome, 140x192 in 16-color mode). Uses HGR
 # page 1 on BOTH main and aux RAM, with aux supplying even-x byte
 # columns and main supplying odd-x. The framebuffer for one half is
 # the same 8 KB layout as standard HGR.
@@ -64,7 +64,7 @@ DHGR_COLORS        = 16
 DEFAULT_CROP   = (60, 40, 860, 1100)
 
 
-# Approximate sRGB values for the six Apple ][ HGR colours. Sourced from
+# Approximate sRGB values for the six Apple ][ HGR colors. Sourced from
 # the standard NTSC HGR palette commonly used by emulators (AppleWin,
 # Virtual ][), close to what real composite hardware produces.
 HGR_BLACK   = (0,   0,   0  )
@@ -74,7 +74,7 @@ HGR_GREEN   = (40,  220, 60 )
 HGR_BLUE    = (30,  130, 255)
 HGR_ORANGE  = (255, 130, 30 )
 
-# For each palette (bit7=0 / bit7=1), per-pixel-phase colours:
+# For each palette (bit7=0 / bit7=1), per-pixel-phase colors:
 #   phase A = even bit position in the byte (bits 0,2,4,6)
 #   phase B = odd  bit position in the byte (bits 1,3,5)
 PALETTE_VG = (HGR_VIOLET, HGR_GREEN)    # bit7 = 0
@@ -87,7 +87,7 @@ def hgr_row_offset (row):
           +   40 * (row >> 6))
 
 
-def colour_distance_sq (a, b):
+def color_distance_sq (a, b):
     dr = a[0] - b[0]
     dg = a[1] - b[1]
     db = a[2] - b[2]
@@ -95,14 +95,14 @@ def colour_distance_sq (a, b):
 
 
 def nearest_hgr_target (src):
-    # Hue-based classification into the 6 HGR rendered colours. Plain
-    # RGB Euclidean distance gets confused by desaturated colours --
+    # Hue-based classification into the 6 HGR rendered colors. Plain
+    # RGB Euclidean distance gets confused by desaturated colors --
     # e.g. the cassowary's brown casque (~140,90,80, R approximately
     # B) lands closer to HGR_VIOLET (170,30,220, lots of B) than to
     # HGR_ORANGE (255,130,30) by sRGB distance, so the casque was
     # rendering purple. Routing by which channel dominates (warm vs
     # cool, then green) recovers brown -> orange / blue-grey -> blue
-    # without distorting the saturated colours.
+    # without distorting the saturated colors.
     r, g, b = src
     luma    = (r + g + b) // 3
     chroma  = max (r, g, b) - min (r, g, b)
@@ -156,11 +156,11 @@ def encode_byte (pixels, row, col_byte):
         targets.append (nearest_hgr_target (pixels[x, row]))
 
     # Step 2: pick the palette pair (bit 7 of the byte). Weight blue/
-    # orange votes a little higher than violet/green so that colour
+    # orange votes a little higher than violet/green so that color
     # pixels of those palettes pull the byte even when they're
     # outnumbered by neutral neighbours -- otherwise a single blue
     # pixel surrounded by leaf-green ones loses the palette vote and
-    # gets demoted to black or wrong-colour artefact.
+    # gets demoted to black or wrong-color artifact.
     bo_votes = sum (2 for t in targets if t in ("BLUE", "ORANGE"))
     vg_votes = sum (1 for t in targets if t in ("VIOLET", "GREEN"))
     hi_bit   = 1 if bo_votes > vg_votes else 0
@@ -171,10 +171,10 @@ def encode_byte (pixels, row, col_byte):
         even_x_name, odd_x_name = "VIOLET", "GREEN"
 
     # Step 3: place bits. Renderer rules (matches Casso's
-    # AppleHiResMode::Render and real Apple HW NTSC artefacting):
+    # AppleHiResMode::Render and real Apple HW NTSC artifacting):
     #   - Pixel OFF                -> BLACK
-    #   - Isolated ON, even abs x  -> phase A colour (violet or blue)
-    #   - Isolated ON, odd  abs x  -> phase B colour (green or orange)
+    #   - Isolated ON, even abs x  -> phase A color (violet or blue)
+    #   - Isolated ON, odd  abs x  -> phase B color (green or orange)
     #   - ON with an ON neighbour  -> WHITE
     # CRITICAL: the parity that matters is the ABSOLUTE pixel x, not
     # the bit index within the byte. For odd byte indices the two
@@ -194,10 +194,10 @@ def encode_byte (pixels, row, col_byte):
                          (tgt == odd_x_name  and not x_is_even))
             if want_on:
                 bits |= (1 << bit)
-            # else: wrong-palette colour or wrong-phase position. Keep
+            # else: wrong-palette color or wrong-phase position. Keep
             # OFF (black) instead of forcing ON, so the chromatic
             # pixels in this byte stay clean instead of being smeared
-            # by white-artefact runs.
+            # by white-artifact runs.
 
     return (hi_bit << 7) | bits
 
@@ -219,14 +219,14 @@ def image_to_hgr (img):
 
 
 def generate_color_bands_hgr ():
-    # Synthesise an 8 KB HGR test pattern that exercises every NTSC
-    # artefact colour Casso's renderer can produce. Top-to-bottom:
+    # Synthesize an 8 KB HGR test pattern that exercises every NTSC
+    # artifact color Casso's renderer can produce. Top-to-bottom:
     # 6 horizontal bands of 32 scanlines each, in order
     # BLACK / VIOLET / GREEN / WHITE / BLUE / ORANGE.
     #
     # Within each band, every byte is filled with a value that puts
     # ON pixels at exactly the right absolute-x parity for the target
-    # colour, accounting for the byte<->x parity flip on every odd
+    # color, accounting for the byte<->x parity flip on every odd
     # byte index (since 7 is odd, byte N starts at x=7N which
     # alternates parity).
     #
@@ -234,12 +234,12 @@ def generate_color_bands_hgr ():
     # bytes in the wrong layout, blue<->orange and violet<->green
     # show up swapped" test image. Used by the bootable demo disk
     # alongside the cassowary so a key swap toggles between an
-    # organic colour image and a synthetic palette reference.
+    # organic color image and a synthetic palette reference.
     out = bytearray (HGR_BYTES)
 
     # (band name, even-byte value, odd-byte value).
-    # For solid colour stripes the rule is:
-    #   target colour at all absolute x of parity P -> ON when
+    # For solid color stripes the rule is:
+    #   target color at all absolute x of parity P -> ON when
     #   (N + b) parity = P, where N is the byte index in the row
     #   and b is the bit index within the byte. Because 7 is odd,
     #   even byte indices have b parity = x parity, odd byte
@@ -271,8 +271,8 @@ def generate_color_bands_hgr ():
 
 
 def generate_lores_bars_lores ():
-    # Synthesise the 1 KB text-page-1 ($0400-$07FF) content for a
-    # LoRes 16-colour bar test. The screen is partitioned into 16
+    # Synthesize the 1 KB text-page-1 ($0400-$07FF) content for a
+    # LoRes 16-color bar test. The screen is partitioned into 16
     # vertical bands of ~12 LoRes scanlines (one per palette index
     # 0..15). Each text-screen byte holds two stacked LoRes pixel
     # rows packed as low / high nibble; we compute the byte for
@@ -303,14 +303,14 @@ def generate_lores_bars_lores ():
 
 
 def generate_dhgr_bands ():
-    # Synthesise the 8 KB main + 8 KB aux pages of a DHGR 16-colour
-    # bar test. Each colour gets a 12-scanline horizontal band, top
+    # Synthesize the 8 KB main + 8 KB aux pages of a DHGR 16-color
+    # bar test. Each color gets a 12-scanline horizontal band, top
     # to bottom in palette index order 0..15. DHGR packs 7 pixels
     # per byte across an aux+main pair (aux holds even-x byte
     # columns, main holds odd-x; together one byte-pair covers 14
-    # contiguous pixels), and 4 consecutive pixels make one 16-colour
-    # "cell" with the colour nibble in LSB-first bit order. So a
-    # solid stripe of colour C wants every pixel in that row to read
+    # contiguous pixels), and 4 consecutive pixels make one 16-color
+    # "cell" with the color nibble in LSB-first bit order. So a
+    # solid stripe of color C wants every pixel in that row to read
     # out as bit `(P % 4)` of C, where P is the absolute pixel index.
     #
     # Used by the bootable demo disk to verify the DHGR 16-entry
@@ -346,10 +346,10 @@ def generate_dhgr_bands ():
     return bytes (aux), bytes (main)
     # Paint a centered title across the top of the 280x192 canvas in
     # white. We try a few common Windows TrueType fonts at the
-    # requested size; whatever we draw goes through the same colour
+    # requested size; whatever we draw goes through the same color
     # pipeline as the rest of the image, so crisp white text relies on
     # the encoder's WHITE classification (bright + desaturated) and
-    # adjacent-ON artefacting.
+    # adjacent-ON artifacting.
     candidates = [
         "segoeui.ttf",
         "tahoma.ttf",
@@ -375,8 +375,8 @@ def generate_dhgr_bands ():
     # Drop a black "shadow" behind the white text so that, even where
     # the title overlaps the cassowary's casque or a leaf, the glyphs
     # have at least one black neighbour each side and the encoder can
-    # render them as solid white instead of WHITE-pixel-next-to-colour
-    # which would just artefact garbage.
+    # render them as solid white instead of WHITE-pixel-next-to-color
+    # which would just artifact garbage.
     pad = stroke_width + 1
     for dx in range (-pad, pad + 1):
         for dy in range (-pad, pad + 1):
@@ -456,10 +456,10 @@ def main ():
                          default=None,
                          help="emit a synthetic test pattern instead of "
                               "encoding an image. Options: 'bands' (HGR "
-                              "6-colour stripes, 8 KB), 'lores-bars' "
-                              "(LoRes 16-colour stripes packed into text "
+                              "6-color stripes, 8 KB), 'lores-bars' "
+                              "(LoRes 16-color stripes packed into text "
                               "page 1, 1 KB), 'dhgr-bands-aux' / "
-                              "'dhgr-bands-main' (DHGR 16-colour stripes, "
+                              "'dhgr-bands-main' (DHGR 16-color stripes, "
                               "8 KB each side; ship both onto separate "
                               "disk tracks then RAMWRT-toggle when "
                               "loading)")

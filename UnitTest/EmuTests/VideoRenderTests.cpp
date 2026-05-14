@@ -596,7 +596,7 @@ public:
         // stored with R/B bytes swapped relative to the R8G8B8A8 swap-
         // chain format and rendered as red shades on screen). Fixing
         // the palette shifts the rendered pixel bytes for any pattern
-        // that exercises those colour indices, which moves the hash.
+        // that exercises those color indices, which moves the hash.
         constexpr uint64_t kExpected = 0x10F5139C2F025325ULL;
 
         Assert::AreEqual (kExpected, hash,

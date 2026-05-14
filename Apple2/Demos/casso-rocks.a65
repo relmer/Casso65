@@ -19,7 +19,7 @@
 ;  casso-rocks-stage2.a65 alongside this file) then:
 ;
 ;    4. Steps to tracks 4+5 and reads them into HGR page 2 at
-;       $4000-$5FFF (synthetic 6-colour test bands framebuffer).
+;       $4000-$5FFF (synthetic 6-color test bands framebuffer).
 ;    5. Flips TXTOFF + HIRESON so cassowary is visible.
 ;    6. Polls the keyboard. Each keystroke flips PAGE2 between page 1
 ;       (cassowary) and page 2 (test bands), and clears the strobe.

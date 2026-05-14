@@ -26,8 +26,8 @@
 ;
 ;      Modes:
 ;        0 = HGR1: cassowary on main page 1 ($2000-$3FFF)
-;        1 = HGR2: 6-colour bands on main page 2 ($4000-$5FFF)
-;        2 = LoRes (GR): 16-colour bars on text page 1 ($0400-$07FF)
+;        1 = HGR2: 6-color bands on main page 2 ($4000-$5FFF)
+;        2 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF)
 ;
 ;    Exit:
 ;      JMP $E000 lands at the //e Applesoft cold start (gives the
@@ -51,6 +51,7 @@
 KBD       = $C000          ; keyboard data + strobe (bit 7)
 STROBE    = $C010          ; clear keyboard strobe (any access)
 TXTOFF    = $C050
+TXTON     = $C051
 MIXOFF    = $C052
 PG2OFF    = $C054
 PG2ON     = $C055
@@ -96,6 +97,15 @@ poll
     ; fall through (past mode 2) -> exit
 
 do_exit
+    ; Drop to Applesoft (`]` prompt). $E000 is the Applesoft cold-start
+    ; entry point but doesn't reset the video soft switches, so flip
+    ; back to TEXT (and clear HIRES/PAGE2 for good measure) first --
+    ; otherwise BASIC writes characters into text page 1 but the screen
+    ; is still rendering whatever graphics mode the user was in when
+    ; they pressed ESC.
+    bit TXTON
+    bit PG2OFF
+    bit HIRESOFF
     jmp $E000              ; Applesoft cold start
 
 
