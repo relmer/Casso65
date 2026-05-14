@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.581] — 2026-05-13 — HGR cassowary: better crop & color fidelity
+
+### Changed
+- **Tightened the cassowary crop** to capture the casque + head + neck
+  through wattles, framed similar to the standard photo crop instead of
+  the wider center-strip the first encoder produced. Source crop box
+  is now baked into `scripts/HgrPreprocess.py` as `DEFAULT_CROP` and
+  can still be overridden with `--crop`.
+- **Per-byte HGR palette selection** in `scripts/HgrPreprocess.py`
+  replaces the previous monochrome bit-pack. The encoder now
+  classifies each source pixel into the 6-colour HGR palette
+  ({black, white, violet, green, blue, orange}), votes on a per-byte
+  palette pair (bit 7 = 0 → violet+green, bit 7 = 1 → blue+orange,
+  with blue/orange weighted 2× so a single colour pixel doesn't lose
+  to neighbouring leaf-greens), then places ON bits at the absolute
+  pixel positions whose NTSC artefact phase matches the target
+  colour. Result: the leafy background renders solid green, the
+  casque/wattles render orange/violet, and the head/neck reads as
+  blue instead of every byte collapsing to a wash of white +
+  green/violet stripes.
+- **Letterbox-fit** added to the preprocessor for portrait subjects:
+  fit the cropped image entirely inside 280×192 with black side
+  bars instead of further center-cropping to landscape, so the
+  cassowary keeps its full vertical proportion. Behaviour can be
+  reverted to the old fill-the-screen mode with `--no-letterbox`.
+
+### Notes
+- Apple ][ HGR's per-7-pixel-byte palette restriction is fundamental:
+  within any 7-pixel column you get either {black, white, violet,
+  green} OR {black, white, blue, orange}, never both. Thin features
+  that straddle a palette boundary (a blue feather next to a green
+  leaf) will compromise — one or the other gets the right colour, or
+  both wash to white via NTSC artefacting. The encoder is a
+  best-effort first pass; future work could add Floyd-Steinberg
+  error diffusion across byte boundaries.
+
 ## [1.3.579] — 2026-05-13 — HGR cassowary demo
 
 ### Added
