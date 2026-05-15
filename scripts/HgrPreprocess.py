@@ -344,12 +344,18 @@ def generate_dhgr_bands ():
             main[base + byte_pair] = main_byte
 
     return bytes (aux), bytes (main)
-    # Paint a centered title across the top of the 280x192 canvas in
-    # white. We try a few common Windows TrueType fonts at the
+
+
+def paint_title (canvas, text, font_size=18, stroke_width=0, top_y=2):
+    # Paint a centered title across the top of the canvas in white.
+    # Canvas may be any width — the centering uses canvas.width, not
+    # HGR_WIDTH, so this function works for both HGR (280) and DHGR
+    # (560 dots / 280 letterbox / 140 color cells, depending on
+    # caller). We try a few common Windows TrueType fonts at the
     # requested size; whatever we draw goes through the same color
-    # pipeline as the rest of the image, so crisp white text relies on
-    # the encoder's WHITE classification (bright + desaturated) and
-    # adjacent-ON artifacting.
+    # pipeline as the rest of the image, so crisp white text relies
+    # on the encoder's WHITE classification (bright + desaturated)
+    # and adjacent-ON artifacting.
     candidates = [
         "segoeui.ttf",
         "tahoma.ttf",
@@ -370,7 +376,7 @@ def generate_dhgr_bands ():
     draw = ImageDraw.Draw (canvas)
     bbox = draw.textbbox ((0, 0), text, font=font, stroke_width=stroke_width)
     text_w = bbox[2] - bbox[0]
-    text_x = (HGR_WIDTH - text_w) // 2 - bbox[0]
+    text_x = (canvas.width - text_w) // 2 - bbox[0]
 
     # Drop a black "shadow" behind the white text so that, even where
     # the title overlaps the cassowary's casque or a leaf, the glyphs

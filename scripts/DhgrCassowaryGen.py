@@ -6,33 +6,40 @@ Reads:  Assets/3a Mrs Cassowary closeup 8167.jpg
 Writes: Apple2/Demos/dhgr-cassowary-aux.bin   (8 KB)
         Apple2/Demos/dhgr-cassowary-main.bin  (8 KB)
 
-Pipeline:
-  1. Crop the source jpg to the //e DHGR aspect ratio (140x192 effective
-     color pixels — but rendered as 560x192 monochrome dots, with 4 dots
-     forming one color via NTSC encoding).
-  2. Quantize to the 16-color //e LoRes/DHGR palette (matches what
-     AppleLoResMode.cpp / AppleDoubleHiResMode.cpp use to render).
-  3. Encode each color pixel as a 4-bit nibble at the corresponding
-     position in the aux+main interleaved byte stream:
-       aux[0]=dots  0-6 (7 bits, bit0=leftmost)
-       main[0]=dots 7-13
-       aux[1]=dots  14-20
-       main[1]=dots 21-27
-       ...
-     Each 4-dot group encodes one color. With 140 color pixels per row
-     mapped to 4 dots each = 560 dots, evenly tiled.
+Visual goal: produce a DHGR rendering that matches the HGR
+cassowary one-for-one in framing and the centred "Casso" title —
+just smoother colour gradients thanks to 16-color Floyd-Steinberg
+dithering instead of HGR's per-byte palette classification.
 
-The same HGR row offset formula applies (see HgrPreprocess.py).
+Pipeline:
+  1. Reuse HgrPreprocess.crop_and_fit to letterbox the source into
+     a 280x192 HGR canvas with the title painted on top. This is
+     identical to what the HGR generator does, so the framing,
+     subject crop, and title position are guaranteed to match.
+  2. Resize that 280x192 canvas to 140x192 (DHGR's color-pixel
+     resolution — 1 color per 4 dots). Each source column
+     compresses 2:1 horizontally, but on display the DHGR
+     renderer expands every color cell back to 4 dots, so the
+     final on-screen aspect is identical to HGR's.
+  3. Quantize to the 16 //e LoRes/DHGR colors with
+     Floyd-Steinberg error diffusion.
+  4. Encode each color cell as a 4-bit nibble at the
+     corresponding position in the aux+main interleaved byte
+     stream, with the same row-offset formula as HGR.
 """
 
 import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image
 except ImportError:
     sys.stderr.write("PIL/Pillow required: pip install Pillow\n")
     sys.exit(1)
+
+# Reach the sibling HGR pipeline module.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import HgrPreprocess
 
 
 # Apple //e 16-color LoRes/DHGR palette (RGB), index = 4-bit color value.
@@ -58,7 +65,6 @@ DHGR_PALETTE_RGB = [
 
 DHGR_COLOR_W = 140
 DHGR_ROWS    = 192
-DHGR_DOT_W   = 560
 ROW_BYTES    = 40
 
 
@@ -67,46 +73,15 @@ def hgr_row_offset(row: int) -> int:
 
 
 def build_palette_image() -> Image.Image:
-    """Create a 1x16 reference image using the //e palette so PIL can
+    """Create a reference image using the //e palette so PIL can
     quantize against it."""
     pal = []
     for r, g, b in DHGR_PALETTE_RGB:
         pal.extend([r, g, b])
-    # PIL needs a 768-byte palette (256 entries x 3 bytes); pad with zeros.
     pal.extend([0] * (768 - len(pal)))
     p_img = Image.new("P", (1, 1))
     p_img.putpalette(pal)
     return p_img
-
-
-def quantize_to_dhgr_palette(src: Image.Image) -> Image.Image:
-    """Crop to the DHGR display aspect, then quantize to the 16 //e
-    colors. Real-//e DHGR pixels are roughly 1:2 (tall/narrow), so on
-    screen the 140-color-wide x 192-row buffer renders at 4:3 — i.e.
-    the rendered display is 560x192 dots squashed into a ~4:3 frame
-    by the NTSC pipe. Casso's renderer doubles vertically to 560x384
-    which is also ~4:3.
-
-    Therefore the source must be cropped to a 4:3 aspect (width:height
-    = 1.46:1, matching the rendered 560:384) before it's resized to
-    140x192 — otherwise a portrait source like the cassowary photo
-    gets squashed horizontally as PIL stretches it to fill the
-    target. Use ImageOps.fit which crops centered to the target
-    aspect, then resamples."""
-    target_aspect = 560.0 / 384.0
-    fitted = ImageOps.fit(
-        src.convert("RGB"),
-        (DHGR_COLOR_W * 4, DHGR_ROWS * 2),  # 4:3 work surface in real pixels
-        method=Image.LANCZOS,
-        bleed=0.0,
-        centering=(0.5, 0.5))
-
-    # Now resample to 140x192 (the DHGR color resolution).
-    resized = fitted.resize((DHGR_COLOR_W, DHGR_ROWS), Image.LANCZOS)
-
-    pal_img = build_palette_image()
-    quantized = resized.quantize(palette=pal_img, dither=Image.FLOYDSTEINBERG)
-    return quantized
 
 
 def encode_dhgr(quantized: Image.Image) -> tuple[bytes, bytes]:
@@ -145,17 +120,31 @@ def main():
         sys.stderr.write(f"source image not found: {src_path}\n")
         return 1
 
-    src = Image.open(src_path)
-    print(f"loaded {src_path.name}: {src.size} {src.mode}")
+    # Step 1: letterbox the source into the HGR canvas (280x192) using
+    # the exact same crop, aspect handling, and title painting that
+    # HgrPreprocess uses for the HGR cassowary. Guarantees the DHGR
+    # version frames the bird identically and shows "Casso" at the
+    # same screen position.
+    canvas = HgrPreprocess.crop_and_fit(
+        src_path,
+        crop_box=HgrPreprocess.DEFAULT_CROP,
+        letterbox=True,
+        title="Casso",
+        title_size=18,
+        title_stroke=0)
+    print(f"letterboxed canvas: {canvas.size}")
 
-    # Crop the source to a 4:3 aspect that matches DHGR's effective
-    # color resolution (140:192 = ~7:9.6, but the rendered 560:192 with
-    # square pixels is closer to 2.9:1). The 140x192 quantize step
-    # lets us resize directly without worrying too much about pixel
-    # aspect.
-    quantized = quantize_to_dhgr_palette(src)
-    print(f"quantized to {quantized.size} P-mode")
+    # Step 2: resize the HGR-resolution canvas down to DHGR color
+    # resolution (140x192). DHGR will expand each color cell back to
+    # 4 dots on display, so on-screen aspect matches HGR.
+    resized = canvas.resize((DHGR_COLOR_W, DHGR_ROWS), Image.LANCZOS)
 
+    # Step 3: quantize to the 16 //e colors with Floyd-Steinberg.
+    pal_img = build_palette_image()
+    quantized = resized.quantize(palette=pal_img, dither=Image.FLOYDSTEINBERG)
+    print(f"quantized: {quantized.size} P-mode")
+
+    # Step 4: encode to DHGR aux+main byte streams.
     aux_bytes, main_bytes = encode_dhgr(quantized)
 
     out_dir = repo / "Apple2" / "Demos"
@@ -166,11 +155,12 @@ def main():
     print(f"wrote {aux_path.name} ({len(aux_bytes)} bytes)")
     print(f"wrote {main_path.name} ({len(main_bytes)} bytes)")
 
-    # Also save a preview PNG so a human can sanity-check the
-    # quantization without booting the demo.
+    # Also save a preview PNG (at the on-screen aspect: 560x384, with
+    # each color cell expanded to 4x2 display pixels) so a human can
+    # sanity-check without booting the demo.
     preview = quantized.convert("RGB").resize(
         (DHGR_COLOR_W * 4, DHGR_ROWS * 2), Image.NEAREST)
-    preview_path = repo / "Apple2" / "Demos" / "dhgr-cassowary-preview.png"
+    preview_path = out_dir / "dhgr-cassowary-preview.png"
     preview.save(preview_path)
     print(f"wrote {preview_path.name} (preview)")
 

@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.652] — 2026-05-14 — DHGR cassowary matches HGR framing + title
+
+### Changed (demo)
+- **DHGR cassowary now uses the same crop, letterbox, and "Casso"
+  title as the HGR cassowary.** `DhgrCassowaryGen.py` now imports
+  `HgrPreprocess` and feeds the source through
+  `HgrPreprocess.crop_and_fit` (HGR's 280×192 letterbox + title
+  pipeline) before resizing to DHGR's 140×192 color resolution
+  for quantization. On screen the two modes show the bird at
+  identical framing — only the colour treatment differs (HGR's
+  6-color per-byte classification vs DHGR's 16-color
+  Floyd-Steinberg dither).
+
+### Fixed
+- **`HgrPreprocess.py` was broken.** A prior edit had pasted the
+  body of `paint_title` into `generate_dhgr_bands` after its
+  `return` statement and lost the `def paint_title(...)` line, so
+  any invocation with a title argument would fail with
+  `NameError: paint_title is not defined`. The committed
+  `cassowary.hgr` was generated before the regression and nobody
+  noticed because the generator isn't wired into CI; only the
+  consumed bytes are. Restored as a proper top-level function and
+  generalised the centering to use `canvas.width` so the same
+  helper works for HGR (280) and any future width.
+
 ## [1.3.651] — 2026-05-14 — Demo cycle reorder, DHGR aspect, exit garbage, amber mono
 
 ### Changed (demo)
