@@ -32,7 +32,11 @@ Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS T
 
 ![Casso emulating an Apple //e booting DOS 3.3](Assets/Apple%202e%20DOS%203.3%20boot.png)
 
-![Casso emulating an Apple //e showing the HGR cassowary demo](Assets/Apple%202e%20HGR%20Cassowary.png)
+The same cassowary photo rendered in HGR (6 colors, NTSC artifacting) and DHGR (16 colors, Floyd-Steinberg dithered) by the bootable [casso-rocks demo disk](Apple2/Demos):
+
+| HGR (6 colors) | DHGR (16 colors) |
+| :---: | :---: |
+| ![Casso emulating an Apple //e showing the HGR cassowary demo](Assets/Apple%202e%20HGR%20Cassowary.png) | ![Casso emulating an Apple //e showing the DHGR cassowary demo](Assets/Apple%202e%20DHGR%20Cassowary.png) |
 
 The project includes:
 
