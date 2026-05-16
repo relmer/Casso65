@@ -15,6 +15,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/AppleIIeMmu.h"
 #include "Core/Prng.h"
+#include "OptionsDialog.h"
 #include "MachinePickerDialog.h"
 #include "RegistrySettings.h"
 #include "DiskSettings.h"
@@ -1245,6 +1246,57 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
+    // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
+    // FR-015 / FR-016). Allocate one DiskIIAudioSource per drive on
+    // the discovered controller (if any), register each with the
+    // mixer, and route the controller's audio-sink events into
+    // drive 0's source (single sink covers both drives; the head /
+    // motor events themselves are not currently drive-tagged in
+    // DiskIIController -- a follow-up could split per-drive sinks).
+    //
+    // Pan policy: single-drive profiles play centered (equal-power
+    // center). Two-drive profiles place Drive 1 left-of-center and
+    // Drive 2 right-of-center using kDrivePanOffset radians.
+    m_diskAudioSources.clear ();
+    m_driveAudioMixer.UnregisterAllSources();
+
+    if (m_diskController != nullptr)
+    {
+        int  driveCount = DiskIIController::kDriveCount;
+        int  drive      = 0;
+
+        for (drive = 0; drive < driveCount; drive++)
+        {
+            auto  src = make_unique<DiskIIAudioSource> ();
+
+            if (driveCount <= 1)
+            {
+                src->SetPan (DriveAudioMixer::kSpeakerCenter,
+                             DriveAudioMixer::kSpeakerCenter);
+            }
+            else if (drive == 0)
+            {
+                float  theta = 0.7853981633974483f + DriveAudioMixer::kDrivePanOffset;
+
+                src->SetPan (cosf (theta), sinf (theta));
+            }
+            else
+            {
+                float  theta = 0.7853981633974483f - DriveAudioMixer::kDrivePanOffset;
+
+                src->SetPan (cosf (theta), sinf (theta));
+            }
+
+            m_driveAudioMixer.RegisterSource (src.get ());
+            m_diskAudioSources.push_back (std::move (src));
+        }
+
+        if (!m_diskAudioSources.empty ())
+        {
+            m_diskController->SetAudioSink (m_diskAudioSources[0].get ());
+        }
+    }
+
 Error:
     return hr;
 }
@@ -1611,6 +1663,19 @@ HRESULT EmulatorShell::MountDiskInSlot6 (int drive, const string & path)
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 
+    // Drive-audio door-close (FR-013). Cold-boot mounts (command-line,
+    // last-session restoration, autoload) MUST be suppressed -- they
+    // happen before the user has interacted with the running //e and
+    // shouldn't audibly slam the drive door at app launch. Post-startup
+    // mounts (user-initiated mid-session) always fire.
+    if (!m_coldBootMountWindow &&
+        drive >= 0 &&
+        static_cast<size_t> (drive) < m_diskAudioSources.size () &&
+        m_diskAudioSources[drive] != nullptr)
+    {
+        m_diskAudioSources[drive]->OnDiskInserted();
+    }
+
 Error:
     return hr;
 }
@@ -1645,6 +1710,16 @@ void EmulatorShell::EjectDiskInSlot6 (int drive)
     {
         HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (drive, m_currentMachineName, L"");
         IGNORE_RETURN_VALUE (hrReg, S_OK);
+    }
+
+    // Drive-audio door-open (FR-014). Eject events always fire (no
+    // cold-boot eject case in practice -- the app launches with the
+    // drive bay closed).
+    if (drive >= 0 &&
+        static_cast<size_t> (drive) < m_diskAudioSources.size () &&
+        m_diskAudioSources[drive] != nullptr)
+    {
+        m_diskAudioSources[drive]->OnDiskEjected();
     }
 }
 
@@ -2018,6 +2093,12 @@ int EmulatorShell::RunMessageLoop()
     // Start the CPU thread
     m_cpuThread = thread (&EmulatorShell::CpuThreadProc, this);
 
+    // Cold-boot mount window is closed once the UI message loop is
+    // ready to deliver user input -- any mount issued from here on
+    // is treated as a real, user-initiated swap and fires the
+    // drive-audio door-close (FR-013).
+    m_coldBootMountWindow = false;
+
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_running.load (memory_order_acquire))
     {
@@ -2100,6 +2181,33 @@ void EmulatorShell::CpuThreadProc()
     // Initialize WASAPI audio (non-fatal if it fails)
     hr = m_wasapiAudio.Initialize();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
+    // NFR-005). Best-effort: missing or unreadable assets leave
+    // their buffer empty; the source mutes that sound. We probe the
+    // shell's exe directory + Assets\Sounds\DiskII so a no-asset
+    // build still launches cleanly.
+    if (m_wasapiAudio.IsInitialized () && !m_diskAudioSources.empty ())
+    {
+        wchar_t  exeDirBuf[MAX_PATH] = {};
+        DWORD    got                 = GetModuleFileNameW (nullptr, exeDirBuf, MAX_PATH);
+        wstring  assetDir;
+
+        if (got > 0 && got < MAX_PATH)
+        {
+            fs::path  exePath (exeDirBuf);
+
+            assetDir = (exePath.parent_path () / L"Assets" / L"Sounds" / L"DiskII").wstring ();
+        }
+
+        for (auto & src : m_diskAudioSources)
+        {
+            HRESULT  hrLoad = src->LoadSamples (
+                assetDir.c_str (), m_wasapiAudio.GetSampleRate ());
+
+            IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        }
+    }
     
     // Create a high-resolution waitable timer for 60fps frame pacing
     hTimer = CreateWaitableTimerEx (nullptr, 
@@ -2484,7 +2592,9 @@ void EmulatorShell::ExecuteCpuSlices()
             m_wasapiAudio.SubmitFrame (m_speaker->GetToggleTimestamps(),
                                        sliceActual,
                                        m_speaker->GetFrameInitialState(),
-                                       numSamples);
+                                       numSamples,
+                                       &m_driveAudioMixer,
+                                       m_cpu->GetTotalCycles ());
 
             m_speaker->ClearTimestamps();
             m_speaker->BeginFrame();
@@ -2610,7 +2720,7 @@ bool EmulatorShell::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_FILE_OPEN     && id <= IDM_FILE_EXIT)          { OnFileCommand (id); }
     else if (id >= IDM_MACHINE_RESET && id <= IDM_MACHINE_INFO)       { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1  && id <= IDM_DISK_WRITEPROTECT2) { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_RESET_SIZE)    { OnViewCommand (id); }
+    else if (id >= IDM_VIEW_COLOR    && id <= IDM_VIEW_OPTIONS)       { OnViewCommand (id); }
     else if (id >= IDM_HELP_KEYMAP   && id <= IDM_HELP_ABOUT)         { OnHelpCommand (id); }
 
     return false;
@@ -3360,6 +3470,22 @@ void EmulatorShell::OnViewCommand (int id)
                 y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
 
                 SetWindowPos (m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+            }
+            break;
+        }
+
+        case IDM_VIEW_OPTIONS:
+        {
+            bool     driveAudio = m_driveAudioMixer.IsEnabled();
+            HRESULT  hrDlg      = OptionsDialog::Show (
+                m_hwnd,
+                reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE)),
+                driveAudio,
+                driveAudio);
+
+            if (hrDlg == S_OK)
+            {
+                m_driveAudioMixer.SetEnabled (driveAudio);
             }
             break;
         }

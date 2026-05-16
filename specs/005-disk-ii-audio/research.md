@@ -93,8 +93,11 @@ sound-producing mechanisms:
   Disk II drives) omits these — verified by the absence of `Alps 2124A
   Open.ogg` / `Alps 2124A Close.ogg` in OpenEmulator's assets.
 
-**Scope note**: Door open/close is out of scope for this feature (see
-`spec.md` §Out of Scope item 1).
+**Scope note**: Door open/close is **in scope** for this feature (see
+`spec.md` FR-013/FR-014). The libemulation patterns referenced here for
+mount/unmount sound timing inform the Casso implementation; Casso fires the
+sounds via the `IDriveAudioSink::OnDiskInserted` / `OnDiskEjected` events
+plumbed through `DiskIIController` (or the shell-level mount/eject path).
 
 ### 1.5 Hardware Timing Context
 
@@ -583,14 +586,26 @@ avoid clipping when both speaker and motor hum are active simultaneously.
 ### 5.1 Files to Create
 
 ```
-CassoEmuCore/Audio/DiskAudioMixer.h    — DiskAudioMixer class declaration
-CassoEmuCore/Audio/DiskAudioMixer.cpp  — Implementation
-Assets/Sounds/DiskII/                  — WAV sample files (or omitted entirely
-                                         for procedural synthesis)
-    motor_loop.wav
-    head_step.wav
-    head_stop.wav
+CassoEmuCore/Audio/IDriveAudioSink.h     — abstract event sink interface (generic)
+CassoEmuCore/Audio/IDriveAudioSource.h   — abstract per-drive audio source (generic)
+CassoEmuCore/Audio/DriveAudioMixer.h     — multi-source stereo mixer
+CassoEmuCore/Audio/DriveAudioMixer.cpp
+CassoEmuCore/Audio/DiskIIAudioSource.h   — concrete Disk II source
+CassoEmuCore/Audio/DiskIIAudioSource.cpp
+Casso/OptionsDialog.h                    — new View → Options... dialog (host of Drive Audio toggle)
+Casso/OptionsDialog.cpp
+Assets/Sounds/DiskII/                    — WAV sample files (PascalCase names) or omitted for synthesis
+    MotorLoop.wav
+    HeadStep.wav
+    HeadStop.wav
+    DoorOpen.wav
+    DoorClose.wav
 ```
+
+**Note**: Code samples and class sketches in §5.2–5.4 below are illustrative
+of structure and intent only. The actual implementation MUST conform to the
+project's coding standard (Pch.h-first, EHM, column-aligned variable
+declarations with pointer column, `func (a, b)` vs `func()` spacing, etc.).
 
 ### 5.2 DiskAudioMixer Interface
 
@@ -731,14 +746,18 @@ If procedural synthesis is chosen instead, `LoadSamples()` is replaced by a
 
 ### 5.5 Suggested Minimum Viable Sample Set
 
-For a v1 implementation, 3 samples are sufficient:
+For a v1 implementation, 5 samples cover the in-scope sounds:
 
-1. **`motor_loop.wav`** — ~1–2s of motor hum, suitable for seamless looping
+1. **`MotorLoop.wav`** — ~1–2s of motor hum, suitable for seamless looping
    (fade-match start and end)
-2. **`head_step.wav`** — ~80–150ms single head click
-3. **`head_stop.wav`** — ~100–200ms bump/thud at track 0
+2. **`HeadStep.wav`** — ~80–150ms single head click
+3. **`HeadStop.wav`** — ~100–200ms bump/thud at track 0
+4. **`DoorOpen.wav`** — ~150–400ms snap/ratchet on eject
+5. **`DoorClose.wav`** — ~200–500ms ratchet on insert
 
-Door open/close can be added in a future feature.
+Per NFR-005, real Disk II recordings under permissive license (self-recorded,
+CC0, CC-BY) are preferred. Procedural synthesis is acceptable fallback when
+no such recordings are available, and SHOULD aim for mechanical realism.
 
 ---
 

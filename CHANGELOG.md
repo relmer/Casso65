@@ -6,6 +6,62 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.3.670] — Disk II audio (motor / head / door, stereo, Options dialog)
+
+### Added
+- **Disk II mechanical audio**: motor hum (looping while
+  `m_motorOn`), head-step click (per quarter-track movement), track-0
+  / max-track bump (when the stepper energizes against the travel
+  stop), and disk insert / eject door sounds.
+- **Step-vs-seek discrimination** (FR-005): contiguous step bursts
+  fuse into a continuous seek buzz instead of N overlapping clicks.
+  OpenEmulator-style cycle-gap timer; threshold = 16,368 cycles
+  (~16 ms at 1.023 MHz), idle clear = 51,150 cycles (~50 ms).
+- **Stereo mixing into the existing WASAPI pipeline**: speaker is
+  centered (equal-power), drives are panned per-drive using
+  equal-power coefficients. Single-drive profiles play centered;
+  two-drive profiles place Drive 1 left-of-center and Drive 2
+  right-of-center. Per-channel clamp to `[-1, +1]`; downmix to mono
+  when the device is mono.
+- **View → Options... dialog** (new, runtime-built `DLGTEMPLATE`)
+  hosting the "Drive Audio" check toggle; default-on, takes effect
+  within one audio frame.
+- **Cold-boot mount suppression** (FR-013): command-line / restored /
+  autoload mounts do not fire the disk-insert sound. User-initiated
+  mid-session mounts and all eject events fire normally.
+- **Generic drive-audio abstraction**: `IDriveAudioSink`,
+  `IDriveAudioSource`, `DriveAudioMixer`, and `DiskIIAudioSource` are
+  decoupled so future drive types (`//c` internal 5.25, DuoDisk,
+  Apple 5.25 Drive, Apple /// drive, ProFile, …) can plug into the
+  same mixer without modifying it or the sink interface (FR-016).
+- `Assets/Sounds/DiskII/` directory with a `README.md` documenting the
+  expected sample set (PascalCase WAVs decoded at startup via
+  `IMFSourceReader` to mono float32 at the WASAPI device rate). The
+  directory may be absent or empty — the emulator launches and runs
+  normally with the affected sounds silently muted (FR-009).
+
+### Changed
+- `WasapiAudio` now negotiates stereo float32 from WASAPI (falls back
+  to mono if the device demands it). The internal pending-samples
+  buffer is interleaved stereo; mono devices downmix at drain time.
+  `SubmitFrame` gained two optional parameters: a `DriveAudioMixer*`
+  and the current CPU cycle count, both of which preserve
+  pre-feature behavior when omitted (FR-011 / SC-006).
+- `DiskIIController` exposes `SetAudioSink (IDriveAudioSink*)` and
+  fires `OnMotorStart` / `OnMotorStop` / `OnHeadStep(qt)` /
+  `OnHeadBump` at the documented call sites. Mount/eject door events
+  fire from the shell layer (with cold-boot suppression) rather than
+  the controller.
+
+### Tests
+- 34 new unit tests in `UnitTest/Audio/` and
+  `UnitTest/Devices/DiskIIControllerAudioTests.cpp` covering source
+  state machines, mixer panning / clamp, controller event firing,
+  step-vs-seek timing, and graceful-degradation behavior. All
+  tests use in-memory buffers and a recording mock sink — no host
+  filesystem reads, no audio device (constitution §II).
+- All pre-existing speaker tests pass identically (FR-011 / SC-006).
+
 ## [1.3.660] — 2026-05-14 — Demo first-frame ~2x faster (boot reorder)
 
 ### Changed (demo)

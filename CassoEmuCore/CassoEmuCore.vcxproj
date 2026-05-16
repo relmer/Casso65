@@ -222,6 +222,8 @@
     <ClCompile Include="Video\AppleDoubleHiResMode.cpp" />
     <ClCompile Include="Video\VideoTiming.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
+    <ClCompile Include="Audio\DriveAudioMixer.cpp" />
+    <ClCompile Include="Audio\DiskIIAudioSource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />
@@ -273,6 +275,10 @@
     <ClInclude Include="Video\MonochromeTint.h" />
     <ClInclude Include="Video\CharacterRom.h" />
     <ClInclude Include="Audio\AudioGenerator.h" />
+    <ClInclude Include="Audio\IDriveAudioSink.h" />
+    <ClInclude Include="Audio\IDriveAudioSource.h" />
+    <ClInclude Include="Audio\DriveAudioMixer.h" />
+    <ClInclude Include="Audio\DiskIIAudioSource.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
