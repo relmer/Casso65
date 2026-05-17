@@ -1308,15 +1308,22 @@ HRESULT EmulatorShell::CreateMemoryDevices (const MachineConfig & config)
             }
             else if (drive == 0)
             {
+                // Drive 1 (UI numbering; index 0): left bias.
+                // theta measured from the right speaker per FR-012,
+                // so panL = sin(theta), panR = cos(theta). At
+                // theta = pi/4 + pi/8 = 3*pi/8 this is roughly
+                // 0.924 L / 0.383 R -- halfway between the left
+                // speaker and center.
                 float  theta = DriveAudioMixer::kCenterAngle + DriveAudioMixer::kDrivePanOffset;
 
-                src->SetPan (cosf (theta), sinf (theta));
+                src->SetPan (sinf (theta), cosf (theta));
             }
             else
             {
+                // Drive 2 (UI numbering; index 1): mirror, right bias.
                 float  theta = DriveAudioMixer::kCenterAngle - DriveAudioMixer::kDrivePanOffset;
 
-                src->SetPan (cosf (theta), sinf (theta));
+                src->SetPan (sinf (theta), cosf (theta));
             }
 
             m_driveAudioMixer.RegisterSource (src.get());
