@@ -6,29 +6,43 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
-## What's New in 1.3.573
+## What's New
 
-A friendlier first-run experience. Drop a fresh `Casso.exe` anywhere
-and double-click it — Casso now bootstraps everything else for you:
+A few major capability waves landed between v1.3.509 and v1.3.696. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
-- **Missing ROMs?** Casso lists what's needed and offers to download
-  them from the AppleWin project in one click.
-- **First time on the Apple //e?** Casso offers to download a stock
-  Apple system master disk (DOS 3.3 or ProDOS) from the Asimov
-  archive so the //e boots straight to a BASIC prompt instead of
-  spinning forever waiting for a disk.
-- **Lost your Machines/ folder?** The three default machine configs
-  (`Apple ][`, `Apple ][+`, `Apple //e`) are now bundled inside
-  `Casso.exe` and extracted on demand.
-- **Moved your install?** Per-machine remembered disks are now
-  stored as paths relative to `Casso.exe`, so the whole `Casso.exe`
-  + `Disks/` tree is portable.
+### Disk II audio (v1.3.696, spec 005)
 
-See [CHANGELOG.md](CHANGELOG.md#1.3.573) for the full list.
+Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline alongside the //e speaker:
+
+- Stereo motor hum, head-step clicks, track-0 / max-track bumps, and disk insert / eject sounds.
+- Per-drive equal-power stereo panning: single-drive profiles play centered; in two-drive profiles Drive 1 leans left, Drive 2 leans right.
+- Step-vs-seek discrimination: contiguous step bursts during DOS RWTS recalibration fuse into a continuous seek buzz instead of N overlapping clicks.
+- *View → Options...* dialog with a Drive Audio toggle (default on) and a Disk II mechanism dropdown (Shugart SA400 by default, or Alps 2124A). Both persist per-machine via the registry.
+- First-run consent dialog downloads the actual recordings from the [OpenEmulator](https://github.com/openemulator/libemulation) project; OGGs are decoded in memory via vendored `stb_vorbis` and written as WAV (no `.ogg` retained on disk). Asked once per machine, persisted thereafter.
+- Generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, Apple 5.25 Drive, ProFile, ...) plug in without touching the mixer.
+
+### Friendly first-run bootstrap (v1.3.573)
+
+Drop `Casso.exe` anywhere, double-click, and the rest happens:
+
+- **Missing ROMs?** Casso lists what's needed and offers to download them from the AppleWin project in one click.
+- **First time on the Apple //e?** Casso offers to download a stock Apple system master disk (DOS 3.3 or ProDOS) from the Asimov archive so the //e boots straight to a BASIC prompt instead of spinning forever waiting for a disk.
+- **Lost your Machines/ folder?** The three default machine configs (`Apple ][`, `Apple ][+`, `Apple //e`) are bundled inside `Casso.exe` and extracted on demand.
+- **Moved your install?** Per-machine remembered disks are stored as paths relative to `Casso.exe`, so the whole `Casso.exe` + `Disks/` tree is portable.
+
+### Apple //e fidelity (v1.3.509, spec 004)
+
+Casso became a real Apple //e — not just a 6502 host that draws text:
+
+- Cold boot to BASIC with audit-correct Language Card state machine, 64 KB auxiliary RAM, and the //e MMU (`INTCXROM` / `SLOTC3ROM` / `INTC8ROM` / `STORE80` / `RAMRD` / `RAMWRT` and the `ALTZP`-driven page-0/1 swap).
+- 80-column text mode + Double Hi-Res with NTSC artifact colors.
+- Cycle-accurate IRQ / NMI dispatch, soft reset vs. power cycle distinction, `RDVBLBAR` ($C019) wired into the video timing model.
+- Disk II controller with full DOS 3.3 / ProDOS / WOZ v1 + v2 support, `.dsk` / `.do` / `.po` nibblization, and auto-flush on eject so user writes survive.
+- Headless test harness (`HeadlessHost`) for deterministic integration tests of cold boot, disk boot, framebuffer hashing, and reset semantics.
 
 ## About
 
-Casso is a 6502 CPU emulator and assembler written in C++. It emulates the MOS Technology 6502 microprocessor — the chip behind the Apple II, Commodore 64, NES, and Atari 2600.
+Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
 
 ![Casso emulating an Apple //e booting DOS 3.3](Assets/Apple%202e%20DOS%203.3%20boot.png)
 
@@ -40,21 +54,23 @@ The same cassowary photo rendered in HGR (6 colors, NTSC artifacting) and DHGR (
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, data-driven machine configs, keyboard input, Disk II controller (DOS 3.3 / ProDOS / WOZ images), 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure
-- **A real, full-featured AS65-compatible assembler** — Casso's assembler is a from-scratch reimplementation of Frank A. Kingswood's AS65, intended to be a drop-in replacement. It supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, …) including flag concatenation (`-tlfile`).
-- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source
-- **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics
-- **1053 unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines
+- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
+- **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
+- **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
+- **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
+- **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
+- **1100+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHR video, reset semantics, perf budget, and backwards-compat for ][/][+ machines.
 
 ## Project Structure
 
 ```
 Casso.sln
 ├── CassoCore/     Static library — CPU emulator, assembler, parser, opcode table
-├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator
-├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI)
+├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator + drive-audio mixer
+├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1023 tests)
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1100+ tests)
 ```
 
 ## Requirements
@@ -136,17 +152,11 @@ distributed with this project. A script is included to download them from the
 
 ROM images live under `Machines/<MachineName>/` (e.g.,
 `Machines/Apple2e/Apple2e.rom`) and shared device boot ROMs live
-under `Devices/<Family>/` (e.g., `Devices/DiskII/Disk2.rom`). The
-`.gitignore` whitelists only the per-machine / per-device `.json`
-manifests inside these trees, so ROMs and any later asset blobs
-stay out of source control automatically.
-
-> **Migrating from an older install?** Earlier builds kept all ROMs
-> in a single top-level `ROMs/` directory. After upgrading, either
-> delete your `ROMs/` folder and re-run `scripts/FetchRoms.ps1`, or
-> move each ROM file into the corresponding new location (see the
-> table in `scripts/FetchRoms.ps1`). Casso no longer reads from the
-> old `ROMs/` directory.
+under `Devices/<Family>/` (e.g., `Devices/DiskII/Disk2.rom`). Both
+`Machines/` and `Devices/` are fully runtime-managed: every file
+inside is either extracted from binary-embedded resources or
+downloaded on first launch (with user consent). Delete either
+directory and the next launch rebuilds it from scratch.
 
 Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 
@@ -177,7 +187,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 
 ## CPU Emulation Status
 
-All 56 standard 6502 mnemonics are implemented.
+All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (all 151 legal-opcode test sets, 10,000 vectors each).
 
 ## Roadmap
 
@@ -201,7 +211,6 @@ All 56 standard 6502 mnemonics are implemented.
 - [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso/issues/9))
 - [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso/issues/54))
 - [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso/issues/55))
-- [ ] Memory-mapped I/O hooks — prerequisite for platform emulation ([#56](https://github.com/relmer/Casso/issues/56))
 - [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))
 - [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso/issues/47))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
