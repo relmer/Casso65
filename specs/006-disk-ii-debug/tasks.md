@@ -55,28 +55,52 @@ baseline (FR-007, FR-020, SC-007).
 **Purpose**: Stand up interfaces and types. No behavior yet.
 
 - [ ] T001 [P] Create `CassoEmuCore/Devices/IDiskIIEventSink.h` declaring the
-      abstract event-sink interface with exactly the 10 methods listed in
-      FR-006 (`OnMotorStart`, `OnMotorStop`, `OnHeadStep`, `OnHeadBump`,
-      `OnAddressMark`, `OnDataMarkRead`, `OnDataMarkWrite`, `OnDriveSelect`,
-      `OnDiskInserted`, `OnDiskEjected`). All `void`, all infallible.
-      Header-only; no STL includes beyond what is in `Pch.h`. (FR-006)
+      abstract event-sink interface with exactly the 12 methods listed in
+      FR-006 (four-event motor lifecycle: `OnMotorCommandOn`,
+      `OnMotorEngaged`, `OnMotorCommandOff`, `OnMotorDisengaged`; plus
+      `OnHeadStep`, `OnHeadBump`, `OnAddressMark`, `OnDataMarkRead`,
+      `OnDataMarkWrite`, `OnDriveSelect`, `OnDiskInserted`,
+      `OnDiskEjected`). All `void`, all infallible. Header-only; no STL
+      includes beyond what is in `Pch.h`. Leave room in the doc-comment
+      for the future `OnMotorAtSpeed` (A-009). (FR-006, A-009)
 - [ ] T002 [P] Create `CassoEmuCore/Devices/DiskIIEvent.h` declaring the
-      `DiskIIEvent` POD struct: event-type enum (`MotorOn`, `MotorOff`,
-      `HeadStep`, `HeadBump`, `AddrMark`, `DataRead`, `DataWrite`,
-      `DriveSelect`, `DiskInserted`, `DiskEjected`, `EventsLost`), `uint64_t`
-      cycle counter snapshot, and a payload union covering the per-type
-      integer payload (qt prev/new for step, qt for bump, track/sector/volume
-      for addr mark, sector/byte-count for data mark, drive number for
-      select/insert/eject, count for lost). Total size ≤ 24 bytes; verify
-      with a `static_assert`. (FR-006, NFR-003)
+      `DiskIIEvent` POD struct: `EventCategory category` (enum class
+      `{Controller, Audio}` per FR-023), event-type enum covering BOTH
+      controller events (`MotorCommandOn`, `MotorEngaged`,
+      `MotorCommandOff`, `MotorDisengaged`, `HeadStep`, `HeadBump`,
+      `AddrMark`, `DataRead`, `DataWrite`, `DriveSelect`, `DiskInserted`,
+      `DiskEjected`, `EventsLost`) and audio outcomes (`AudioStarted`,
+      `AudioRestarted`, `AudioContinued`, `AudioSilent`,
+      `AudioLoopStarted`, `AudioLoopStopped`), `uint64_t` cycle counter
+      snapshot, and a payload union covering the per-type integer payload
+      (qt prev/new for step, qt for bump, track/sector/volume for addr
+      mark, sector/byte-count for data mark, drive number for
+      select/insert/eject, count for lost, `{SoundKind, drive,
+      SilentReason?}` for audio outcomes). Total size ≤ 24 bytes; verify
+      with a `static_assert`. (FR-006, FR-021, FR-023, NFR-003)
+- [ ] T002a [P] Create `CassoEmuCore/Audio/IDriveAudioEventSink.h`
+      declaring the abstract audio-outcome sink interface per FR-021
+      with exactly six `void`/infallible methods (`OnAudioStarted`,
+      `OnAudioRestarted`, `OnAudioContinued`, `OnAudioSilent`,
+      `OnAudioLoopStarted`, `OnAudioLoopStopped`). In the same header
+      (or sibling `SoundKind.h` / `SilentReason.h`), declare:
+      - `enum class SoundKind { MotorLoop, HeadStep, HeadStop,
+        DoorOpen, DoorClose };`
+      - `enum class SilentReason { DriveAudioDisabled, BufferMissing,
+        NoSourceRegistered, ColdBootSuppression };`
+      (FR-021, FR-025)
 - [ ] T003 [P] Create `Casso/DiskIIEventDisplay.h` declaring the UI-thread
-      display struct: pre-formatted time string (small-buffer-optimized,
-      e.g., `std::array<wchar_t, 16>`), pre-formatted cycle string
-      (e.g., `std::array<wchar_t, 24>`), event-type enum (mirroring
-      `DiskIIEvent`'s enum), pre-formatted detail string
-      (`std::wstring` or `std::array<wchar_t, 48>`). Total size ≤ 80 bytes
-      target; verify with `static_assert` if using fixed buffers. (FR-005,
-      NFR-003)
+      display struct: pre-formatted wall string
+      (`std::array<wchar_t, 16>` for `HH:MM:SS.mmm`), pre-formatted
+      uptime string (`std::array<wchar_t, 12>` for `MM:SS.mmm`),
+      pre-formatted cycle string (`std::array<wchar_t, 24>`),
+      `EventCategory` + event-type enum (mirroring `DiskIIEvent`'s),
+      `int drive` (for the FR-014 Drive filter, -1 if N/A),
+      `int track` and `int sector` (for FR-014a/b filters, INT_MIN
+      sentinel if N/A), pre-formatted detail string (`std::wstring`
+      or `std::array<wchar_t, 64>`). Total size ≤ 96 bytes target;
+      verify with `static_assert` if using fixed buffers. (FR-005,
+      FR-014, NFR-003)
 - [ ] T004 [P] Create `CassoEmuCore/Devices/DiskIIEventRing.h` per plan.md
       §"SPSC Ring Buffer" — class declaration only, with `kCapacity = 4096`
       named constant, `TryPush`, `TryPop`, `Drain (DiskIIEvent*, uint32_t)`,
@@ -89,8 +113,9 @@ baseline (FR-007, FR-020, SC-007).
       cached most-recent sector number, 3-nibble rolling window for
       epilogue peek-ahead, data-mark body counter. Named constants for the
       prologue/epilogue bytes and `kDataNibbleCount = 342`. (FR-008)
-- [ ] T006 Add `CassoEmuCore/Devices/{IDiskIIEventSink,DiskIIEvent,DiskIIEventRing,DiskIIAddressMarkWatcher}.h`
-      and `Casso/DiskIIEventDisplay.h` to their respective vcxproj files
+- [ ] T006 Add `CassoEmuCore/Devices/{IDiskIIEventSink,DiskIIEvent,DiskIIEventRing,DiskIIAddressMarkWatcher}.h`,
+      `CassoEmuCore/Audio/IDriveAudioEventSink.h`, and
+      `Casso/DiskIIEventDisplay.h` to their respective vcxproj files
       under the header item-group. Build must succeed (declarations only,
       no `.cpp` yet).
 - [ ] T007 [GATE] Run `scripts\Build.ps1` and the full unit-test suite;
@@ -155,6 +180,54 @@ baseline (FR-007, FR-020, SC-007).
 
 ---
 
+## Phase 2a: Track/Sector Filter Parser
+
+**Purpose**: Implement and test the FR-014a/b filter-expression parser
+used by the dialog's Track and Sector inputs.
+
+- [ ] T025 [P] Create `Casso/TrackSectorPredicate.h` declaring a class
+      with `static TrackSectorPredicate Parse (std::wstring_view expr,
+      bool rawQt)` and `bool Matches (int value) const` and
+      `bool MatchesQuarterTrack (int qt) const`. Internal representation:
+      `std::vector<Range>` where `Range = {int lo, int hi, bool isQt}`.
+      An empty parse result MUST match all values. (FR-014a, FR-014b)
+- [ ] T026 Create `Casso/TrackSectorPredicate.cpp`. Implement `Parse`:
+      tokenize on commas, then for each token detect range (`a-b`) vs.
+      single value vs. decimal quarter-track (`17.25`, `17.5`,
+      `17.75`). Convert decimal-qt to integer-qt via `(whole * 4) +
+      quarter_index`. Honor the `rawQt` flag (FR-014a — when set, bare
+      integers are interpreted as quarter-tracks rather than whole
+      tracks). Tolerate surrounding whitespace; silently skip
+      malformed tokens (e.g., `abc`) — they MUST NOT throw or block
+      other valid tokens in the same expression. NO max-value
+      validation: a token of `999` parses as `{999, 999, false}` and
+      simply fails to match in practice (FR-014a NO max-value rule).
+      (FR-014a, FR-014b)
+- [ ] T027 [P] Create `UnitTest/Casso/TrackSectorPredicateTests.cpp`.
+      Tests:
+      - Empty expression matches every value (returns true for all
+        inputs).
+      - `17` matches 17 only.
+      - `17.5` matches quarter-track 70 only (`MatchesQuarterTrack`).
+      - `0-2` matches 0, 1, 2 (and not 3 or -1).
+      - `0,17,34` matches each listed value and nothing else.
+      - Mixed `0-2,17,30-34` works as the union.
+      - `rawQt=true` with input `68` matches quarter-track 68
+        (whole-track 17); same input with `rawQt=false` matches
+        whole-track 68 (which is out of standard range but the
+        parser MUST NOT reject it — FR-014a's "no max-value
+        validation" rule).
+      - `abc` parses to an empty predicate (matches everything per
+        FR-014a's "malformed token = no-match for that token" rule);
+        `1, abc, 3` parses to `{1, 3}` matching 1 and 3.
+      - Whitespace tolerated: `  0 - 2 , 17  ` parses correctly.
+      - `999` parses successfully and matches only 999 (no max-value
+        rejection — FR-014a, FR-014b).
+      (FR-014a, FR-014b)
+- [ ] T028 [GATE] Run parser tests.
+
+---
+
 ## Phase 3: Controller Integration
 
 **Purpose**: Wire `IDiskIIEventSink*` + watcher into `DiskIIController`
@@ -167,10 +240,14 @@ without changing observable behavior.
 - [ ] T031 In `CassoEmuCore/Devices/DiskIIController.cpp`, implement
       `SetEventSink` (assign pointer; propagate to `m_addrMarkWatcher`).
       Add guarded fire sites at:
-      - `HandleSwitch` case `0x9` for `OnMotorStart` (only on
-        false→true transition).
-      - `Tick` spindown branch for `OnMotorStop` (only on true→false
-        transition).
+      - `HandleSwitch` case `0x9`: ALWAYS fire `OnMotorCommandOn`
+        (every strobe, including no-op re-strobes on an already-engaged
+        motor). Additionally, on false→true edge of `m_motorOn`, fire
+        `OnMotorEngaged`. (FR-006: four-event motor lifecycle)
+      - `HandleSwitch` case `0x8`: ALWAYS fire `OnMotorCommandOff`
+        (every strobe; arms the spindown timer when engaged).
+      - `Tick` spindown branch for `OnMotorDisengaged` (only on true→false
+        transition after the spindown counter expires).
       - `HandlePhase` after `m_quarterTrack += qtDelta`, branch on
         clamp-vs-no-clamp to fire `OnHeadStep (prevQt, newQt)` or
         `OnHeadBump (atQt)` (mutually exclusive).
@@ -178,7 +255,7 @@ without changing observable behavior.
       - `MountImage` for `OnDiskInserted (drive)`.
       - `EjectImage` for `OnDiskEjected (drive)`.
       Every fire site guarded by `if (m_eventSink != nullptr) { ... }`.
-      (FR-007, FR-006)
+      (FR-006, FR-007)
 - [ ] T032 In `DiskIIController::NibbleReadByte`, call
       `m_addrMarkWatcher.ObserveNibble (returnedNibble)` after the nibble
       is computed but before returning. The watcher's invocation must
@@ -188,7 +265,12 @@ without changing observable behavior.
       `std::vector<DiskIIEvent>`. Tests:
       - Cold-boot fixture sequence (DOS 3.3 in-memory image, ~5000
         CPU-cycle slice) fires events in the expected order: drive select,
-        motor on, head steps, head bump(s), address marks, data reads.
+        `MotorCommandOn` → `MotorEngaged`, head steps, head bump(s),
+        address marks, data reads.
+      - Re-strobing `$C0E9` on an already-engaged motor fires
+        `OnMotorCommandOn` again but does NOT re-fire `OnMotorEngaged`.
+      - `$C0E8` always fires `OnMotorCommandOff`; `OnMotorDisengaged`
+        fires only after the spindown timer expires.
       - `HandlePhase` with `qtDelta == 0` fires zero events.
       - `HandlePhase` that would step past `qt 0` fires `OnHeadBump`,
         not `OnHeadStep`, exactly once.
@@ -208,6 +290,75 @@ without changing observable behavior.
 
 ---
 
+## Phase 3a: DiskIIAudioSource Integration
+
+**Purpose**: Wire `IDriveAudioEventSink*` into `DiskIIAudioSource`,
+migrate its existing motor listeners to the new four-event motor
+lifecycle, and fire audio outcomes from every audio decision site
+(including the cold-boot insert suppression).
+
+- [ ] T036 In `CassoEmuCore/Audio/DiskIIAudioSource.h`, add
+      `IDriveAudioEventSink* m_audioEventSink = nullptr;` and
+      `void SetAudioEventSink (IDriveAudioEventSink* sink) noexcept;`.
+      (FR-022)
+- [ ] T037 In `CassoEmuCore/Audio/DiskIIAudioSource.cpp`:
+      - Migrate existing `OnMotorStart` / `OnMotorStop` overrides to
+        `OnMotorEngaged` / `OnMotorDisengaged` (the audio-relevant
+        edges per FR-006). The other two new motor events
+        (`OnMotorCommandOn` / `OnMotorCommandOff`) are NOT audio-
+        relevant and MUST NOT be overridden.
+      - At each audio decision moment inside the existing hooks
+        (`OnMotorEngaged` → `OnAudioLoopStarted(MotorLoop, drive)` or
+        `OnAudioSilent(MotorLoop, drive, …)`; `OnMotorDisengaged` →
+        `OnAudioLoopStopped(MotorLoop, drive)`; `OnHeadStep` →
+        Started / Restarted / Continued / Silent for HeadStep;
+        `OnHeadBump` → Started / Restarted / Silent for HeadStop;
+        `OnDiskInserted` → Started / Silent for DoorClose;
+        `OnDiskEjected` → Started / Silent for DoorOpen), fire exactly
+        one of the six `IDriveAudioEventSink` methods describing the
+        outcome. Each fire site guarded by `if (m_audioEventSink !=
+        nullptr) { ... }`. With no sink attached, audio behavior MUST
+        be 100% byte-identical to the pre-feature `DiskIIAudioSource`.
+      (FR-022)
+- [ ] T038 In the cold-boot insert suppression path inside
+      `DiskIIAudioSource::OnDiskInserted` (per spec-005 FR-013), when
+      the insert sound is suppressed because the mount happened before
+      the first emulator slice ran, fire `OnAudioSilent(SoundKind::DoorClose,
+      drive, SilentReason::ColdBootSuppression)` so the suppression
+      decision is visible in the debug log. The `OnDiskInserted`
+      controller event still fires normally — the suppression is a
+      pure audio decision. (FR-025)
+- [ ] T039 [P] Create `UnitTest/Audio/DiskIIAudioSourceEventSinkTests.cpp`
+      with a recording mock `IDriveAudioEventSink`. Tests (one per
+      outcome path, satisfying SC-011 / SC-012 / SC-013 / SC-014):
+      - First `OnHeadStep` after a long quiet period produces one
+        `OnAudioStarted(HeadStep, drive)` and no other outcome. (SC-011)
+      - Two `OnHeadStep` invocations within the duration of one
+        HeadStep sample produce `OnAudioStarted` followed by
+        `OnAudioRestarted`. (SC-012)
+      - `OnHeadStep` during the spec-005 FR-005 seek-mode window
+        produces `OnAudioContinued`, not Started/Restarted. (SC-013)
+      - With drive-audio toggle off (mock `Options::IsDriveAudioEnabled
+        == false`), `OnHeadStep` produces `OnAudioSilent(HeadStep,
+        drive, DriveAudioDisabled)`. (SC-014)
+      - With a missing sample buffer (mock returns nullptr for the
+        HeadStep buffer), `OnHeadStep` produces `OnAudioSilent(...,
+        BufferMissing)`. (SC-014)
+      - With no source registered for the active drive (the audio
+        subsystem reports no `DiskIIAudioSource` for that drive),
+        the equivalent dispatch site produces `OnAudioSilent(...,
+        NoSourceRegistered)`. (SC-014)
+      - Cold-boot `OnDiskInserted` produces `OnAudioSilent(DoorClose,
+        drive, ColdBootSuppression)`. (SC-014, FR-025)
+      - With no audio sink attached, all the above scenarios produce
+        byte-identical audio output (verified by `DriveAudioMixerTests`'
+        existing fixtures still passing).
+      (FR-022, FR-025, SC-011, SC-012, SC-013, SC-014)
+- [ ] T039a [GATE] Run audio-sink tests; full existing
+      `DriveAudioMixerTests` MUST still pass byte-identically.
+
+---
+
 ## Phase 4: UI-Thread Projection Helper
 
 **Purpose**: Implement the non-Win32 projection helper that drains the
@@ -216,24 +367,51 @@ inserts the lossage marker. Pure-data-structure logic.
 
 - [ ] T040 [P] Create `Casso/DebugDialogProjection.h` declaring a
       class with `DrainAndProject (DiskIIEventRing&, std::deque<DiskIIEventDisplay>&,
-      uint32_t droppedCount, uint64_t emulatorStartCycle)`, plus a
-      `FormatEvent (const DiskIIEvent&, DiskIIEventDisplay&)` helper, plus
-      named constants `kDisplayDequeCap = 100000`. (FR-005, FR-010, FR-012)
+      uint32_t droppedCount, std::chrono::steady_clock::time_point uptimeAnchor)`,
+      plus a `FormatEvent (const DiskIIEvent&, std::chrono::steady_clock::time_point uptimeAnchor, DiskIIEventDisplay&)`
+      helper, plus named constants `kDisplayDequeCap = 100000`. (FR-004a,
+      FR-005, FR-010, FR-012)
 - [ ] T041 Create `Casso/DebugDialogProjection.cpp`. Implement
-      `FormatEvent` per the FR-005 table (time = `HH:MM:SS.mmm` relative
-      to emulator startup per A-001; cycle = decimal with thousands
-      separators; event = mapped enum-to-fixed-string table; detail per
-      event type). Implement `DrainAndProject` per plan.md §"Data Flow
-      Per Event" step 5: if `droppedCount > 0`, push a synthetic
-      `EventsLost` display entry before draining; drain via
-      `ring.Drain`; push each formatted entry; if the deque exceeds
-      `kDisplayDequeCap`, `pop_front` until restored. (FR-005, FR-010,
-      FR-012)
+      `FormatEvent` per the FR-005 table:
+      - **Wall** column: `HH:MM:SS.mmm` from
+        `std::chrono::system_clock::now()` snapshot at format time.
+      - **Uptime** column: `MM:SS.mmm` from `(steady_clock::now() -
+        uptimeAnchor)` where `uptimeAnchor` is the shell-owned anchor
+        reseeded on `SoftReset` / `PowerCycle` per FR-004a.
+      - **Cycle** column: decimal with thousands separators.
+      - **Event** column: enum-to-fixed-string table covering BOTH
+        controller events (`MOTOR COMMAND ON`, `MOTOR ENGAGED`,
+        `MOTOR COMMAND OFF`, `MOTOR DISENGAGED`, `HEAD STEP`, etc.)
+        AND audio outcomes (`AUDIO STARTED`, `AUDIO RESTARTED`,
+        `AUDIO CONTINUED`, `AUDIO SILENT`, `AUDIO LOOP STARTED`,
+        `AUDIO LOOP STOPPED`). The `EventCategory` tag selects the
+        sub-table.
+      - **Detail** column: per-event-type per FR-005 (controller details
+        unchanged from prior draft; audio details formatted as
+        `kind=<SoundKind> drive=<N>` or, for Silent,
+        `kind=<SoundKind> drive=<N> reason=<SilentReason>`).
+      Implement `DrainAndProject` per plan.md §"Data Flow Per Event"
+      step 5: if `droppedCount > 0`, push a synthetic `EventsLost`
+      display entry before draining; drain via `ring.Drain`; push each
+      formatted entry; if the deque exceeds `kDisplayDequeCap`,
+      `pop_front` until restored. (FR-004, FR-004a, FR-005, FR-010,
+      FR-012, FR-021, FR-023, FR-025)
 - [ ] T042 [P] Create `UnitTest/Casso/DebugDialogProjectionTests.cpp`
       (or under `UnitTest/Devices/` if the test project organization
       requires it). Tests:
       - `FormatEvent` produces the exact strings called out by FR-005 for
-        every event type (table-driven test).
+        every event type (table-driven test) including:
+        - All four motor lifecycle events (`MOTOR COMMAND ON`,
+          `MOTOR ENGAGED`, `MOTOR COMMAND OFF`, `MOTOR DISENGAGED`).
+        - All six audio outcomes with sensible `kind=` / `drive=` /
+          `reason=` formatting.
+        - `AUDIO SILENT kind=DoorClose drive=1 reason=ColdBootSuppression`
+          specifically (FR-025).
+      - Wall column produces a `HH:MM:SS.mmm`-shape string matching
+        regex `^\d\d:\d\d:\d\d\.\d\d\d$`.
+      - Uptime column resets to `00:00.???` when the test passes a
+        freshly-reseeded `uptimeAnchor` (simulates SoftReset per
+        FR-004a).
       - `DrainAndProject` with an empty ring and zero droppedCount leaves
         the deque unchanged.
       - `DrainAndProject` with N events in the ring appends N entries to
@@ -246,7 +424,7 @@ inserts the lossage marker. Pure-data-structure logic.
       - Rolling-cap enforcement: pre-populate deque to `kDisplayDequeCap`,
         drain 1 event, assert deque size still equals the cap and the
         front entry advanced by one.
-      (FR-005, FR-010, FR-012)
+      (FR-004, FR-004a, FR-005, FR-010, FR-012, FR-025)
 - [ ] T043 [GATE] Run projection tests; verify all pass.
 
 ---
@@ -258,26 +436,50 @@ filter checkboxes, buttons. Render an empty list.
 
 - [ ] T050 Create `Casso/DiskIIDebugDialog.h` declaring the class with
       `Create (HWND parentHwnd)`, `Show()`, `Hide()`, `Destroy()`,
-      `AttachSink (DiskIIController&)`, `DetachSink (DiskIIController&)`,
-      and the `IDiskIIEventSink` overrides (CPU-thread side: push to ring,
-      bump dropped counter on full). Member fields: `HWND m_hwnd`,
-      `HWND m_listView`, 5 `HWND m_filterCheckbox[5]`, `HWND m_pauseButton`,
-      `HWND m_clearButton`, `DiskIIEventRing m_ring`,
+      `AttachSinks (DiskIIController&, DiskIIAudioSource*)`,
+      `DetachSinks (DiskIIController&, DiskIIAudioSource*)`,
+      and overrides for BOTH `IDiskIIEventSink` and `IDriveAudioEventSink`
+      (CPU-thread side: pack a tagged `DiskIIEvent`, push to ring,
+      bump dropped counter on full). Member fields:
+      `HWND m_hwnd`, `HWND m_listView`,
+      event-type checkbox handles (one per FR-014 category),
+      `HWND m_driveRadio[3]` (All/Drive 1/Drive 2),
+      `HWND m_trackEdit`, `HWND m_sectorEdit`, `HWND m_trackRawQtCheck`,
+      `HWND m_audioMasterCheck`, `HWND m_audioSubCheck[4]`
+      (Started/Restarted/Continued/Silent),
+      `HWND m_pauseButton`, `HWND m_clearButton`,
+      `DiskIIEventRing m_ring`,
       `std::atomic<uint32_t> m_droppedSinceLastDrain`,
       `std::deque<DiskIIEventDisplay> m_deque`,
-      `DebugDialogProjection m_projection`, `uint32_t m_filterMask`,
-      `bool m_paused`, `uint64_t m_emulatorStartCycle`,
-      `UINT_PTR m_timerId`. (FR-001..FR-004, FR-009, FR-011)
+      `std::vector<uint32_t> m_filteredIndices`,
+      `DebugDialogProjection m_projection`,
+      `FilterState m_filter`, `bool m_paused`,
+      `int m_columnSavedWidth[5]`,
+      `UINT_PTR m_timerId`. (FR-001..FR-004, FR-009, FR-011, FR-014,
+      FR-021, FR-023, FR-024, FR-026)
 - [ ] T051 Create `Casso/DiskIIDebugDialog.cpp`. Implement `Create`
       (programmatic `CreateWindowEx` for an overlapped, sizeable window
       with the standard frame; size and position from named constants).
       In `WM_CREATE` / `WM_INITDIALOG`-equivalent: create the ListView
-      (`LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS`), 4 columns per
-      FR-004 (Time, Cycle, Event, Detail) with default widths from named
-      constants `kColTimeWidth = 110`, `kColCycleWidth = 110`,
-      `kColEventWidth = 110`, `kColDetailWidth = 360`. Create the 5
-      filter checkboxes with labels per FR-014, all initially checked.
-      Create Pause and Clear buttons. (FR-001, FR-003, FR-004, FR-014)
+      (`LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS`), **5 columns**
+      per FR-004 (Wall, Uptime, Cycle, Event, Detail) with default
+      widths from named constants `kColWallWidth = 110`,
+      `kColUptimeWidth = 90`, `kColCycleWidth = 110`,
+      `kColEventWidth = 110`, `kColDetailWidth = 360` (sum ≈ 790 px).
+      Seed `m_columnSavedWidth[0..4]` to these defaults (FR-026).
+      Create the FR-014 filter controls above the ListView:
+      - Event-type checkboxes (Motor, HeadStep, HeadBump, AddrMark,
+        Read, Write, Door, DriveSelect, Audio-master), all initially
+        checked.
+      - Drive radio group (All / Drive 1 / Drive 2), default = All.
+      - Track and Sector text inputs (initially empty = match all),
+        with a "raw qt" checkbox alongside the Track input.
+      - Audio sub-checkboxes (Started, Restarted, Continued, Silent),
+        all initially checked, visually disabled when Audio-master is
+        unchecked (FR-014c).
+      - Pause and Clear buttons.
+      (FR-001, FR-003, FR-004, FR-014, FR-014a, FR-014b, FR-014c,
+      FR-026)
 - [ ] T052 Implement window-class registration (lazy, on first `Create`)
       using a file-scope `static const wchar_t g_pszDebugWndClass[] =
       L"CassoDiskIIDebugWindow";`. Hungarian per constitution. Register
@@ -286,14 +488,19 @@ filter checkboxes, buttons. Render an empty list.
       `WM_CLOSE` handler that hides (does not destroy). `WM_DESTROY`
       kills the timer and tears down state. (FR-001)
 - [ ] T054 [P] Create `UnitTest/Devices/DiskIIDebugDialogTests.cpp`
-      covering the non-Win32 portions: dialog can be default-constructed,
-      its filter mask defaults to "all bits set" (FR-014), `m_paused`
-      defaults to false, `m_emulatorStartCycle` is recorded on first
-      drain. (FR-014, FR-015) No `HWND` is created.
+      covering the non-Win32 portions: dialog's `FilterState` defaults
+      to "all event-type checkboxes set, Drive=All, empty Track/Sector
+      predicates, Audio master checked, all four audio sub-toggles
+      checked" (FR-014, FR-014c), `m_paused` defaults to false,
+      `m_columnSavedWidth` is seeded with the five default constants
+      on construction (FR-026). No `HWND` is created.
+      (FR-014, FR-014c, FR-015, FR-026)
 - [ ] T055 [GATE] Build the shell, manually open the dialog from a debug
-      menu stub, verify the empty window renders with 4 columns, 5
-      checkboxes, 2 buttons, and a resizeable frame. (Manual gate;
-      automated UI test is out of scope per NFR-002.)
+      menu stub, verify the empty window renders with 5 columns
+      (Wall, Uptime, Cycle, Event, Detail), the FR-014 filter controls
+      (event-type checkboxes, Drive radio, Track/Sector text inputs,
+      Audio sub-checkboxes), 2 buttons, and a resizeable frame.
+      (Manual gate; automated UI test is out of scope per NFR-002.)
 
 ---
 
@@ -313,9 +520,14 @@ filter checkboxes, buttons. Render an empty list.
       window is hidden or minimized (`IsWindowVisible` returns false) or
       `m_paused` is true. (FR-011, FR-015)
 - [ ] T062 Implement `LVN_GETDISPINFO` handler. Translate the `iItem`
-      index into a deque index (Phase 7 will introduce the filter-index
-      remap; for now, identity mapping). For each requested column,
-      return the appropriate string from `m_deque[i]`. (FR-003, FR-005)
+      index via `m_filteredIndices[iItem]` (Phase 7 populates this
+      vector; until then, seed it with the identity mapping
+      `[0, 1, ... deque.size()-1]`). For each requested column, return
+      the appropriate string from `m_deque[deqIdx]`. The column index
+      `iSubItem` MUST map to the visible-column ordinal; hidden columns
+      (FR-026, width 0) are skipped naturally by Windows since the LV
+      does not request data for zero-width columns. (FR-003, FR-005,
+      FR-026)
 - [ ] T063 [P] Add a `DiskIIDebugDialogTests.cpp` headless test for the
       auto-tail decision function: extract the `wasAtTail` computation
       into a free function `bool ComputeWasAtTail (int topIndex, int
@@ -331,27 +543,55 @@ filter checkboxes, buttons. Render an empty list.
 
 ## Phase 7: Filter Projection
 
-**Purpose**: Wire the 5 filter checkboxes to the displayed projection.
+**Purpose**: Wire the FR-014 filter controls to the displayed projection.
 
 - [ ] T070 In `DiskIIDebugDialog.cpp`, handle `WM_COMMAND` for each
-      filter checkbox: update `m_filterMask` (bit per category per
-      FR-014: bit 0 Motor, bit 1 Head, bit 2 SectorRW, bit 3 Door, bit 4
-      DriveSelect). On change, recompute the filter-index vector (or
-      invalidate the LV's contents and rely on `LVN_GETDISPINFO` to do
-      lazy filtering — implementer's choice per research §6.1). (FR-014)
-- [ ] T071 Update the `LVN_GETDISPINFO` handler to honor the filter mask
-      via the chosen approach (filter-index vector OR lazy filter). The
-      virtual row count reported by `ListView_SetItemCountEx` must equal
-      the number of currently-displayed (filtered) rows. (FR-014)
+      event-type checkbox, each Drive radio button, the Audio-master,
+      each Audio sub-checkbox, and `EN_CHANGE` for the Track/Sector
+      text inputs (and the "raw qt" checkbox). On any change, update
+      `m_filter` (re-parsing the Track and Sector inputs via
+      `TrackSectorPredicate::Parse` from Phase 2a) and rebuild
+      `m_filteredIndices` from `m_deque` by running `MatchesFilter` on
+      every entry. When the Audio-master is unchecked, visually disable
+      (grey out) the four sub-checkboxes via `EnableWindow(..., FALSE)`
+      but preserve their checked state for restoration when Audio-master
+      is re-checked (FR-014c). (FR-014, FR-014a, FR-014b, FR-014c)
+- [ ] T071 Update the `LVN_GETDISPINFO` handler so the virtual row count
+      reported by `ListView_SetItemCountEx` equals
+      `m_filteredIndices.size()` (not `m_deque.size()`). On drain, after
+      `DrainAndProject` appends new deque entries, the incremental tail
+      of `m_filteredIndices` MUST be computed (run `MatchesFilter` only
+      on the newly-appended entries, not the entire deque) and appended
+      to the vector. (FR-014)
 - [ ] T072 [P] Add `DebugDialogProjectionTests.cpp` cases that exercise
-      filter projection: with a fixed deque of one event of each type,
-      every single-checkbox mask shows only the corresponding events;
-      the all-checked mask shows everything; the all-unchecked mask
-      shows nothing; re-checking after un-checking shows the events
-      again in chronological order. (FR-014)
+      the full FR-014 filter composition:
+      - With a fixed deque of one event of each event-type, every
+        single-checkbox-on / others-off configuration shows only the
+        corresponding events.
+      - All-checked shows everything; all-unchecked shows nothing;
+        re-checking after un-checking shows the events again in
+        chronological order (regression for the "filtering is a
+        projection, not a drop" rule).
+      - Drive=Drive 1 filter shows only events whose `drive` field is
+        1; Drive=All shows both.
+      - Track filter `0` shows only events with `track == 0`; Track
+        filter `0-2,17` shows events with track in {0,1,2,17}; empty
+        Track shows everything.
+      - Sector filter `0-15` shows standard sector events; sector
+        filter `999` matches no events but DOES NOT throw (FR-014b
+        "no max-value validation").
+      - Combined `Drive=1 + Track=0 + Read-only + Audio-master-off`
+        shows only `DATA READ` rows from drive 1 reading track 0
+        (SC-016).
+      - Audio-master unchecked hides ALL six audio outcomes
+        regardless of sub-toggle state; Audio-master checked with
+        only `Silent` sub-toggle on shows `AUDIO SILENT` rows and
+        hides the other three audio outcome rows (loop events still
+        show — they are not gated by sub-toggles per FR-014c).
+      (FR-014, FR-014a, FR-014b, FR-014c, SC-016)
 - [ ] T073 [GATE] Manual test: during a DOS 3.3 boot, toggle each
-      filter and verify the displayed events change appropriately and
-      restore on re-check.
+      filter control and verify the displayed events change
+      appropriately and restore on re-check.
 
 ---
 
@@ -392,9 +632,11 @@ filter checkboxes, buttons. Render an empty list.
 - [ ] T090 Implement a `WM_KEYDOWN` / accelerator handler on the ListView
       for Ctrl+C: enumerate selected items (`ListView_GetNextItem` loop
       with `LVNI_SELECTED`), format each as
-      `"<time>\t<cycle>\t<event>\t<detail>\r\n"` (UTF-16, CRLF terminator),
+      `"<wall>\t<uptime>\t<cycle>\t<event>\t<detail>\r\n"` (UTF-16,
+      CRLF terminator) in VISIBLE-COLUMN order — hidden columns (width
+      0 per FR-026) MUST be omitted, including their leading tab —
       concatenate into a `std::wstring`, open clipboard, set
-      `CF_UNICODETEXT`. (FR-019)
+      `CF_UNICODETEXT`. (FR-019, FR-026)
 - [ ] T091 [P] Add a headless test that exercises the formatting helper:
       given a vector of `DiskIIEventDisplay` entries (the "selected"
       set), the helper returns the expected tab-separated UTF-16
@@ -419,19 +661,82 @@ filter checkboxes, buttons. Render an empty list.
 - [ ] T102 In `Casso/MenuSystem.cpp`, route `WM_COMMAND` for
       `IDM_VIEW_DISKII_DEBUG` to a new `EmulatorShell::OpenDiskIIDebugDialog()`.
 - [ ] T103 In `Casso/EmulatorShell.{h,cpp}`, add
-      `std::unique_ptr<DiskIIDebugDialog> m_diskIIDebugDialog;` and
-      `void OpenDiskIIDebugDialog();`. On first call, lazy-create the
-      dialog, attach as sink on the first `DiskIIController` instance in
-      the active machine config (controller #0 per FR-017), and `Show`.
-      On subsequent calls, `Show` + `SetForegroundWindow`. On dialog
-      close: revoke the sink (`SetEventSink (nullptr)`) BEFORE the dialog
-      tears down its ring. (FR-001, FR-017, FR-018)
+      `std::unique_ptr<DiskIIDebugDialog> m_diskIIDebugDialog;`,
+      `std::chrono::steady_clock::time_point m_uptimeAnchor;`
+      (initialized in constructor), `void ResetUptimeAnchor();`
+      (assigns `steady_clock::now()` to `m_uptimeAnchor`), and
+      `void OpenDiskIIDebugDialog();`. On first call to
+      `OpenDiskIIDebugDialog`, lazy-create the dialog, attach as sink
+      on the first `DiskIIController` instance in the active machine
+      config (controller #0 per FR-017) via `SetEventSink`, AND attach
+      as audio sink on that controller's associated
+      `DiskIIAudioSource` via `SetAudioEventSink` (FR-024), then
+      `Show`. On subsequent calls: `Show` + `SetForegroundWindow`.
+      On dialog close: revoke BOTH sinks (`SetEventSink(nullptr)`
+      then `SetAudioEventSink(nullptr)`) BEFORE the dialog tears down
+      its ring. (FR-001, FR-017, FR-018, FR-024)
+- [ ] T103a In `CassoEmuCore/Machine/MachineShell.cpp` (or wherever
+      `SoftReset` and `PowerCycle` live), call `shell.ResetUptimeAnchor()`
+      from each handler so the Uptime column zeroes on every //e reset
+      and power-cycle (FR-004a). The shell-side helper is a single
+      assignment to `m_uptimeAnchor`. No threading concern: both
+      handlers run on the UI thread, and the anchor is read on the UI
+      thread during the dialog's drain.
+- [ ] T103b [P] Add `DiskIIDebugDialogTests.cpp` headless test for the
+      Uptime anchor: instantiate a fake-shell harness exposing
+      `ResetUptimeAnchor`, capture the anchor, sleep ~50 ms, format an
+      event, assert the Uptime string is `00:00.0??` (not the
+      pre-reset value). (FR-004a, SC-015)
 - [ ] T104 If `MachineConfig` reports more than one Disk II controller,
       append " (controller #0 only)" to the dialog title. (FR-017)
 - [ ] T105 [GATE] Build, run the shell, verify the menu item appears
       with the keyboard accelerator hint, Ctrl+Shift+D opens the window,
       menu item also opens the window, closing then reopening reuses
       the dialog instance.
+
+---
+
+## Phase 10a: Column Show/Hide (FR-026)
+
+**Purpose**: Right-click the column header to toggle individual column
+visibility. In-session only — closing the dialog returns all columns
+to their default widths (NFR-006).
+
+- [ ] T106 In `DiskIIDebugDialog.cpp`, install a header subclass (or
+      handle the `LVN_*` / `HDN_*` notifications) so right-clicks on
+      the ListView header subcontrol surface as `NM_RCLICK` on the
+      header HWND, or `WM_CONTEXTMENU` while the header has focus.
+      Build a popup menu via `CreatePopupMenu` + `AppendMenu` with
+      five `MFT_STRING | MFS_CHECKED`-or-`MFS_UNCHECKED` items:
+      **Wall**, **Uptime**, **Cycle**, **Event**, **Detail**. The
+      checked state of each item MUST reflect
+      `ListView_GetColumnWidth(m_lv, col) > 0`. Display with
+      `TrackPopupMenu` at the cursor location. (FR-026)
+- [ ] T107 On menu-item selection, toggle visibility:
+      - If the column is currently visible (`width > 0`), capture
+        `m_columnSavedWidth[col] = ListView_GetColumnWidth(...)` and
+        then `ListView_SetColumnWidth(m_lv, col, 0)`.
+      - If the column is currently hidden (`width == 0`),
+        `ListView_SetColumnWidth(m_lv, col, m_columnSavedWidth[col])`
+        (or the default constant if for some reason the saved width
+        is 0). Hiding all five columns is allowed — the user sees a
+        blank ListView and can re-show via the same menu.
+      (FR-026)
+- [ ] T108 [P] Add `DiskIIDebugDialogTests.cpp` headless tests for the
+      visibility-toggle helper. Extract the toggle into a free function
+      `int ComputeNewColumnWidth (int currentWidth, int savedWidth, int
+      defaultWidth)` testable without an HWND. Verify:
+      - currentWidth > 0 → saves currentWidth into saved slot, returns 0.
+      - currentWidth == 0, savedWidth > 0 → returns savedWidth.
+      - currentWidth == 0, savedWidth == 0 → returns defaultWidth (fallback).
+      Also verify that a fresh dialog instance seeds
+      `m_columnSavedWidth` with the five default constants (no
+      persistence across construction per NFR-006). (FR-026, NFR-006)
+- [ ] T109 [GATE] Manual: right-click the header, verify the popup menu
+      lists all five columns with correct checkmarks, toggling each
+      hides/shows the column, hiding all five leaves a usable (empty)
+      ListView, closing and reopening the dialog restores all columns
+      to defaults (per NFR-006).
 
 ---
 
@@ -473,16 +778,26 @@ filter checkboxes, buttons. Render an empty list.
 - T030 (controller field additions) blocks T031, T032, T033.
 - T010 (ring impl) blocks T011, T012, and any later phase that uses the ring.
 - T020 (watcher impl) blocks T021 and T032 (which invokes `ObserveNibble`).
+- T026 (TrackSectorPredicate impl) blocks T027 and Phase 7 (T070).
+- T036–T038 (audio source integration) block T039 and Phase 10's
+  `SetAudioEventSink` wiring in T103.
 - T041 (projection impl) blocks T042 and Phase 6 (T060).
-- T050/T051 (dialog scaffold) block T060–T091.
+- T050/T051 (dialog scaffold) block T060–T091, T106–T109.
 - T100–T103 (shell wiring) is the last gate before manual end-to-end
   testing; do not start before Phases 5–9 are gate-clean.
+- T103a (Uptime anchor reseed on SoftReset / PowerCycle) MUST land
+  before SC-015 manual validation in T112.
 
 ## Out-of-scope reminders (do NOT add to tasks.md scope)
 
 - Multi-controller debug window (deferred per spec Out of Scope item 1).
 - CPU debugger / breakpoints / memory dump (deferred to #51/#59).
-- Persisting filter/pause state (Out of Scope item 3).
+- Persisting filter / pause / column-width / column-visibility state
+  across launches (Out of Scope item 3; NFR-006).
 - Save-log-to-file button beyond Ctrl+C (Out of Scope item 4).
 - Per-row color coding (Out of Scope item 5).
 - Decoding 6-and-2 data nibbles into byte values (Out of Scope item 6).
+- Volume filter widget (Out of Scope item 11; volume remains visible
+  inside the ADDR MARK detail string).
+- `OnMotorAtSpeed` / `READ_DURING_SPINUP` events (A-009 forward-compat
+  note; lands with issue #67).

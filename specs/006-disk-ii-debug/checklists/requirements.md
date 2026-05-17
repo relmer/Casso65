@@ -46,29 +46,26 @@ The user invited clarifying questions only for genuine new ambiguities not
 already resolved in the design discussion. After full passes over the spec
 and plan, exactly the following remain:
 
-### Q1: Time-column clock origin (A-001)
+### Q1: Time-column origins — RESOLVED
 
-**Context**: FR-004 specifies the Time column shows `HH:MM:SS.mmm`. The
-design discussion did not pin down what `00:00:00.000` represents.
+**Context**: FR-004 originally specified a single `Time` column with an
+ambiguous origin.
 
-**Suggested default in spec**: Relative to emulator startup
-(i.e., `00:00:00.000` is the moment `EmulatorShell` finished initialization).
-Encoded in A-001 with a `[NEEDS CLARIFICATION]` marker.
-
-**Alternatives**:
-
-| Option | Origin | Rationale |
-|--------|--------|-----------|
-| A (spec default) | Relative to emulator startup | "This event happened 4.512 s into the session" — good for boot-investigation context. |
-| B | Relative to most recent CPU reset | Resets the clock each Ctrl+R, so the timeline maps to the current emulated session, not the app session. Good for multi-reset debugging. |
-| C | Wall-clock `HH:MM:SS.mmm` | Useful when correlating with external logs (e.g., a host-side packet capture); less useful in isolation. |
-| Custom | (user specifies) | — |
+**Resolution**: The single column was replaced with three columns
+(**Wall**, **Uptime**, **Cycle**) per FR-004 and FR-004a. **Wall** is
+host-local wall-clock time; **Uptime** is `MM:SS.mmm` since the most
+recent //e reset or power-cycle (reseeded in `MachineShell::SoftReset`
+and `MachineShell::PowerCycle`); **Cycle** is the existing cumulative
+CPU cycle counter. The user explicitly endorsed this three-column design
+in the post-draft design-refinement pass (Fold 1). A-001 has been
+rewritten accordingly and no longer carries a `[NEEDS CLARIFICATION]`
+marker.
 
 ### Q2: ListView default column widths (FR-003 / FR-004)
 
-**Context**: The plan's T051 task assigns named-constant default widths
-of Time=110, Cycle=110, Event=110, Detail=360 pixels. These are sane
-defaults at standard 96 DPI but were not part of the design discussion.
+**Context**: The plan's T051 task now assigns named-constant default
+widths of Wall=110, Uptime=90, Cycle=110, Event=110, Detail=360 pixels
+(≈ 790 px total) at standard 96 DPI.
 
 **Disposition**: Treated as a Phase 5 implementation detail. The widths
 are tunable named constants; the implementer may revise during manual

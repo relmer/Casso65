@@ -11,7 +11,7 @@
 
 ### User Story 1 - Watch a DOS 3.3 cold boot fire address marks in real time (Priority: P1)
 
-A developer is investigating why a particular WOZ image hangs at boot. They open **View → Disk II Debug...** before mounting the image, then mount the disk and cold-boot. As the controller spins the drive and RWTS walks the head from rest to track 0, the debug window shows a live stream: `MOTOR ON`, a flurry of `HEAD STEP` rows (each with a `qt N -> qt M (inward|outward)` detail), several `HEAD BUMP` rows at the track-0 stop, and then — as soon as the head settles and the nibble engine starts feeding the controller — a steady cadence of `ADDR MARK T0 S0 V254`, `ADDR MARK T0 S1 V254`, … followed by `DATA READ S0 (256 bytes)` rows. The view stays pinned to the bottom row as new events stream in; the user can read the tail without touching the scroll bar.
+A developer is investigating why a particular WOZ image hangs at boot. They open **View → Disk II Debug...** before mounting the image, then mount the disk and cold-boot. As the controller spins the drive and RWTS walks the head from rest to track 0, the debug window shows a live stream: `MOTOR COMMAND ON` → `MOTOR ENGAGED`, a flurry of `HEAD STEP` rows (each with a `qt N -> qt M (inward|outward)` detail), several `HEAD BUMP` rows at the track-0 stop, and then — as soon as the head settles and the nibble engine starts feeding the controller — a steady cadence of `ADDR MARK T0 S0 V254`, `ADDR MARK T0 S1 V254`, … followed by `DATA READ S0 (256 bytes)` rows. Interleaved between controller rows, audio outcomes appear (`AUDIO LOOP STARTED kind=MotorLoop`, `AUDIO STARTED kind=HeadStep`, etc.) so the user can correlate every audio decision with the controller event that triggered it. The view stays pinned to the bottom row as new events stream in.
 
 **Why this priority**: This is the entire feature's reason to exist. If a developer can't see a DOS 3.3 boot's address-mark stream, the feature has failed. It exercises every event type the v1 sink defines in a single 5-second sequence on real software, and it validates both the auto-tail scroll heuristic and the cross-thread queue under peak DOS 3.3 event load (~150 events/sec).
 
@@ -19,7 +19,7 @@ A developer is investigating why a particular WOZ image hangs at boot. They open
 
 **Acceptance Scenarios**:
 
-1. **Given** the debug window is open and a DOS 3.3 disk is mounted, **When** the user cold-boots, **Then** within ~50 ms of the first `$C0E9` strobe a `MOTOR ON` row appears at the bottom of the list and remains visible without manual scrolling.
+1. **Given** the debug window is open and a DOS 3.3 disk is mounted, **When** the user cold-boots, **Then** within ~50 ms of the first `$C0E9` strobe a `MOTOR COMMAND ON` row appears followed shortly by `MOTOR ENGAGED`, both at the bottom of the list and remaining visible without manual scrolling.
 2. **Given** the boot proceeds through RWTS recalibration, **When** the head pins against the track-0 stop, **Then** at least one `HEAD BUMP` row appears with detail `at qt 0`, and consecutive bump events produce one row each (no collapsing).
 3. **Given** the nibble engine begins feeding sector data, **When** the controller observes a complete `D5 AA 96` address-mark prologue + 4-and-4 (volume, track, sector, checksum) + `DE AA EB` epilogue, **Then** an `ADDR MARK` row appears with detail in the form `T<track> S<sector> V<volume>` (e.g., `T0 S0 V254`).
 4. **Given** the address mark was successfully observed, **When** the controller subsequently observes the `D5 AA AD` data-mark prologue and reads 342 6-and-2 nibbles before the `DE AA EB` epilogue, **Then** a `DATA READ` row appears with detail `S<sector> (256 bytes)`.
@@ -45,15 +45,15 @@ A developer noticed an anomaly mid-boot and wants to scroll back to read it. The
 
 ### User Story 3 - Filter, pause, and clear without losing in-flight events (Priority: P2)
 
-A developer is hunting a head-step regression and wants to see only `HEAD STEP` and `HEAD BUMP` rows. They uncheck the **Motor**, **Sector R/W**, **Door**, and **DriveSelect** filter boxes. The view collapses to head events only. They re-check **Sector R/W** mid-session; the address-mark and data-mark rows that flowed in while the filter was off now appear in the view (filtering is a projection, not a drop). They press **Pause** to freeze the view and read at leisure; events continue to accumulate in the ring buffer. When the ring fills, a single synthetic `[N events lost]` row is inserted on the next successful drain. They press **Resume**, observe a few new rows, then press **Clear** — the displayed deque empties and the row count returns to zero, but events still in the ring continue to drain into the now-empty deque.
+A developer is hunting a head-step regression and wants to see only `HEAD STEP` and `HEAD BUMP` rows. They uncheck the **Motor**, **AddrMark**, **Read**, **Write**, **Door**, **DriveSelect**, and **Audio** filter boxes (leaving only **HeadStep** and **HeadBump** checked). The view collapses to head events only. They re-check **AddrMark** and **Read** mid-session; the address-mark and data-mark rows that flowed in while the filter was off now appear in the view (filtering is a projection, not a drop). They press **Pause** to freeze the view and read at leisure; events continue to accumulate in the ring buffer. When the ring fills, a single synthetic `[N events lost]` row is inserted on the next successful drain. They press **Resume**, observe a few new rows, then press **Clear** — the displayed deque empties and the row count returns to zero, but events still in the ring continue to drain into the now-empty deque.
 
 **Why this priority**: Filtering, pausing, and clearing are the three controls that turn a firehose into a debugger. Each is independently testable and each addresses a distinct workflow problem (signal-to-noise, "let me read this", "let me start fresh from here").
 
-**Independent Test**: With disk activity in progress, (a) uncheck all filters except Head; verify only `HEAD STEP` / `HEAD BUMP` rows are visible; re-check Sector R/W and verify the historical sector rows reappear. (b) Press Pause; verify the row count freezes; wait long enough that the ring would overflow (or force overflow with a test hook); resume; verify a `[N events lost]` marker appears with N matching the dropped count. (c) Press Clear; verify the displayed list goes to 0 rows; verify subsequent disk activity produces fresh rows starting from 1.
+**Independent Test**: With disk activity in progress, (a) uncheck every filter except HeadStep and HeadBump; verify only `HEAD STEP` / `HEAD BUMP` rows are visible; re-check AddrMark and Read and verify the historical sector rows reappear. (b) Press Pause; verify the row count freezes; wait long enough that the ring would overflow (or force overflow with a test hook); resume; verify a `[N events lost]` marker appears with N matching the dropped count. (c) Press Clear; verify the displayed list goes to 0 rows; verify subsequent disk activity produces fresh rows starting from 1.
 
 **Acceptance Scenarios**:
 
-1. **Given** the Motor filter checkbox is unchecked, **When** the controller fires `OnMotorStart` / `OnMotorStop`, **Then** the corresponding rows MUST NOT be displayed; re-checking Motor MUST cause those previously-hidden rows to appear in chronological order alongside other rows.
+1. **Given** the Motor filter checkbox is unchecked, **When** the controller fires any of `OnMotorCommandOn` / `OnMotorEngaged` / `OnMotorCommandOff` / `OnMotorDisengaged`, **Then** the corresponding rows MUST NOT be displayed; re-checking Motor MUST cause those previously-hidden rows to appear in chronological order alongside other rows.
 2. **Given** Pause is pressed, **When** the CPU thread continues to push events into the ring, **Then** the displayed row count MUST NOT change until Resume is pressed.
 3. **Given** the ring buffer fills while paused (or while the UI is too slow), **When** the next successful drain occurs, **Then** exactly one synthetic `[N events lost]` row MUST be inserted into the deque at the position where the loss occurred (not at the tail of the deque), with N equal to the count of dropped events.
 4. **Given** Clear is pressed, **When** the displayed row count is reset to zero, **Then** the underlying ring buffer MUST NOT be flushed; in-flight events MUST continue to drain into the (now-empty) deque on subsequent timer ticks.
@@ -94,16 +94,20 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 - **FR-001 (Modeless debug window)**: The emulator MUST expose a modeless debug window opened via **View → Disk II Debug...** (menu item id `IDM_VIEW_DISKII_DEBUG`). The window MUST be non-blocking — it lives alongside the main emulator window and MUST NOT halt CPU emulation while open. It MUST follow the same lifecycle pattern as `OptionsDialog` and `MachinePickerDialog`. Closing the window MUST detach the event sink before the underlying queue is destroyed.
 - **FR-002 (Accelerator)**: The menu item MUST have a keyboard accelerator of **Ctrl+Shift+D**. The accelerator MUST be registered in the application accelerator table and MUST function whether the main window or any modeless dialog has focus, as long as no modal dialog is in front of it.
 - **FR-003 (ListView, virtual + report mode)**: The window MUST contain a Win32 ListView control in `LVS_REPORT | LVS_OWNERDATA` mode. The ListView MUST source its row contents via `LVN_GETDISPINFO` against the UI-thread deque (FR-009); it MUST NOT use `InsertItem` per row.
-- **FR-004 (Column set)**: The ListView MUST have exactly four columns in this order:
-  1. **Time** — `HH:MM:SS.mmm`, relative to emulator startup (see Assumption A-001).
-  2. **Cycle** — cumulative CPU cycle counter since the most recent reset, displayed as a decimal integer with thousands separators (e.g., `1,234,567`).
-  3. **Event** — one of: `MOTOR ON`, `MOTOR OFF`, `HEAD STEP`, `HEAD BUMP`, `ADDR MARK`, `DATA READ`, `DATA WRITE`, `DRIVE SELECT`, `DISK INSERTED`, `DISK EJECTED`, `[N events lost]` (synthetic).
-  4. **Detail** — free-form per-event text, formatted per FR-005.
+- **FR-004 (Column set)**: The ListView MUST have exactly five columns in this order:
+  1. **Wall** — local wall-clock time as `HH:MM:SS.mmm`. Used to correlate emulator events with external real-world events (other tool logs, video captures, hardware oscilloscope traces).
+  2. **Uptime** — relative time as `MM:SS.mmm` since the most recent //e reset or power-cycle (see FR-004a). The //e's reset is the natural T=0 for disk debugging — every `RWTS recalibration` sequence begins shortly after T=0 on a cold boot.
+  3. **Cycle** — cumulative CPU cycle counter since the most recent reset (the value already maintained by the CPU emulator and consumed by `DiskIIController::Tick()` for spindown timing), displayed as a decimal integer with thousands separators (e.g., `1,234,567`).
+  4. **Event** — one of: `MOTOR COMMAND ON`, `MOTOR ENGAGED`, `MOTOR COMMAND OFF`, `MOTOR DISENGAGED`, `HEAD STEP`, `HEAD BUMP`, `ADDR MARK`, `DATA READ`, `DATA WRITE`, `DRIVE SELECT`, `DISK INSERTED`, `DISK EJECTED`, `AUDIO STARTED`, `AUDIO RESTARTED`, `AUDIO CONTINUED`, `AUDIO SILENT`, `AUDIO LOOP STARTED`, `AUDIO LOOP STOPPED`, `[N events lost]` (synthetic).
+  5. **Detail** — free-form per-event text, formatted per FR-005.
+- **FR-004a (Uptime zero-point)**: The Uptime counter MUST be reset to `00:00.000` on every //e reset (the existing `MachineShell::SoftReset` path) AND on every power-cycle (the existing `MachineShell::PowerCycle` path). Emulator-process startup MUST also seed the anchor so the first event before any reset shows a sensible Uptime. The wiring is a single `m_uptimeAnchor = std::chrono::steady_clock::now()` assignment hooked into each handler; the Uptime column computes `(now - m_uptimeAnchor)` formatted as `MM:SS.mmm`. The Uptime is process-lifetime-scoped; it is NOT relative to emulator-process startup once any reset has occurred.
 - **FR-005 (Per-event detail formatting)**: The detail column MUST be populated as follows:
   | Event | Detail format |
   |---|---|
-  | `MOTOR ON` | empty |
-  | `MOTOR OFF` | empty |
+  | `MOTOR COMMAND ON` | empty (every `$C0E9` strobe, including no-op re-strobes) |
+  | `MOTOR ENGAGED` | empty (false→true edge of `m_motorOn` — audio-relevant logical engagement) |
+  | `MOTOR COMMAND OFF` | empty (every `$C0E8` strobe; arms the spindown timer when engaged) |
+  | `MOTOR DISENGAGED` | empty (true→false edge after spindown timer expires — audio-stop moment) |
   | `HEAD STEP` | `qt <prev> -> qt <new> (<direction>)` where direction is `inward` (new > prev) or `outward` (new < prev). |
   | `HEAD BUMP` | `at qt <position>` where position is `0` or `kMaxQuarterTrack` (typically 139). |
   | `ADDR MARK` | `T<track> S<sector> V<volume>` (e.g., `T17 S5 V254`). |
@@ -112,10 +116,18 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
   | `DRIVE SELECT` | `drive <N>` (1-based). |
   | `DISK INSERTED` | `drive <N>` (1-based). |
   | `DISK EJECTED` | `drive <N>` (1-based). |
+  | `AUDIO STARTED` | `kind=<SoundKind> drive=<N>` (new one-shot from sample 0; previous shot was finished/idle) |
+  | `AUDIO RESTARTED` | `kind=<SoundKind> drive=<N>` (new one-shot fired while a previous shot was still playing; previous shot was cut short) |
+  | `AUDIO CONTINUED` | `kind=<SoundKind> drive=<N>` (event acknowledged; previous shot's tail intentionally preserved per spec-005 FR-005 seek-mode case) |
+  | `AUDIO SILENT` | `kind=<SoundKind> drive=<N> reason=<SilentReason>` (one of `DriveAudioDisabled`, `BufferMissing`, `NoSourceRegistered`, `ColdBootSuppression`) |
+  | `AUDIO LOOP STARTED` | `kind=<SoundKind> drive=<N>` (looping sound — motor — began) |
+  | `AUDIO LOOP STOPPED` | `kind=<SoundKind> drive=<N>` (looping sound stopped) |
   | `[N events lost]` | `<N>` (decimal). |
-- **FR-006 (Event sink interface)**: A new abstract interface `IDiskIIEventSink` MUST be declared in `CassoEmuCore/Devices/IDiskIIEventSink.h`. The interface MUST contain exactly these virtual methods (all `void`, all infallible):
-  - `OnMotorStart()`
-  - `OnMotorStop()`
+- **FR-006 (Event sink interface)**: A new abstract interface `IDiskIIEventSink` MUST be declared in `CassoEmuCore/Devices/IDiskIIEventSink.h`. The interface MUST contain exactly these virtual methods (all `void`, all infallible). The four-event motor lifecycle replaces the single `OnMotorStart`/`OnMotorStop` pair so consumers can distinguish strobes from logical engagement edges:
+  - `OnMotorCommandOn()` — every `$C0E9` strobe, including no-op re-strobes when the motor is already engaged (DOS hammers `$C0E9` every sector).
+  - `OnMotorEngaged()` — false→true edge of `m_motorOn`; the logical engagement moment at which audio's `MotorLoop` starts.
+  - `OnMotorCommandOff()` — every `$C0E8` strobe; arms the spindown timer when the motor is currently engaged.
+  - `OnMotorDisengaged()` — true→false edge of `m_motorOn` after the spindown timer expires; the audio-stop moment.
   - `OnHeadStep(int prevQt, int newQt)`
   - `OnHeadBump(int atQt)`
   - `OnAddressMark(int track, int sector, int volume)`
@@ -124,6 +136,8 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
   - `OnDriveSelect(int drive)`
   - `OnDiskInserted(int drive)`
   - `OnDiskEjected(int drive)`
+
+  See A-009 for forward-compatibility room for a future `OnMotorAtSpeed()`.
 - **FR-007 (Controller fires into sink — guarded)**: `DiskIIController` MUST gain a single `IDiskIIEventSink* m_eventSink` pointer (default `nullptr`) and a `SetEventSink(IDiskIIEventSink*)` method. Every fire site MUST be guarded by `if (m_eventSink != nullptr) { ... }`. When `m_eventSink` is `nullptr`, the controller's behavior, performance, and observable state MUST be 100% identical to its pre-feature behavior.
 - **FR-008 (Address-mark / data-mark watcher)**: A passive nibble-stream watcher MUST be added inside the controller's nibble read path. The watcher maintains a small state machine that:
   1. Searches for the `D5 AA 96` address-mark prologue.
@@ -136,20 +150,63 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 - **FR-011 (UI drain timer)**: The UI thread MUST drain the ring on an approximately 30 Hz timer (every ~33 ms). Drains MUST be batched — one timer tick MUST drain all currently-available events from the ring into the deque, then update the ListView's virtual row count via `ListView_SetItemCountEx`. Drains MUST be skipped (without ring activity) when the window is hidden, minimized, or Pause is active.
 - **FR-012 (UI backing deque with rolling cap)**: The debug window MUST maintain a `std::deque<DiskIIEventDisplay>` (or equivalent FIFO) of formatted entries with a rolling cap of 100,000 entries. When a drain would push the deque size above the cap, the oldest entries MUST be `pop_front`-ed until the cap is restored. The ListView's virtual row count MUST always equal the deque size.
 - **FR-013 (Auto-tail scroll heuristic)**: Before each drain appends new rows, the consumer MUST capture whether the user is currently viewing the tail of the list. "At tail" MUST be defined as: `ListView_GetTopIndex + ListView_GetCountPerPage >= deque.size()` immediately before the append. If at tail, after `ListView_SetItemCountEx`, the consumer MUST call `ListView_EnsureVisible` on the new last index to scroll the new tail row into view. If not at tail, the consumer MUST NOT modify the scroll position.
-- **FR-014 (Filter checkboxes)**: The dialog MUST expose five filter checkboxes above the ListView: **Motor**, **Head**, **Sector R/W**, **Door**, **DriveSelect**. Each checkbox MUST default to checked. The checkbox-to-event mapping is:
-  - **Motor** → `MOTOR ON`, `MOTOR OFF`
-  - **Head** → `HEAD STEP`, `HEAD BUMP`
-  - **Sector R/W** → `ADDR MARK`, `DATA READ`, `DATA WRITE`
+- **FR-014 (Filter controls)**: The dialog MUST expose three groups of filter controls above the ListView. All filters compose via **logical AND** — an event is displayed only when every active filter matches. Filters are applied at the **deque-to-display projection** stage (`LVN_GETDISPINFO` time), NOT at ring-drain time. Unchecking a filter, doing some activity, then re-checking it MUST show the events that flowed in while the filter was off, in their original chronological position.
+
+  **Event-type checkboxes** — each defaults to checked. The category-to-event mapping is:
+  - **Motor** → `MOTOR COMMAND ON`, `MOTOR ENGAGED`, `MOTOR COMMAND OFF`, `MOTOR DISENGAGED`
+  - **HeadStep** → `HEAD STEP`
+  - **HeadBump** → `HEAD BUMP`
+  - **AddrMark** → `ADDR MARK`
+  - **Read** → `DATA READ`
+  - **Write** → `DATA WRITE`
   - **Door** → `DISK INSERTED`, `DISK EJECTED`
   - **DriveSelect** → `DRIVE SELECT`
+  - **Audio** (master) → all six audio outcomes (`AUDIO STARTED`, `AUDIO RESTARTED`, `AUDIO CONTINUED`, `AUDIO SILENT`, `AUDIO LOOP STARTED`, `AUDIO LOOP STOPPED`). See FR-014c for sub-filter behavior.
 
-  Filtering MUST be applied as a projection from the deque to the displayed view, not at the ring-drain stage. Unchecking and re-checking a filter MUST cause the previously-hidden rows of that class to become visible in their original chronological position.
+  **Drive filter** — a radio group (or dropdown) with **All** / **Drive 1** / **Drive 2**. Default = All. The filter compares against the drive number recorded with the event. Events that are not drive-specific (none in v1; reserved for future global-controller events) MUST be shown under any drive selection.
+
+  **Track filter** and **Sector filter** — text inputs. Empty matches all. See FR-014a and FR-014b for syntax. Filtering is purely literal against what the controller emits — no max-value validation — because copy-protected disks can emit anything.
+
+  There is NO volume filter. Volume number remains visible inside the `ADDR MARK` detail string (always formatted as `T<n> S<n> V<n>`, so it is grep-able in the Detail column and copy-pasteable via FR-019), but a dedicated filter widget would be useless: a single disk virtually always has a single volume, so a volume filter would either show everything or nothing.
+
+- **FR-014a (Track-filter syntax)**: The Track filter text input MUST accept:
+  - **Integer whole-tracks** — `17` matches track 17.
+  - **Decimal quarter-tracks** — `17.25`, `17.5`, `17.75` (any of `.0`, `.25`, `.5`, `.75`).
+  - **Raw quarter-track integers** when a "raw qt" checkbox alongside the input is set — `68` then matches quarter-track 68 (= track 17.0).
+  - **Inclusive ranges** — `0-2`, `30-34`.
+  - **Comma-separated lists** — `0,17,34`, or mixed `0-2,17,30-34`.
+  - **Empty** — match all tracks.
+
+  The parser MUST NOT reject any 8-bit (or wider) value as "out of range." Whitespace around separators MUST be tolerated. A malformed token (e.g., `abc`) MUST be treated as a no-match for that token only — other valid tokens in the same expression still apply, and the input MUST NOT throw an error or block the rest of the UI.
+
+- **FR-014b (Sector-filter syntax)**: The Sector filter text input MUST accept the same syntax as FR-014a (the "raw qt" toggle is naturally absent — sectors have no sub-units). Stock DOS 3.3 sectors are 0–15; RWTS18 disks (Karateka, Choplifter) emit 0–17; protected disks emit anything. The parser imposes NO max-value validation.
+
+- **FR-014c (Audio sub-filter behavior)**: When the Audio master checkbox is checked, four sub-checkboxes (**Started**, **Restarted**, **Continued**, **Silent**) MUST appear beneath it; each defaults to checked and gates exactly its matching outcome (`AUDIO STARTED` / `AUDIO RESTARTED` / `AUDIO CONTINUED` / `AUDIO SILENT`). `AUDIO LOOP STARTED` and `AUDIO LOOP STOPPED` are gated by the Audio master only (no dedicated loop sub-filter — loops are infrequent). Unchecking the master Audio box MUST hide all audio events regardless of sub-checkbox state and MUST visually disable (grey out) the sub-checkboxes; re-checking the master MUST restore the prior sub-checkbox state.
 - **FR-015 (Pause / Resume button)**: A **Pause** button MUST halt the UI drain timer. Events MUST continue to accumulate in the ring buffer (with drop-with-marker behavior per FR-010 if the ring fills). Pressing **Resume** (the same button toggling label) MUST re-enable the drain on the next timer tick.
 - **FR-016 (Clear button)**: A **Clear** button MUST empty the UI-thread deque and update the ListView's virtual row count to zero. Clear MUST NOT flush the ring buffer — any events still in flight MUST continue to drain into the now-empty deque on subsequent ticks.
 - **FR-017 (Single controller, v1)**: The debug window MUST attach its sink to **controller #0** in the machine config (typically the slot-6 Disk II). If the machine config contains more than one Disk II controller, the window MUST surface a clear "monitoring controller #0 only" indication (e.g., in the window title or a status label) and MUST NOT crash, partially attach, or attempt multi-controller fan-out. Multi-controller support is explicitly deferred (Out of Scope item 1).
 - **FR-018 (Window opened mid-session — no replay)**: Opening the debug window MUST NOT replay historical events. The list MUST start empty. The sink is attached at window construction and detached at destruction; only events fired between those two moments are visible.
-- **FR-019 (Clipboard copy)**: With one or more rows selected in the ListView, pressing **Ctrl+C** MUST copy the selected rows to the clipboard as tab-separated UTF-16 text in the column order (time, cycle, event, detail), one line per row terminated by CRLF. This MUST be implemented via the standard ListView `LVN_GETDISPINFO` clipboard handler or a manual `WM_COPY` responder — either is acceptable.
+- **FR-019 (Clipboard copy)**: With one or more rows selected in the ListView, pressing **Ctrl+C** MUST copy the selected rows to the clipboard as tab-separated UTF-16 text in the visible column order (wall, uptime, cycle, event, detail), one line per row terminated by CRLF. Hidden columns (per FR-026) MUST be omitted. This MUST be implemented via the standard ListView `LVN_GETDISPINFO` clipboard handler or a manual `WM_COPY` responder — either is acceptable.
 - **FR-020 (Backwards compatibility)**: With no sink attached (i.e., the debug window is never opened in a session), the `DiskIIController` MUST behave identically to the pre-feature controller in every observable way: nibble timing, soft-switch latency, sector-read/write byte-identity, head-step cadence. Verified by the existing controller test suite passing byte-identically.
+- **FR-021 (Drive audio event sink)**: A new abstract interface `IDriveAudioEventSink` MUST be declared in `CassoEmuCore/Audio/IDriveAudioEventSink.h`. The interface notifies observers of every audio-trigger *outcome* (the moment `DiskIIAudioSource` decides what to do with a controller event). Methods (all `void`, all infallible):
+  - `OnAudioStarted(SoundKind kind, int drive)` — a new one-shot began from sample 0; the previous shot for that `SoundKind` had already finished or none was playing.
+  - `OnAudioRestarted(SoundKind kind, int drive)` — a new one-shot fired while a previous shot was still playing; the previous shot was cut short and the new one began from sample 0.
+  - `OnAudioContinued(SoundKind kind, int drive)` — the event was acknowledged but the previous shot's tail was deliberately preserved (the spec-005 FR-005 seek-mode case for `HeadStep`).
+  - `OnAudioSilent(SoundKind kind, int drive, SilentReason reason)` — the event fired but no audio is going to play.
+  - `OnAudioLoopStarted(SoundKind kind, int drive)` — a looping sound (motor) began.
+  - `OnAudioLoopStopped(SoundKind kind, int drive)` — a looping sound (motor) stopped.
+
+  `SoundKind` is an `enum class`: `MotorLoop`, `HeadStep`, `HeadStop`, `DoorOpen`, `DoorClose`.
+  `SilentReason` is an `enum class`: `DriveAudioDisabled`, `BufferMissing`, `NoSourceRegistered`, `ColdBootSuppression` (see FR-025).
+- **FR-022 (Audio fire sites in DiskIIAudioSource)**: `DiskIIAudioSource` MUST gain a single `IDriveAudioEventSink* m_audioEventSink` pointer (default `nullptr`) and a `SetAudioEventSink(IDriveAudioEventSink*)` method. Every audio decision made inside its existing event hooks (now `OnMotorEngaged` / `OnMotorDisengaged` per FR-006, plus `OnHeadStep` / `OnHeadBump` / `OnDiskInserted` / `OnDiskEjected`) MUST fire exactly one of the six `IDriveAudioEventSink` methods at the moment the decision is taken. The fire site MUST follow the same `nullptr`-guard pattern as `IDiskIIEventSink` (FR-007). With no sink attached, audio behavior MUST be 100% byte-identical to the pre-feature `DiskIIAudioSource`. `DriveAudioMixer` MAY forward / aggregate as needed (e.g., for per-drive routing).
+- **FR-023 (Single ring, two sinks, category-tagged events)**: Events from both `IDiskIIEventSink` and `IDriveAudioEventSink` MUST flow through the SAME SPSC ring (FR-009). Each ring entry MUST carry an `EventCategory` enum value (`EventCategory::Controller` or `EventCategory::Audio`) so the consumer can route formatting per category. One deque, one ListView, interleaved chronologically by cycle counter. The category enum extends `DiskIIEvent`; the ring's capacity (4,096) is unchanged.
+- **FR-024 (Dialog implements both sinks; shell wires both)**: `DiskIIDebugDialog` MUST implement both `IDiskIIEventSink` and `IDriveAudioEventSink`. `EmulatorShell::OpenDiskIIDebugDialog` MUST attach the dialog to controller #0's `SetEventSink` AND to that controller's associated `DiskIIAudioSource::SetAudioEventSink` in the same lifecycle window — attach on open, revoke both (controller sink first, then audio sink) on close, both BEFORE ring teardown. With no audio source registered for a given drive (e.g., audio subsystem disabled), the audio-sink wiring is a no-op and controller events still flow normally.
+- **FR-025 (Cold-boot insert is logged, audio suppressed)**: When `DiskIIAudioSource` suppresses the disk-insert sound for a cold-boot mount per spec-005 FR-013 (command-line `--disk1`/`--disk2`, last-session restoration, or any mount that occurs before the first emulator slice runs), it MUST still fire `OnAudioSilent(SoundKind::DoorClose, drive, SilentReason::ColdBootSuppression)` so the suppression decision is visible in the debug log. The dialog MUST format this as `AUDIO SILENT` with detail `kind=DoorClose drive=<N> reason=ColdBootSuppression`. The corresponding `OnDiskInserted` from `IDiskIIEventSink` MUST still fire as normal — the suppression is purely an audio decision, not a controller-event decision.
+- **FR-026 (Column show/hide via header context menu)**: The ListView column header MUST respond to right-click (`NM_RCLICK` on the header subcontrol, or `WM_CONTEXTMENU` while the header has focus) by displaying a popup menu with one checkbox item per column: **Wall**, **Uptime**, **Cycle**, **Event**, **Detail**. The item is checked iff the column is currently visible. Selecting an item toggles visibility:
+  - **Hide** = set the column width to 0 via `ListView_SetColumnWidth(...)`. The column's prior width (whether the default constant or a user-dragged value) MUST be saved in a per-column shadow array so it can be restored.
+  - **Show** = restore the saved width, or fall back to the default constant if no width was saved.
+
+  All five columns MUST appear in the menu regardless of current state; hiding all five is permitted (the user sees a blank ListView and re-shows columns via the same menu).
 
 ### Non-Functional Requirements
 
@@ -158,15 +215,20 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 - **NFR-003 (Memory footprint)**: Ring buffer at 4,096 entries × ~24 bytes/event = ~96 KB. Deque cap at 100,000 entries × ~80 bytes/formatted entry = ~8 MB worst case. These are accepted (NFR comment, not a hard limit).
 - **NFR-004 (Dialog responsiveness)**: The UI drain + ListView count update MUST complete in well under one frame at 30 Hz (< 33 ms) for any drain batch the 4,096-entry ring can hold. The ListView's `LVN_GETDISPINFO` callback MUST be O(1) per visible row (deque random access by index).
 - **NFR-005 (Constitution compliance)**: All new code MUST follow `.specify/memory/constitution.md`: `Pch.h` first include, EHM error pattern on fallible functions, variable declarations at top of scope with column alignment + pointer column, function-call spacing (`fn (arg)` non-empty, `fn()` empty), C-style cast spacing (`(float) value`), 5 blank lines between top-level constructs, 3 blank lines after top-of-function variable blocks, American English, PascalCase file names, Hungarian for file-scope statics, `std::numbers` for math constants.
+- **NFR-006 (Column show/hide is in-session only)**: The show/hide column state, and any user-dragged column widths, MUST NOT persist across dialog opens or emulator launches. Closing and reopening the dialog returns all columns to their default widths and visible state. Persistence via the existing `HKCU\Software\relmer\Casso\Machines\<MachineName>\` registry tier is explicitly deferred to a follow-up feature (added to Out of Scope item 3).
 
 ### Key Entities
 
-- **`IDiskIIEventSink`** — Abstract notification interface fired by `DiskIIController` at every observable controller event (motor, head, address mark, data mark, drive select, disk insert/eject). Ten infallible methods, all `void`. The contract decouples the controller from any specific consumer (debug window today, profiler or replay-recorder tomorrow). See FR-006.
-- **`DiskIIEvent`** — A small POD struct queued from the CPU thread into the ring buffer. Members: event-type enum, CPU cycle counter snapshot, plus a per-type union/struct for the integer payload (track/sector/volume for address mark, prev/new qt for step, drive number, etc.). Bounded to ~24 bytes for ring-footprint efficiency (NFR-003).
-- **`DiskIIEventDisplay`** — The UI-thread deque entry. Holds the pre-formatted time string, pre-formatted cycle string, event-type enum (for filter projection), pre-formatted detail string. Producing this struct is the boundary at which CPU-thread events become UI-thread display rows. Bounded to ~80 bytes including small-string-optimized formatting buffers.
-- **`DiskIIEventRing`** — SPSC lock-free ring buffer of 4,096 `DiskIIEvent` entries. Single producer = CPU emulation thread; single consumer = UI thread. `TryPush` is wait-free; `TryPopAll` (drain) is wait-free. Overflow returns a count of dropped events (FR-010).
+- **`IDiskIIEventSink`** — Abstract notification interface fired by `DiskIIController` at every observable controller event (motor lifecycle, head, address mark, data mark, drive select, disk insert/eject). Twelve infallible methods, all `void`. The contract decouples the controller from any specific consumer (debug window today, profiler or replay-recorder tomorrow). See FR-006.
+- **`IDriveAudioEventSink`** — Abstract notification interface fired by `DiskIIAudioSource` at every audio-decision moment (Started / Restarted / Continued / Silent for one-shots, LoopStarted / LoopStopped for the motor loop). Six infallible methods. Lets a consumer reason about *why* a controller event did or did not produce audio. See FR-021.
+- **`SoundKind`** — `enum class` enumerating the audio one-shots / loops a Disk II drive can produce: `MotorLoop`, `HeadStep`, `HeadStop`, `DoorOpen`, `DoorClose`. Used as the `kind` parameter on every `IDriveAudioEventSink` method.
+- **`SilentReason`** — `enum class` enumerating the four reasons `OnAudioSilent` may fire: `DriveAudioDisabled` (user toggled audio off in Options), `BufferMissing` (the sample buffer for the requested `SoundKind` failed to load — FR-009 of spec-005 graceful degradation), `NoSourceRegistered` (no `DiskIIAudioSource` is registered for the active drive), `ColdBootSuppression` (the disk-insert sound was suppressed because the mount happened during cold boot — FR-013 of spec-005, FR-025 of this spec).
+- **`EventCategory`** — `enum class` with two values: `Controller` and `Audio`. Tags every `DiskIIEvent` so the consumer's formatter routes per category. See FR-023.
+- **`DiskIIEvent`** — A small POD struct queued from the CPU thread into the ring buffer. Members: `EventCategory` tag, event-type enum (covering both controller and audio outcomes), CPU cycle counter snapshot, plus a per-type union/struct for the integer payload (track/sector/volume for address mark, prev/new qt for step, drive number, `SoundKind` + optional `SilentReason` for audio events, etc.). Bounded to ~24 bytes for ring-footprint efficiency (NFR-003).
+- **`DiskIIEventDisplay`** — The UI-thread deque entry. Holds the pre-formatted wall string, pre-formatted uptime string, pre-formatted cycle string, event-type enum + `EventCategory` (for filter projection), drive number (for the Drive filter), track / sector numbers when present (for the Track/Sector filters), and pre-formatted detail string. Producing this struct is the boundary at which CPU-thread events become UI-thread display rows. Bounded to ~96 bytes including small-string-optimized formatting buffers.
+- **`DiskIIEventRing`** — SPSC lock-free ring buffer of 4,096 `DiskIIEvent` entries shared by both sinks (FR-023). Single producer = CPU emulation thread; single consumer = UI thread. `TryPush` is wait-free; `TryPopAll` (drain) is wait-free. Overflow returns a count of dropped events (FR-010).
 - **`DiskIIAddressMarkWatcher`** — Passive nibble-stream observer with two independent state machines: address-mark prologue+4-and-4 decoder and data-mark prologue+epilogue counter. Owns the most-recently-seen address-mark sector number (for data-mark fallback per FR-005). Fully read-only with respect to the existing nibble engine (FR-008).
-- **`DiskIIDebugDialog`** — The modeless Win32 debug window. Owns the UI timer, the deque, the projection cache, the filter checkbox state, and the pause flag. Hosts the virtual-mode ListView. Lifecycle: construct → `SetEventSink` on controller → drain on timer → close detaches sink before destroying ring.
+- **`DiskIIDebugDialog`** — The modeless Win32 debug window. Implements both `IDiskIIEventSink` (FR-006) and `IDriveAudioEventSink` (FR-021). Owns the UI timer, the deque, the projection cache, the filter state (event-type checkboxes, drive radio, track/sector text inputs, audio sub-checkboxes), the column-visibility shadow array (FR-026), and the pause flag. Hosts the virtual-mode ListView. Lifecycle: construct → `SetEventSink` on controller, `SetAudioEventSink` on audio source → drain on timer → close revokes both sinks before destroying the ring.
 - **Disk II address mark** — The `D5 AA 96` prologue + 4-and-4 encoded fields (volume, track, sector, checksum) + `DE AA EB` epilogue that identifies each sector on a Disk II disk.
 - **Disk II data mark** — The `D5 AA AD` prologue + 342 6-and-2 nibbles + `DE AA EB` epilogue that holds 256 bytes of sector data.
 
@@ -184,6 +246,17 @@ A developer is investigating why a specific copy-protected disk (e.g., Karateka)
 - **SC-008**: Mounting a known copy-protected WOZ image (e.g., one of the Apple2/Demos/*.woz fixtures with a non-standard volume number) produces `ADDR MARK` rows with the actual decoded volume number (not 254) for sectors that use a custom volume.
 - **SC-009**: Opening the debug window mid-session (10 seconds after a disk has been mounted and is actively reading) starts the list at zero rows; no historical events are replayed; the first visible row is from the next event fired after the window opened.
 - **SC-010**: With the debug window closed and the controller running normally, the absence of an attached sink adds zero measurable cost beyond the per-fire-site `nullptr` check (verified by a microbenchmark of the head-step path with and without the sink-aware controller build).
+- **SC-011 (Audio Started outcome visible)**: With Drive Audio enabled and a populated `Apple2/Sounds/` sample set, the first `HEAD STEP` after a long period of head-quiet MUST produce exactly one `AUDIO STARTED` row with detail `kind=HeadStep` in the debug log within one drain tick.
+- **SC-012 (Audio Restarted outcome visible)**: Triggering two `HEAD STEP` events within the duration of a single `HeadStep` sample MUST produce exactly one `AUDIO STARTED` row followed by exactly one `AUDIO RESTARTED` row, both with `kind=HeadStep`, in the debug log.
+- **SC-013 (Audio Continued outcome visible)**: When a `HEAD STEP` arrives during the spec-005 FR-005 seek-mode window (the previous shot's tail is intentionally preserved), the debug log MUST show exactly one `AUDIO CONTINUED` row with `kind=HeadStep` instead of `AUDIO STARTED` or `AUDIO RESTARTED`.
+- **SC-014 (Audio Silent outcomes visible)**: All four `SilentReason` values MUST be observable under reproducible conditions:
+  - Drive Audio toggled off in Options → any `HEAD STEP` produces `AUDIO SILENT kind=HeadStep reason=DriveAudioDisabled`.
+  - Drive Audio on but the sample buffer for a given `SoundKind` missing → the equivalent event produces `AUDIO SILENT … reason=BufferMissing`.
+  - No audio source registered for the active drive → `AUDIO SILENT … reason=NoSourceRegistered`.
+  - Cold-boot mount → `AUDIO SILENT kind=DoorClose reason=ColdBootSuppression` per FR-025.
+- **SC-015 (Three time columns)**: A cold-boot session produces, on every event row, a `Wall` string in `HH:MM:SS.mmm` form matching system clock, an `Uptime` string in `MM:SS.mmm` form that reads `00:00.???` immediately after a `SoftReset` or `PowerCycle`, and a `Cycle` string that resets to a low value at the same reset. Triggering `SoftReset` MUST cause the Uptime of subsequent events to restart at `00:00.000`.
+- **SC-016 (Filter composition)**: With Drive=Drive 1, Track=`0`, Read checked, all other event-type checkboxes unchecked, and the Audio master unchecked, the debug log during a DOS 3.3 boot MUST show ONLY `DATA READ` rows from Drive 1 reading track 0; no `ADDR MARK`, no `HEAD STEP`, no audio rows, no Drive 2 activity.
+- **SC-017 (Column show/hide)**: Right-clicking the column header MUST show a popup menu with five checkbox items; toggling any item collapses the column to width 0 or restores it to the prior width; closing and reopening the dialog returns all columns to default widths and visible state (per NFR-006).
 
 ## Out of Scope *(mandatory)*
 
@@ -191,28 +264,35 @@ The following items were considered and explicitly deferred. They MAY become fol
 
 1. **Multiple simultaneous Disk II controllers in the debug view** — v1 monitors controller #0 only. A tab control, controller-picker dropdown, or per-controller multiple debug windows is a follow-up.
 2. **Memory dump / disassembly / breakpoints / register watch** — the broader CPU-debugger work tracked in #51 / #59. This feature is a passive event log, not a CPU debugger.
-3. **Persisting filter checkbox state, pause flag, and column widths across launches** — v1 may reset all dialog state to defaults every launch.
+3. **Persisting filter checkbox state, pause flag, column widths, and column show/hide state across launches** — v1 may reset all dialog state to defaults every launch. A follow-up feature MAY use the existing `HKCU\Software\relmer\Casso\Machines\<MachineName>\` registry tier.
 4. **Exporting the log to a file via a Save... button** — Ctrl+C on ListView selection already gives the user a tab-separated copy (FR-019). A dedicated "Save log to file" action is a v2 nicety.
 5. **Per-event color coding, severity highlighting, or row icons** — v2 polish.
 6. **Decoding 6-and-2 data-mark nibbles into actual byte values** — v1 reports only the count of nibbles observed between data-mark prologue and epilogue. Full nibble-to-byte decoding for display is a separate feature.
 7. **Per-track / per-sector statistics panel** — out of scope; v1 is a raw event log only.
 8. **Recording the event stream to a file for offline replay** — out of scope; v1 is live-only.
-9. **Filter combinations beyond the five checkbox classes** — no per-event-type filtering, no "show only sector N", no regex filters. Out of scope for v1.
+9. **Filter combinations beyond the documented set** — no regex filters, no "show only sector N if it follows track M" cross-event predicates, no custom user-defined filter expressions. The Event-type / Drive / Track / Sector / Audio-sub filter set in FR-014 is the v1 envelope.
 10. **Save-state of debug-window state** — Casso has no save-state subsystem; not applicable.
+11. **Volume filter widget** — explicitly dropped (see FR-014). A single disk virtually always has a single volume; a volume filter would either show everything or nothing. Volume remains visible inside the `ADDR MARK` detail string.
 
 ## Assumptions
 
-- **A-001 (Time-of-day clock origin)**: The Time column shows wall-clock time **relative to emulator startup** (i.e., `00:00:00.000` is the moment `EmulatorShell` finished initialization, and times increase from there). Rationale: a 24-hour wall clock places the developer mentally outside the emulator's timeline; a relative clock makes "this event happened 4.512 seconds into the boot" trivially visible. [NEEDS CLARIFICATION: confirm relative-to-startup vs. relative-to-most-recent-reset vs. wall-clock-HH:MM:SS — the spec assumes relative-to-startup until told otherwise.]
+- **A-001 (Wall / Uptime time origins)**: The **Wall** column shows the host's local wall-clock time as `HH:MM:SS.mmm`, drawn from `std::chrono::system_clock` once per event-format pass. The **Uptime** column shows time relative to the most recent //e reset or power-cycle (FR-004a), drawn from a `std::chrono::steady_clock` anchor that is re-seeded on `MachineShell::SoftReset` and `MachineShell::PowerCycle` (and on emulator-process startup for the pre-first-reset window). Rationale: Wall correlates with external real-world events (other tools, video captures); Uptime gives "this event happened 4.512 seconds into the boot" at a glance. The previously-noted relative-to-startup option was rejected because an early Ctrl+Reset would leave Uptime lying about the disk-debugging timeline.
 - **A-002 (CPU cycle counter)**: The cycle counter displayed in the Cycle column is the cumulative 6502 cycle count since the most recent reset (i.e., the value already maintained by the CPU emulator and currently consumed by `DiskIIController::Tick()` for spindown timing). Resets clear the counter; soft resets do not (matching real hardware).
 - **A-003 (Existing DiskIIController invariants)**: `HandlePhase()` correctly computes `qtDelta` and clamps `m_quarterTrack` to `[0, kMaxQuarterTrack]`, and `Tick()` correctly handles the post-soft-switch spindown. The new `OnHeadStep` / `OnHeadBump` fire sites and the address-mark watcher rely on these invariants, which Feature 005 already validated and shipped.
 - **A-004 (Single CPU emulation thread is the sole producer)**: All event-sink fire sites are reached only from `ExecuteCpuSlices()` on the CPU emulation thread. The UI thread never directly invokes controller methods. This is the basis for the SPSC ring's correctness (no multi-producer synchronization required).
 - **A-005 (Win32 ListView virtual mode is available)**: The shell runs against Common Controls v6 (already required by the existing dialogs); `LVS_OWNERDATA` and `LVN_GETDISPINFO` are available on every supported Windows target (10/11, x64 and ARM64).
 - **A-006 (Menu integration)**: `Casso/MenuSystem.{h,cpp}` accepts a new View-menu item and accelerator-table entry without architectural change. The same pattern Feature 005 used for `IDM_VIEW_OPTIONS` applies.
 - **A-007 (No machine-config schema change needed)**: The set of `DiskIIController` instances enumerated by the active `MachineConfig` is already accessible to `EmulatorShell` (same access path used by Feature 005's drive-audio source registration). No machine-config XML/JSON schema change is needed for v1.
-- **A-008 (Dialog can be designed in code, no .rc dialog template)**: Mirroring `OptionsDialog`'s approach (programmatic control creation in `WM_INITDIALOG`), the debug window's controls (ListView, filter checkboxes, Pause and Clear buttons) may be created in code without a dedicated `.rc` dialog template. The menu and accelerator additions are the only `Casso.rc` touch points.
+- **A-008 (Dialog can be designed in code, no .rc dialog template)**: Mirroring `OptionsDialog`'s approach (programmatic control creation in `WM_INITDIALOG`), the debug window's controls (ListView, filter checkboxes / radio / text inputs, Pause and Clear buttons) may be created in code without a dedicated `.rc` dialog template. The menu and accelerator additions are the only `Casso.rc` touch points.
+- **A-009 (Forward compatibility for OnMotorAtSpeed)**: A future `OnMotorAtSpeed()` event will land with issue #67 (Disk II copy-protection fidelity) when motor spin-up timing is actually modeled. The debug log will then show `MOTOR AT SPEED` as a separate event ~70 ms after `MOTOR ENGAGED`, and reads attempted before AT SPEED will fire a new `READ_DURING_SPINUP` event (a copy-protection diagnostic). Out of scope for v1 — no spin-up window is modeled today — but the four-event motor lifecycle in FR-006 leaves room for the fifth method to be added without re-architecting consumers.
 
 ## Glossary
 
+- **Wall (column)** — Local wall-clock time as `HH:MM:SS.mmm`. Used to correlate emulator events with external real-world events (video captures, other tool logs).
+- **Uptime (column)** — Relative time as `MM:SS.mmm` since the most recent //e reset or power-cycle. The natural T=0 for disk debugging; both `SoftReset` and `PowerCycle` zero it.
+- **EventCategory** — Tagging enum (`Controller` / `Audio`) carried on every `DiskIIEvent` so the consumer's formatter routes per category. Events from both `IDiskIIEventSink` and `IDriveAudioEventSink` flow through the same SPSC ring (FR-023).
+- **SoundKind** — `enum class` enumerating drive-audio one-shots and loops: `MotorLoop`, `HeadStep`, `HeadStop`, `DoorOpen`, `DoorClose`.
+- **SilentReason** — `enum class` enumerating why `OnAudioSilent` fired: `DriveAudioDisabled`, `BufferMissing`, `NoSourceRegistered`, `ColdBootSuppression`.
 - **qt / quarter-track** — Disk II head positioning unit. A full physical track is 4 quarter-tracks; the full 35-track surface is 140 quarter-track positions (0..139). The head can be parked at half-track or quarter-track positions; copy-protection schemes exploit this.
 - **Address mark** — The `D5 AA 96` prologue + 4-and-4 encoded fields (volume, track, sector, checksum where `checksum = volume XOR track XOR sector`) + `DE AA EB` epilogue that identifies each sector on a Disk II disk. Every sector on a stock DOS 3.3 disk has one.
 - **Data mark** — The `D5 AA AD` prologue + 342 6-and-2 encoded nibbles + `DE AA EB` epilogue that holds 256 bytes of sector data. Follows the address mark for its sector.
