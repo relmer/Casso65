@@ -371,8 +371,10 @@ void DiskIIAudioSource::OnHeadStep (int newQt)
 {
     (void) newQt;
 
-    bool   withinSeekWindow = false;
-    uint64_t  gap           = 0;
+    bool      withinSeekWindow = false;
+    bool      previousStillPlaying = false;
+    uint64_t  gap                  = 0;
+    uint32_t  headLen              = 0;
 
     if (m_lastStepCycle != 0 && m_currentCycle >= m_lastStepCycle)
     {
@@ -380,16 +382,26 @@ void DiskIIAudioSource::OnHeadStep (int newQt)
         withinSeekWindow = (gap < kSeekThresholdCycles);
     }
 
-    if (withinSeekWindow)
+    if (m_headBuf != nullptr)
     {
-        // Already in (or entering) a seek burst. Hold the current
-        // head sample's tail; do not restart -- that's the FR-005
-        // "no click-click-click" invariant.
+        headLen              = static_cast<uint32_t> (m_headBuf->size());
+        previousStillPlaying = (headLen > 0 && m_headPos < headLen);
+    }
+
+    if (withinSeekWindow && previousStillPlaying)
+    {
+        // Tight seek burst AND the previous head one-shot has not
+        // finished decaying. Hold its tail; do not restart -- that
+        // preserves the FR-005 "no click-click-click" invariant.
         m_seekMode = true;
     }
     else
     {
-        m_seekMode = false;
+        // Either a fresh single step (gap >= kSeekThresholdCycles)
+        // OR a seek burst whose previous sample already ran out.
+        // In both cases restart from sample 0 so the listener hears
+        // a continuous buzz, not silence-with-occasional-clicks.
+        m_seekMode = withinSeekWindow;
         m_headBuf  = &m_stepBuf;
         m_headPos  = 0;
     }
