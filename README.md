@@ -10,7 +10,7 @@
 
 A few major capability waves landed between v1.3.509 and v1.3.696. Headlines below; see [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
-### Disk II audio (v1.3.696, spec 005)
+### Disk II audio (v1.3.696)
 
 Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline alongside the //e speaker:
 
@@ -30,7 +30,7 @@ Drop `Casso.exe` anywhere, double-click, and the rest happens:
 - **Lost your Machines/ folder?** The three default machine configs (`Apple ][`, `Apple ][+`, `Apple //e`) are bundled inside `Casso.exe` and extracted on demand.
 - **Moved your install?** Per-machine remembered disks are stored as paths relative to `Casso.exe`, so the whole `Casso.exe` + `Disks/` tree is portable.
 
-### Apple //e fidelity (v1.3.509, spec 004)
+### Apple //e fidelity (v1.3.509)
 
 Casso became a real Apple //e — not just a 6502 host that draws text:
 
@@ -195,9 +195,9 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 
 - [x] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) ([#7](https://github.com/relmer/Casso/issues/7))
 - [x] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso/issues/29), [#38](https://github.com/relmer/Casso/issues/38))
-- [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR (spec 004)
-- [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject (spec 004)
-- [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime View → Options... → Drive Audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer (spec 005)
+- [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR
+- [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject
+- [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime View → Options... → Drive Audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
 - [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
 - [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
 
