@@ -233,12 +233,11 @@ static HRESULT LoadMachineConfig (
         CBRN (diskGood,
               format (L"Disk image not found:\n{}", inoutDisk1Path).c_str());
 
-        auto        diskSize  = fs::file_size (diskPath);
-        bool        validSize = (diskSize == 143360);
-
-        CBRN (validSize,
-              format (L"Disk image '{}' is not a valid .dsk file\n(expected 143360 bytes, got {} bytes)",
-                      inoutDisk1Path, static_cast<int64_t> (diskSize)).c_str());
+        // Format-specific validation (size, header, magic) happens
+        // inside DiskImageStore::Mount, which dispatches on the file
+        // extension (.dsk / .do / .po / .woz / ...). Don't pre-flight
+        // a size check here -- WOZ and ProDOS images aren't 143360
+        // bytes and used to be rejected as "not a valid .dsk file".
     }
 
 Error:
