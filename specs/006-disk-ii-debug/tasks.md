@@ -454,19 +454,22 @@ filter checkboxes, buttons. Render an empty list.
       `std::vector<uint32_t> m_filteredIndices`,
       `DebugDialogProjection m_projection`,
       `FilterState m_filter`, `bool m_paused`,
-      `int m_columnSavedWidth[5]`,
+      `std::array<LogicalColumn, 5> m_columns`,
       `UINT_PTR m_timerId`. (FR-001..FR-004, FR-009, FR-011, FR-014,
-      FR-021, FR-023, FR-024, FR-026)
+      FR-021, FR-023, FR-024, FR-026, FR-027)
 - [ ] T051 Create `Casso/DiskIIDebugDialog.cpp`. Implement `Create`
       (programmatic `CreateWindowEx` for an overlapped, sizeable window
       with the standard frame; size and position from named constants).
       In `WM_CREATE` / `WM_INITDIALOG`-equivalent: create the ListView
-      (`LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS`), **5 columns**
-      per FR-004 (Wall, Uptime, Cycle, Event, Detail) with default
-      widths from named constants `kColWallWidth = 110`,
-      `kColUptimeWidth = 90`, `kColCycleWidth = 110`,
-      `kColEventWidth = 110`, `kColDetailWidth = 360` (sum ≈ 790 px).
-      Seed `m_columnSavedWidth[0..4]` to these defaults (FR-026).
+      (`LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS`). Seed
+      `m_columns[0..4]` with id / headerText / `defaultWidth` (from
+      named constants `kColWallWidth = 110`, `kColUptimeWidth = 90`,
+      `kColCycleWidth = 110`, `kColEventWidth = 110`,
+      `kColDetailWidth = 360`) / `savedWidth = defaultWidth` /
+      `visible = true` / `autoSizedYet = false`. Call `RebuildListViewColumns()`
+      (see Phase 10a / T106) to populate the LV's column set from the
+      logical model; this also runs the FR-027 first-time auto-size
+      pass on each visible column. (FR-026, FR-027)
       Create the FR-014 filter controls above the ListView:
       - Event-type checkboxes (Motor, HeadStep, HeadBump, AddrMark,
         Read, Write, Door, DriveSelect, Audio-master), all initially
@@ -479,7 +482,7 @@ filter checkboxes, buttons. Render an empty list.
         unchecked (FR-014c).
       - Pause and Clear buttons.
       (FR-001, FR-003, FR-004, FR-014, FR-014a, FR-014b, FR-014c,
-      FR-026)
+      FR-026, FR-027)
 - [ ] T052 Implement window-class registration (lazy, on first `Create`)
       using a file-scope `static const wchar_t g_pszDebugWndClass[] =
       L"CassoDiskIIDebugWindow";`. Hungarian per constitution. Register
@@ -492,8 +495,10 @@ filter checkboxes, buttons. Render an empty list.
       to "all event-type checkboxes set, Drive=All, empty Track/Sector
       predicates, Audio master checked, all four audio sub-toggles
       checked" (FR-014, FR-014c), `m_paused` defaults to false,
-      `m_columnSavedWidth` is seeded with the five default constants
-      on construction (FR-026). No `HWND` is created.
+      `m_columns` is seeded with five `LogicalColumn` entries in id
+      order, each with `visible = true`, `autoSizedYet = false`, and
+      `defaultWidth == savedWidth` from the five named constants
+      (FR-026). No `HWND` is created.
       (FR-014, FR-014c, FR-015, FR-026)
 - [ ] T055 [GATE] Build the shell, manually open the dialog from a debug
       menu stub, verify the empty window renders with 5 columns
@@ -522,12 +527,15 @@ filter checkboxes, buttons. Render an empty list.
 - [ ] T062 Implement `LVN_GETDISPINFO` handler. Translate the `iItem`
       index via `m_filteredIndices[iItem]` (Phase 7 populates this
       vector; until then, seed it with the identity mapping
-      `[0, 1, ... deque.size()-1]`). For each requested column, return
-      the appropriate string from `m_deque[deqIdx]`. The column index
-      `iSubItem` MUST map to the visible-column ordinal; hidden columns
-      (FR-026, width 0) are skipped naturally by Windows since the LV
-      does not request data for zero-width columns. (FR-003, FR-005,
-      FR-026)
+      `[0, 1, ... deque.size()-1]`). For each requested column, the
+      ListView's `iSubItem` is the **visible-subset ordinal** — map it
+      back to the `LogicalColumn::id` via the active visible-subset
+      list (kept by `RebuildListViewColumns`, e.g., a small
+      `std::array<int, 5> m_visibleOrdinalToLogicalId` rebuilt every
+      time the column set changes). Use the resolved logical id to
+      pick the right field of `m_deque[deqIdx]`. Hidden columns are
+      simply absent from the LV, so the dispatcher never sees their
+      ordinal. (FR-003, FR-005, FR-026, FR-027)
 - [ ] T063 [P] Add a `DiskIIDebugDialogTests.cpp` headless test for the
       auto-tail decision function: extract the `wasAtTail` computation
       into a free function `bool ComputeWasAtTail (int topIndex, int
@@ -696,47 +704,71 @@ filter checkboxes, buttons. Render an empty list.
 
 ---
 
-## Phase 10a: Column Show/Hide (FR-026)
+## Phase 10a: Column Show/Hide (FR-026 / FR-027)
 
 **Purpose**: Right-click the column header to toggle individual column
-visibility. In-session only — closing the dialog returns all columns
-to their default widths (NFR-006).
+visibility via a logical column model. Hidden columns are absent from
+the ListView entirely; show/hide rebuilds the LV's column set from
+the logical model. In-session only — closing the dialog returns all
+columns to their default state (NFR-006).
 
-- [ ] T106 In `DiskIIDebugDialog.cpp`, install a header subclass (or
-      handle the `LVN_*` / `HDN_*` notifications) so right-clicks on
-      the ListView header subcontrol surface as `NM_RCLICK` on the
-      header HWND, or `WM_CONTEXTMENU` while the header has focus.
-      Build a popup menu via `CreatePopupMenu` + `AppendMenu` with
-      five `MFT_STRING | MFS_CHECKED`-or-`MFS_UNCHECKED` items:
-      **Wall**, **Uptime**, **Cycle**, **Event**, **Detail**. The
-      checked state of each item MUST reflect
-      `ListView_GetColumnWidth(m_lv, col) > 0`. Display with
-      `TrackPopupMenu` at the cursor location. (FR-026)
-- [ ] T107 On menu-item selection, toggle visibility:
-      - If the column is currently visible (`width > 0`), capture
-        `m_columnSavedWidth[col] = ListView_GetColumnWidth(...)` and
-        then `ListView_SetColumnWidth(m_lv, col, 0)`.
-      - If the column is currently hidden (`width == 0`),
-        `ListView_SetColumnWidth(m_lv, col, m_columnSavedWidth[col])`
-        (or the default constant if for some reason the saved width
-        is 0). Hiding all five columns is allowed — the user sees a
-        blank ListView and can re-show via the same menu.
-      (FR-026)
-- [ ] T108 [P] Add `DiskIIDebugDialogTests.cpp` headless tests for the
-      visibility-toggle helper. Extract the toggle into a free function
-      `int ComputeNewColumnWidth (int currentWidth, int savedWidth, int
-      defaultWidth)` testable without an HWND. Verify:
-      - currentWidth > 0 → saves currentWidth into saved slot, returns 0.
-      - currentWidth == 0, savedWidth > 0 → returns savedWidth.
-      - currentWidth == 0, savedWidth == 0 → returns defaultWidth (fallback).
-      Also verify that a fresh dialog instance seeds
-      `m_columnSavedWidth` with the five default constants (no
-      persistence across construction per NFR-006). (FR-026, NFR-006)
-- [ ] T109 [GATE] Manual: right-click the header, verify the popup menu
-      lists all five columns with correct checkmarks, toggling each
-      hides/shows the column, hiding all five leaves a usable (empty)
-      ListView, closing and reopening the dialog restores all columns
-      to defaults (per NFR-006).
+- [ ] T106 In `DiskIIDebugDialog.cpp`, implement `RebuildListViewColumns()`
+      per `plan.md` §"Column Show/Hide". Iterate `m_columns`, skip
+      `!visible`, delete every existing LV column via a
+      `while (ListView_DeleteColumn (m_lv, 0))` loop, then
+      `ListView_InsertColumn` each visible `LogicalColumn` at the
+      next virtual ordinal using `savedWidth` for `lvc.cx`. For any
+      column whose `autoSizedYet == false`, immediately call
+      `ListView_SetColumnWidth (..., LVSCW_AUTOSIZE_USEHEADER)` and
+      capture the result back into `savedWidth`, then set
+      `autoSizedYet = true` (FR-027). Maintain
+      `m_visibleOrdinalToLogicalId` (see T062). (FR-026, FR-027)
+- [ ] T107 Install a header subclass (or handle the `NM_RCLICK`
+      notification on the ListView's header HWND, or `WM_CONTEXTMENU`
+      while the header has focus). Build a popup menu via
+      `CreatePopupMenu` + `AppendMenu` with five `MFT_STRING |
+      MFS_CHECKED`-or-`MFS_UNCHECKED` items: **Wall**, **Uptime**,
+      **Cycle**, **Event**, **Detail**. The checked state of each
+      item MUST reflect `m_columns[id].visible`. Display with
+      `TrackPopupMenu` at the cursor location. On selection, call
+      `ToggleColumn(id)`: capture current widths back into the model
+      first (so any user-drag that happened since the last rebuild is
+      preserved), flip the `visible` bit, then call
+      `RebuildListViewColumns()`. Hiding all five columns is allowed —
+      the user sees a blank ListView and can re-show via the same
+      menu. (FR-026)
+- [ ] T107b Implement `CaptureCurrentWidthsIntoModel()` and wire it
+      to the `HDN_ENDTRACK` notification from the header subcontrol
+      so user-dragged width changes are written back into the
+      corresponding `LogicalColumn::savedWidth`. This makes drag-then-
+      hide-then-show preserve the user's chosen width. (FR-026)
+- [ ] T108 [P] Add `DiskIIDebugDialogColumnTests.cpp` headless tests
+      for the logical column model and rebuild planner. Extract the
+      "which visible LV columns should I have, and at what widths,
+      given this logical model" computation into a pure helper
+      `std::vector<VisibleColumnSpec> PlanVisibleColumns
+      (const std::array<LogicalColumn, 5> & model)`. Tests:
+      - All five visible, none auto-sized yet → returns five specs,
+        widths = default constants (auto-size happens via a real LV
+        and is exercised separately).
+      - One hidden (e.g., Cycle) → returns four specs in id order,
+        skipping the hidden one.
+      - All hidden → returns empty vector.
+      - Mixed `savedWidth` values (user dragged Detail to 500) →
+        returned spec for Detail uses 500, not the default.
+      - `autoSizedYet == true` for a re-shown column → spec preserves
+        `savedWidth` rather than re-flagging for auto-size.
+      Also verify `ToggleColumn`'s state-machine semantics (flips the
+      bit and calls `RebuildListViewColumns` exactly once per toggle).
+      (FR-026, FR-027, NFR-006)
+- [ ] T109 [GATE] Manual: right-click the header, verify the popup
+      menu lists all five columns with correct checkmarks, toggling
+      each fully removes/restores the column (no zero-width sliver),
+      dragging a column to a custom width then hiding-and-showing it
+      preserves the custom width, hiding all five leaves a usable
+      (empty) ListView, closing and reopening the dialog restores all
+      columns to defaults with first-show auto-sizing re-running (per
+      NFR-006).
 
 ---
 

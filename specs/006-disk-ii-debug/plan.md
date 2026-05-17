@@ -229,7 +229,9 @@ sink-attach pattern from Feature 005's drive-audio wiring).
                 │   ─ filter state (event-type checkboxes,       │
                 │     Drive radio, Track/Sector text inputs,     │
                 │     Audio sub-checkboxes), pause flag,         │
-                │     column-visibility shadow widths (FR-026)   │
+                │     logical column model std::array            │
+                │     <LogicalColumn, 5> (id/header/default-     │
+                │     Width/savedWidth/visible) per FR-026       │
                 │   ─ DebugDialogProjection (testable helper)    │
                 │                                                │
                 │   CPU thread → IDiskIIEventSink methods        │
@@ -319,9 +321,12 @@ sink-attach pattern from Feature 005's drive-audio wiring).
 7. The ListView's `LVN_GETDISPINFO` handler responds to row-fetch requests
    by indexing into a per-filter index vector — see "Filter Projection
    Architecture" below — and then into `m_deque` (O(1) random access),
-   returning the appropriate string for the requested column. The column
-   index is mapped to the visible-column ordinal (FR-026 may have hidden
-   some columns to width 0).
+   returning the appropriate string for the requested column. The
+   ListView's column index is the **visible-subset ordinal** (per
+   FR-026's logical column model — hidden columns are absent from the
+   ListView entirely, not zero-width). The handler maps the visible
+   ordinal back to the `LogicalColumn::id` via the active visible-subset
+   list.
 
 ### Filter Projection Architecture
 
@@ -370,27 +375,78 @@ maps display-row → deque index. The vector is rebuilt:
 not `m_deque.size()`. `LVN_GETDISPINFO` resolves
 `m_deque[m_filteredIndices[iItem]]`.
 
-### Column Show/Hide (FR-026 / NFR-006)
+### Column Show/Hide (FR-026 / FR-027 / NFR-006)
 
-The dialog owns `int m_columnSavedWidth[5]` (Wall, Uptime, Cycle, Event,
-Detail). On dialog construction, all five entries are seeded with their
-default constants (`kColWallWidth`, etc.). The header right-click handler
-(`NM_RCLICK` from the header subcontrol, or `WM_CONTEXTMENU` while the
-header has focus) builds a `TrackPopupMenu` with five
-`MF_CHECKED`/`MF_UNCHECKED` items. On click:
+The dialog owns a **logical column model** — `std::array<LogicalColumn, 5> m_columns` covering all five user-facing columns in fixed id order (Wall, Uptime, Cycle, Event, Detail):
 
 ```cpp
-bool isHidden = (ListView_GetColumnWidth (m_lv, col) == 0);
-if (isHidden) {
-    ListView_SetColumnWidth (m_lv, col, m_columnSavedWidth[col]);
-} else {
-    m_columnSavedWidth[col] = ListView_GetColumnWidth (m_lv, col);
-    ListView_SetColumnWidth (m_lv, col, 0);
+struct LogicalColumn {
+    int       id;            // 0..4, matches the column-id enum
+    LPCWSTR   headerText;
+    int       defaultWidth;  // from kCol*Width named constants
+    int       savedWidth;    // last known good width (user-dragged or auto-sized)
+    bool      visible;       // user toggle, default true
+    bool      autoSizedYet;  // FR-027: false until first ShowColumn
+};
+```
+
+The ListView holds only the currently-visible subset of columns, in id order. Hidden columns are absent from the ListView entirely; this avoids zero-width-column edge cases and cooperates cleanly with any later auto-sizing.
+
+**Toggle algorithm** (FR-026):
+
+```cpp
+void ToggleColumn (int id)
+{
+    // Capture current widths back into the logical model so a drag
+    // that happened before this toggle is preserved.
+    CaptureCurrentWidthsIntoModel ();
+
+    m_columns[id].visible = !m_columns[id].visible;
+    RebuildListViewColumns ();
+}
+
+void RebuildListViewColumns ()
+{
+    while (ListView_DeleteColumn (m_lv, 0))
+    {
+        // loop until no columns left
+    }
+
+    int  virtualIdx = 0;
+
+    for (LogicalColumn & col : m_columns)
+    {
+        if (!col.visible)
+        {
+            continue;
+        }
+
+        LVCOLUMNW  lvc      = {};
+        lvc.mask            = LVCF_TEXT | LVCF_WIDTH;
+        lvc.pszText         = const_cast<LPWSTR> (col.headerText);
+        lvc.cx              = col.savedWidth;
+
+        ListView_InsertColumn (m_lv, virtualIdx, &lvc);
+
+        // FR-027: first-time-shown columns get a one-time
+        // auto-size-to-header pass.
+        if (!col.autoSizedYet)
+        {
+            ListView_SetColumnWidth (m_lv, virtualIdx, LVSCW_AUTOSIZE_USEHEADER);
+            col.savedWidth    = ListView_GetColumnWidth (m_lv, virtualIdx);
+            col.autoSizedYet  = true;
+        }
+
+        virtualIdx++;
+    }
 }
 ```
 
-NFR-006 explicitly forbids cross-session persistence in v1; closing the
-dialog destroys `m_columnSavedWidth` and the next open re-seeds defaults.
+**User-dragged width capture**: a header `HDN_ENDTRACK` notification triggers `CaptureCurrentWidthsIntoModel ()` — walks the ListView's current columns, maps each back to the corresponding `LogicalColumn` via the visible-subset order, and writes the current width into `savedWidth`. This ensures a subsequent hide/show cycle restores whatever width the user last picked.
+
+The header right-click handler builds a `TrackPopupMenu` with five `MF_CHECKED`/`MF_UNCHECKED` items (one per `LogicalColumn`, checked iff `visible`). Selection invokes `ToggleColumn(id)`.
+
+NFR-006 forbids cross-session persistence in v1; closing the dialog destroys `m_columns` and the next open re-seeds from defaults (and re-runs auto-sizing on first show).
 
 ### Uptime Anchor (FR-004a)
 
